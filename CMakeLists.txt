@@ -85,13 +85,13 @@ set(ENABLE_FRUIT OFF CACHE BOOL "")
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 
-# ... # ################################
-# ... # # Include standard build system logic and options
-# ... # ################################
-# ... # include(cmake/CMakeBasics.cmake)
-#
 set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
+
+# turn off testing if building under MSLib, so that do not have to link ms to have MS_Fail
+if(ENABLE_MSLIB_BUILD)
+    set(ENABLE_TESTS OFF)
+endif(ENABLE_MSLIB_BUILD)
 
 #------------------------------------------------------------------------------
 # Sources
@@ -119,6 +119,9 @@ endif(ENABLE_MSLIB_BUILD)
 #------------------------------------------------------------------------------
 set(SNLS_INCLUDES ${HEADER_INCLUDE_DIR}
                   ${CMAKE_SOURCE_DIR}/snls)
+if(ENABLE_MSLIB_BUILD)
+    list(APPEND SNLS_INCLUDES ${CMAKE_SOURCE_DIR}/ms)
+endif(ENABLE_MSLIB_BUILD)
 
 #------------------------------------------------------------------------------
 # Build Targets
