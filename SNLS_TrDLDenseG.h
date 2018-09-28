@@ -47,14 +47,14 @@ typedef double real8 ;
 #ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
 #else
-#define SNLS_FAIL(loc,str)
+#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
 #endif
 #else
 #ifdef __cuda_host_only__
 #include <stdio.h>
 #define SNLS_FAIL(loc,str) fprintf(stderr, "Failure in %s\n\t%s\n",loc,str) ; fflush(stderr) ; exit(EXIT_FAILURE) ;
 #else
-#define SNLS_FAIL(loc,str)
+#define SNLS_FAIL(loc,str) printf(stderr, "Failure in %s : %s\n",loc,str) ;
 #endif
 #endif
 
