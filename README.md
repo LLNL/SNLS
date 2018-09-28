@@ -69,6 +69,8 @@ The build system is cmake-based.
 
 Dependencies:
 * blt -- required
+  - https://github.com/LLNL/blt
+  - in cmake invocation specify location with `-DBLT_SOURCE_DIR`
 
 TESTING
 ======
