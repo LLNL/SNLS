@@ -17,10 +17,6 @@
 // architectures and was incorporated into SNLS as a placeholder until a more robust solver 
 // is available.
 //
-// This solver originally comes from the Numerical Recipes LU decomposition solver.
-// Modifications have been made to get this to function properly on the GPU. 
-// This port has not been optimized and is not particularly error tolerant.
-//
 // -Brett Wayne-  3-Nov-2017
 //-----------------------------------------------------------------------------------------------
 

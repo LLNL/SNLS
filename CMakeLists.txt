@@ -1,55 +1,6 @@
-#                              COPYRIGHT
 #
-#Copyright 1993-2018, Lawrence Livermore National Security, LLC. All
-#rights reserved.  This work was produced at the Lawrence Livermore
-#National Laboratory (LLNL) under contract no. DE-AC52-07NA27344
-#(Contract 44) between the U.S. Department of Energy (DOE) and Lawrence
-#Livermore National Security, LLC (LLNS) for the operation of
-#LLNL. Copyright is reserved to Lawrence Livermore National Security,
-#LLC for purposes of controlled dissemination, commercialization
-#through formal licensing, or other disposition under terms of Contract
-#44; DOE policies, regulations and orders; and U.S. statutes. The
-#rights of the Federal Government are reserved under Contract 44.
-#
-#                              DISCLAIMER
-#
-#This work was prepared as an account of work sponsored by an agency of
-#the United States Government. Neither the United States Government nor
-#Lawrence Livermore National Security, LLC nor any of their employees,
-#makes any warranty, express or implied, or assumes any liability or
-#responsibility for the accuracy, completeness, or usefulness of any
-#information, apparatus, product, or process disclosed, or represents
-#that its use would not infringe privately-owned rights. Reference
-#herein to any specific commercial products, process, or service by
-#trade name, trademark, manufacturer or otherwise does not necessarily
-#constitute or imply its endorsement, recommendation, or favoring by
-#the United States Government or Lawrence Livermore National Security,
-#LLC. The views and opinions of authors expressed herein do not
-#necessarily state or reflect those of the United States Government or
-#Lawrence Livermore National Security, LLC, and shall not be used for
-#advertising or product endorsement purposes.
-#
-#                        LICENSING REQUIREMENTS
-#
-#Any use, reproduction, modification, or distribution of this software
-#or documentation for commercial purposes requires a license from
-#Lawrence Livermore National Security, LLC. Contact: Lawrence Livermore
-#National Laboratory, Industrial Partnerships Office, P.O. Box 808,
-#L-795, Livermore, CA 94551.
-#
-#The Government is granted for itself and others acting on its behalf a
-#paid-up, nonexclusive, irrevocable worldwide license in this data to
-#reproduce, prepare derivative works, and perform publicly and display
-#publicly.
-#
-#                                ACCESS
-#This code is both Official Use Only (OUO) and Export Controlled.  By
-#DOE Order 471.3. OUO may be exempt from public release under the
-#Freedom of Information Act (5 U.S.C 552), Exemption 2, Circumvention
-#of Statute. Access is on a need-to-know basis and individuals with
-#access must treat it as such.  It may NOT be shared with non
-#US-persons unless licensed by the Department of State.  Violations may
-#result in administrative, civil, or criminal penalties.
+# see README.md for copyright and license information
+# 
 
 cmake_minimum_required(VERSION 3.1)
 if("${CMAKE_VERSION}" VERSION_GREATER 3.3)

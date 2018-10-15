@@ -46,16 +46,7 @@ advertising or product endorsement purposes.
 LICENSING REQUIREMENTS
 ======
 
-Any use, reproduction, modification, or distribution of this software
-or documentation for commercial purposes requires a license from
-Lawrence Livermore National Security, LLC. Contact: Lawrence Livermore
-National Laboratory, Industrial Partnerships Office, P.O. Box 808,
-L-795, Livermore, CA 94551.
-
-The Government is granted for itself and others acting on its behalf a
-paid-up, nonexclusive, irrevocable worldwide license in this data to
-reproduce, prepare derivative works, and perform publicly and display
-publicly.
+... Release for SNLS is in process -- but it is NOT yet released.
 
 ACCESS
 ======
