@@ -13,7 +13,7 @@
 BACKGROUND
 ======
 
-SNLS (small non-linear solver) is a C++ library for solving non-linear systems. The emphasis is on small systems on equations for which direct factorization of the Jacobian is appropriate. The systems of equations may be numerically ill-conditioned. Implementation is amenable to GPU usage, with the idea that class instantiate would occur within device functions.
+SNLS (small non-linear solver) is a C++ library for solving non-linear systems of equations. The emphasis is on small systems of equations for which direct factorization of the Jacobian is appropriate. The systems of equations may be numerically ill-conditioned. Implementation is amenable to GPU usage, with the idea that class instantiation would occur within device functions.
 
 Examples of work that has made use of SNLS or substantially equivalent algorithms:
   * [Journal publication](http://dx.doi.org/10.1063/1.4971654) on use with a porosity mechanics type model
