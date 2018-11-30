@@ -50,6 +50,7 @@ endif(ENABLE_MSLIB_BUILD)
 # Sources
 #------------------------------------------------------------------------------
 set(SNLS_HEADERS
+    SNLS_cuda_portability.h
     SNLS_port.h
     SNLS_lup_solve.h
     SNLS_TrDLDenseG.h)
@@ -124,11 +125,7 @@ endif(ENABLE_TESTS)
 # Install files
 #------------------------------------------------------------------------------
 
-set(SNLS_INSTALLED_HEADERS
-    SNLS_lup_solve.h
-    SNLS_TrDLDenseG.h)
-
-install(FILES ${SNLS_INSTALLED_HEADERS} DESTINATION include)
+install(FILES ${SNLS_HEADERS} DESTINATION include)
 
 if(BUILD_SHARED_LIBS)
     install(TARGETS snls_shared DESTINATION lib)
