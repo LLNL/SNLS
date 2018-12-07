@@ -43,6 +43,15 @@ typedef double real8 ;
 
 #if HAVE_MSLIB
 #include "MS_math.h"
+#else
+#if defined(_WIN32) && __INTEL_COMPILER
+#include <mathimf.h>
+#else
+#include <math.h>
+#endif
+#endif
+
+#if HAVE_MSLIB
 #include "MS_Log.h"
 #ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
@@ -53,7 +62,9 @@ typedef double real8 ;
 #ifdef __cuda_host_only__
 #include <stdio.h>
 #include <exception>
-#define SNLS_FAIL(loc,str) throw std::runtime_error(string("at ") + string(loc) + string(" failure : ") + string(str)) ;
+#include <stdexcept>
+#include <string>
+#define SNLS_FAIL(loc,str) throw std::runtime_error(std::string("at ") + std::string(loc) + std::string(" failure : ") + std::string(str)) ;
 #else
 #define SNLS_FAIL(loc,str) printf(stderr, "ERROR : SNLS failure in %s : %s\n",loc,str) ;
 #endif
