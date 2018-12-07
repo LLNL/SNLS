@@ -42,9 +42,9 @@ set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 
 # turn off testing if building under MSLib, so that do not have to link ms to have MS_Fail
-if(ENABLE_MSLIB_BUILD)
+if (DEFINED MSLIB_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
-endif(ENABLE_MSLIB_BUILD)
+endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Sources
@@ -64,18 +64,18 @@ set(SNLS_SOURCES
 #------------------------------------------------------------------------------
 set(SNLS_DEFINES)
 
-if(ENABLE_MSLIB_BUILD)
+if (DEFINED MSLIB_SOURCE_DIR)
     list(APPEND SNLS_DEFINES HAVE_MSLIB)
-endif(ENABLE_MSLIB_BUILD)
+endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Includes
 #------------------------------------------------------------------------------
 set(SNLS_INCLUDES ${HEADER_INCLUDE_DIR}
                   ${CMAKE_SOURCE_DIR}/snls)
-if(ENABLE_MSLIB_BUILD)
-    list(APPEND SNLS_INCLUDES ${CMAKE_SOURCE_DIR}/ms)
-endif(ENABLE_MSLIB_BUILD)
+if (DEFINED MSLIB_SOURCE_DIR)
+    list(APPEND SNLS_INCLUDES ${MSLIB_SOURCE_DIR})
+endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Build Targets

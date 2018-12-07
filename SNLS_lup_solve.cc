@@ -3,9 +3,7 @@
 
 #include "SNLS_cuda_portability.h"
 
-#if HAVE_MSLIB
-#include "MS_port.h"
-#endif
+#include "SNLS_port.h"
 
 #include "SNLS_lup_solve.h"
 

@@ -5,11 +5,13 @@
 
 #include "SNLS_cuda_portability.h"
 
-//////////////////////////////////////////////////////////////////////
-
 #include "SNLS_port.h"
-#if HAVE_MSLIB
+
+#if HAVE_LAPACK && SNLS_USE_LAPACK
+#if HAVE_MSLIB 
 #include "MS_Matmodel.h"
+// MS fortran wrappers for LAPack solvers
+#include "MS_FortranWrappers.h"
 #else
 
 extern "C" {
@@ -17,7 +19,7 @@ extern "C" {
    int DGETRS(const char* trans, const int* n, const int* nrhs, const double* const A, const int* lda,
               const int* const ipiv, double* b, const int* ldb, int* info);
 }
-
+#endif
 
 #ifdef _WIN32
 #include <mathimf.h>
@@ -42,8 +44,6 @@ typedef double real8 ;
 #if HAVE_MSLIB
 #include "MS_math.h"
 #include "MS_Log.h"
-// MS fortran wrappers for LAPack solvers
-#include "MS_FortranWrappers.h"
 #ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
 #else
@@ -52,9 +52,10 @@ typedef double real8 ;
 #else
 #ifdef __cuda_host_only__
 #include <stdio.h>
-#define SNLS_FAIL(loc,str) fprintf(stderr, "Failure in %s\n\t%s\n",loc,str) ; fflush(stderr) ; exit(EXIT_FAILURE) ;
+#include <exception>
+#define SNLS_FAIL(loc,str) throw std::runtime_error(string("at ") + string(loc) + string(" failure : ") + string(str)) ;
 #else
-#define SNLS_FAIL(loc,str) printf(stderr, "Failure in %s : %s\n",loc,str) ;
+#define SNLS_FAIL(loc,str) printf(stderr, "ERROR : SNLS failure in %s : %s\n",loc,str) ;
 #endif
 #endif
 
