@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="S:\bramwell1\newclone\imports\snls\SNLS_lup_solve.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="S:\bramwell1\newclone\imports\snls\SNLS_TrDLDenseG.cxx">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_cuda_portability.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_port.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_lup_solve.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_TrDLDenseG.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="S:\bramwell1\newclone\imports\snls\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{CA58AA19-C8A5-3109-818D-1B9F181DCFA1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{01FA6FD9-A8E2-3F5B-9F40-C12E1A89B230}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
