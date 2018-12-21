@@ -1,24 +1,24 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="..\SNLS_lup_solve.cc">
+    <ClCompile Include="S:\bramwell1\newclone\imports\snls\SNLS_lup_solve.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\SNLS_TrDLDenseG.cxx">
+    <ClCompile Include="S:\bramwell1\newclone\imports\snls\SNLS_TrDLDenseG.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\SNLS_cuda_portability.h">
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_cuda_portability.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\SNLS_port.h">
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_port.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\SNLS_lup_solve.h">
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_lup_solve.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\SNLS_TrDLDenseG.h">
+    <ClInclude Include="S:\bramwell1\newclone\imports\snls\SNLS_TrDLDenseG.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
