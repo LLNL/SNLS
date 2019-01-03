@@ -65,7 +65,7 @@ set(SNLS_SOURCES
 set(SNLS_DEFINES)
 
 if (DEFINED MSLIB_SOURCE_DIR)
-    list(APPEND SNLS_DEFINES HAVE_MSLIB)
+    list(APPEND SNLS_DEFINES SNLS_HAVE_MSLIB)
 endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
@@ -80,6 +80,10 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 #------------------------------------------------------------------------------
 # Build Targets
 #------------------------------------------------------------------------------
+if(ENABLE_CUDA)
+   set(SNLS_DEPENDS cuda)
+endif()
+
 if(BUILD_SHARED_LIBS)
     blt_add_library(NAME        snls_shared
                     OUTPUT_NAME snls

@@ -8,7 +8,7 @@
 #include "SNLS_port.h"
 
 #if HAVE_LAPACK && SNLS_USE_LAPACK
-#if HAVE_MSLIB 
+#if SNLS_HAVE_MSLIB
 #include "MS_Matmodel.h"
 // MS fortran wrappers for LAPack solvers
 #include "MS_FortranWrappers.h"
@@ -41,7 +41,7 @@ typedef double real8 ;
 
 //////////////////////////////////////////////////////////////////////
 
-#if HAVE_MSLIB
+#if SNLS_HAVE_MSLIB
 #include "MS_math.h"
 #else
 #if defined(_WIN32) && __INTEL_COMPILER
@@ -51,7 +51,7 @@ typedef double real8 ;
 #endif
 #endif
 
-#if HAVE_MSLIB
+#if SNLS_HAVE_MSLIB
 #include "MS_Log.h"
 #ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
@@ -66,7 +66,7 @@ typedef double real8 ;
 #include <string>
 #define SNLS_FAIL(loc,str) throw std::runtime_error(std::string("at ") + std::string(loc) + std::string(" failure : ") + std::string(str)) ;
 #else
-#define SNLS_FAIL(loc,str) printf(stderr, "ERROR : SNLS failure in %s : %s\n",loc,str) ;
+#define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
 #endif
 #endif
 
