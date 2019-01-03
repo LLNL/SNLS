@@ -1,7 +1,7 @@
 #ifndef SNLS_port_h__
 #define SNLS_port_h__
 
-#if HAVE_MSLIB
+#if SNLS_HAVE_MSLIB
 #include "MS_port.h"
 #else
 
@@ -9,7 +9,7 @@
 typedef double real8 ;
 
 #endif
-/* HAVE_MSLIB */
+/* SNLS_HAVE_MSLIB */
 
 #endif
 /* SNLS_port_h__ */
