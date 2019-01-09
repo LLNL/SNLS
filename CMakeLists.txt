@@ -74,7 +74,7 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 set(SNLS_INCLUDES ${HEADER_INCLUDE_DIR}
                   ${CMAKE_SOURCE_DIR}/snls)
 if (DEFINED MSLIB_SOURCE_DIR)
-    list(APPEND SNLS_INCLUDES ${MSLIB_SOURCE_DIR})
+    list(APPEND SNLS_INCLUDES ${MSLIB_SOURCE_DIR}/ms)
 endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
