@@ -8,7 +8,7 @@
 #include "SNLS_port.h"
 
 #if HAVE_LAPACK && SNLS_USE_LAPACK
-#if SNLS_HAVE_MSLIB 
+#if SNLS_HAVE_MSLIB
 #include "MS_Matmodel.h"
 // MS fortran wrappers for LAPack solvers
 #include "MS_FortranWrappers.h"
@@ -66,7 +66,7 @@ typedef double real8 ;
 #include <string>
 #define SNLS_FAIL(loc,str) throw std::runtime_error(std::string("at ") + std::string(loc) + std::string(" failure : ") + std::string(str)) ;
 #else
-#define SNLS_FAIL(loc,str) printf(stderr, "ERROR : SNLS failure in %s : %s\n",loc,str) ;
+#define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
 #endif
 #endif
 

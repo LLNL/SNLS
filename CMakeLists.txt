@@ -80,6 +80,10 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 #------------------------------------------------------------------------------
 # Build Targets
 #------------------------------------------------------------------------------
+if(ENABLE_CUDA)
+   set(SNLS_DEPENDS cuda)
+endif()
+
 if(BUILD_SHARED_LIBS)
     blt_add_library(NAME        snls_shared
                     OUTPUT_NAME snls
