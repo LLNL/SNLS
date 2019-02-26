@@ -83,10 +83,10 @@ typedef double real8 ;
 
 #if SNLSTRDLDG_J_COLUMN_MAJOR
 // column-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)+(q)*nDim
+#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)+(q)*(nDim)
 #else
 // row-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*nDim+(q)
+#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
 #endif
 
 namespace snls {
@@ -136,7 +136,9 @@ public:
 // 		     __snls_hdev__ bool computeRJ( real8* const r, real8* const J, const real8* const x ) ;
 // 		computeRJ function returns true for successful evaluation
 // 		TODO ... J becomes a RAJA::View ?
-//	have trait nDim
+//	have trait nDimSys
+//
+// TODO ...*** specialize to N=1 case, nad N=2 also?
 //
 template< class CRJ >
 class SNLSTrDlDenseG 
@@ -172,7 +174,7 @@ class SNLSTrDlDenseG
 
    public:
       CRJ &_crj ;
-      static const int _nDim = CRJ::nDim ;
+      static const int _nDim = CRJ::nDimSys ;
                
       __snls_hdev__ int    getNDim   () const { return(_nDim  ); };
       __snls_hdev__ int    getNFEvals() const { return(_fevals); };
@@ -715,4 +717,4 @@ class SNLSTrDlDenseG
 
 } // namespace snls
 
-#endif  // MS_SNLS_include
+#endif  // SNLS_TRDLDG_H

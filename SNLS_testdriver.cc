@@ -32,7 +32,7 @@ using namespace std;
 class Broyden
 {
 public:
-   static const int nDim = 8 ;
+   static const int nDimSys = 8 ;
 
    // constructor
    __snls_hdev__  Broyden(double lambda )
@@ -48,6 +48,7 @@ public:
       {
          real8 fn ;
          real8 dfndxn;
+         const int nDim = nDimSys ; // convenience -- less code change below
          
          r[0] = (3-2*x[0])*x[0] - 2*x[1] + 1;
          for (int i=1; i<nDim-1; i++)
@@ -86,7 +87,7 @@ public:
 __snls_device__
 void Test_SNLSBroyden_D (Broyden *broyden)
 {
-   const int nDim = Broyden::nDim ;
+   const int nDim = Broyden::nDimSys ;
    
    *broyden = Broyden( LAMBDA_BROYDEN );
    snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
@@ -142,7 +143,7 @@ void snls::Test_SNLSBroyden_GPU(const int npoints)
 
 int main(int , char ** )
 {
-   const int nDim = Broyden::nDim ;
+   const int nDim = Broyden::nDimSys ;
 
    Broyden broyden( LAMBDA_BROYDEN ) ;
    snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
