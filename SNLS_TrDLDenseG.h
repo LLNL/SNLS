@@ -79,7 +79,7 @@ typedef double real8 ;
 
 //////////////////////////////////////////////////////////////////////
 
-#define SNLSTRDLDG_J_COLUMN_MAJOR 1
+#define SNLSTRDLDG_J_COLUMN_MAJOR 0
 
 #if SNLSTRDLDG_J_COLUMN_MAJOR
 // column-major storage
