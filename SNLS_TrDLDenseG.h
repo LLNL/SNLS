@@ -137,7 +137,7 @@ template<typename CRJ>
 struct is_valid_crj<
    CRJ,typename std::enable_if<
        std::is_same<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<real8* const>(), std::declval<real8* const>(),std::declval<const real8 const*>())),
+           decltype(std::declval<CRJ>().computeRJ(std::declval<real8* const>(), std::declval<real8* const>(),std::declval<const real8 *>())),
            bool  
        >::value,
        void
