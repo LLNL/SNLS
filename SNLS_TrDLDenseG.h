@@ -128,6 +128,23 @@ public:
    bool  _rejectResIncrease ;
 };
 
+
+/** Helper templates to ensure compliant CRJ implementations */
+template<typename CRJ, typename = void>
+struct is_valid_crj : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct is_valid_crj<
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CRJ>().computeRJ(std::declval<real8* const>(), std::declval<real8* const>(),std::declval<const real8 const*>())),
+           bool  
+       >::value,
+       void
+   >::type
+
+>: std::true_type { static constexpr bool value = true;};
+
 // trust region type solver, dogleg approximation
 // for dense general Jacobian matrix
 //
@@ -147,7 +164,7 @@ class SNLSTrDlDenseG
       static const int niMult   =  1;
 
    public:
-
+   static_assert(is_valid_crj<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( real8* const r, real8* const J, const real8* const x )");
    // constructor
    __snls_hdev__ SNLSTrDlDenseG(CRJ &crj) :
                _crj(crj),
