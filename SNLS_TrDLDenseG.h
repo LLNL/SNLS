@@ -197,12 +197,15 @@ class SNLSTrDlDenseG
          _ntemp       = &(_nxStorage[_nDim*7]) ;
          _p           = &(_nxStorage[_nDim*8]) ;
          _rScratch    = &(_nxStorage[_nDim*9]) ;
+         // nxMult
    
          _J           = &(_nxXxStorage[0]) ;
          _J0          = &(_nxXxStorage[_nXnDim]) ;
          _JScratch    = &(_nxXxStorage[_nXnDim*2]) ;
+         // nxXxMult
    
          _ipiv        = &(_niStorage[0]) ;
+         // niMult
    
          _status = unConverged ;
          _fevals = 0 ;
@@ -583,8 +586,7 @@ class SNLSTrDlDenseG
          for (int i=0; (i<(n*n)); ++i ) { _JScratch[i] = _J[i]; }
 #endif
 
-         real8 tol = 1.0e-50;                                      // tol = (really small value for LUP pivoting)
-         int   err = SNLS_LUP_Solve(_JScratch,newton,_r,n,tol);      // J = LUP_Solve(J,newton,r)
+         int   err = SNLS_LUP_Solve(_JScratch,newton,_r,n);      // J = LUP_Solve(J,newton,r)
          //
          for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }     // newton = -newton
 
