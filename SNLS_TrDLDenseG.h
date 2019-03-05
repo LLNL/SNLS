@@ -128,6 +128,38 @@ public:
    bool  _rejectResIncrease ;
 };
 
+
+/** Helper templates to ensure compliant CRJ implementations */
+template<typename CRJ, typename = void>
+struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_valid_computeRJ <
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CRJ>().computeRJ(std::declval<real8* const>(), std::declval<real8* const>(),std::declval<const real8 *>())),
+           bool  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
+template<typename CRJ, typename = void>
+struct has_ndim : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_ndim <
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(CRJ::nDim),
+           const int  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
 // trust region type solver, dogleg approximation
 // for dense general Jacobian matrix
 //
@@ -144,12 +176,13 @@ template< class CRJ >
 class SNLSTrDlDenseG 
 {
    public:
+      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( real8* const r, real8* const J, const real8* const x )");
+      static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDim' to represent the number of dimensions");
       static const int nxMult   = 10; // TODO ... may eventually be able to reduce this
       static const int nxXxMult =  3; // TODO ... may eventually be able to reduce this -- maybe do not need scratch space if factor Jacobian in-place, but may then need to guarantee that have doen and matrix-vector multiply first (computeSysMult for getting _ngrad -- maybe meaning that get rid of computeSysMult (or making it non-public) so that people do not think that we have stored a J that is good for multiplies)
       static const int niMult   =  1;
 
    public:
-
    // constructor
    __snls_hdev__ SNLSTrDlDenseG(CRJ &crj) :
                _crj(crj),
@@ -162,7 +195,8 @@ class SNLSTrDlDenseG
                _J0(NULL), _JScratch(NULL),
                _ipiv(NULL),
                _status(unConverged)
-               {};
+               {
+               };
    // destructor
    __snls_hdev__ ~SNLSTrDlDenseG() {
 #ifdef __cuda_host_only__
