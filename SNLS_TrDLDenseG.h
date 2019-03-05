@@ -152,7 +152,7 @@ template<typename CRJ>
 struct has_ndim <
    CRJ,typename std::enable_if<
        std::is_same<
-           decltype(CRJ::nDim),
+           decltype(CRJ::nDimSys),
            const int  
        >::value
        ,
@@ -177,7 +177,7 @@ class SNLSTrDlDenseG
 {
    public:
       static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( real8* const r, real8* const J, const real8* const x )");
-      static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDim' to represent the number of dimensions");
+      static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
       static const int nxMult   = 10; // TODO ... may eventually be able to reduce this
       static const int nxXxMult =  3; // TODO ... may eventually be able to reduce this -- maybe do not need scratch space if factor Jacobian in-place, but may then need to guarantee that have doen and matrix-vector multiply first (computeSysMult for getting _ngrad -- maybe meaning that get rid of computeSysMult (or making it non-public) so that people do not think that we have stored a J that is good for multiplies)
       static const int niMult   =  1;
