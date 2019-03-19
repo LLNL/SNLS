@@ -156,9 +156,11 @@ int main(int , char ** )
       x[iX] = 0e0 ;
    }
    //
-   real8 r[nDim], J[nDim*nDim] ;
+   // real8 r[nDim], J[nDim*nDim] ;
+   real8* r = solver.getRPntr() ;
+   real8* J = solver.getJPntr() ;
    //
-   solver._crj.computeRJ(&(r[0]), &(J[0]), x); // broyden.computeRJ(&(r[0]), &(J[0]), x);
+   solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 
 #ifdef __cuda_host_only__
    snls::SNLSStatus_t status = solver.solve( ) ;
