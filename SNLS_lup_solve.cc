@@ -157,7 +157,7 @@ int SNLS_LUP_Solve
       }
    }
 
-   return(0);
+   return(0); // make return code always-positive, so that can add them
 }
 
 // SNLS_LUP_Solve()
@@ -206,6 +206,53 @@ int SNLS_LUP_Solve
 
    if (mtx && (mtx!=rows_lcl) ) { free(mtx); }
    if (piv && (piv!=piv_lcl ) ) { free(piv); }
+
+   return(err);
+}
+
+// multi-right-hand-side version of SNLS_LUP_SolveX
+// NOTES :
+//	() xb is stored with entries in a given RHS indexing fastest
+// 	() on entry xb is rhs vectors, on exit it is solutions
+__snls_hdev__ 
+int SNLS_LUP_SolveX
+(
+   real8  *a    ,  ///< NxN source matrix, dense, row-major, modified on output
+   real8  *xb   ,  ///< rhs and solution vectors  (nRHS x N)
+   int     n    ,  ///< size of the source matrix (N x N)
+   int     nRHS ,
+   real8   tol     ///< error tolerance for degeneracy test
+)
+{
+   int     err = 0;                    // default error return
+   real8  *rows_lcl[SNLS_GPU_LUP_N  ];   // local row pointers (for small systems)
+   real8   wrk_lcl [SNLS_GPU_LUP_N  ];   // local workspace (for small systems)
+   int     piv_lcl [SNLS_GPU_LUP_N+1];   // local pivot vector (for small systems)
+
+   real8 **mtx = (real8 **) ( (n<SNLS_GPU_LUP_N) ? rows_lcl : malloc((n  )*sizeof(real8 *)) );
+   int    *piv = (int    *) ( (n<SNLS_GPU_LUP_N) ? piv_lcl  : malloc((n+1)*sizeof(int    )) );
+   real8  *wrk = (real8  *) ( (n<SNLS_GPU_LUP_N) ? wrk_lcl  : malloc((n  )*sizeof(real8  )) );
+
+   if (mtx) 
+   { for (int i=0,k=0; (i<n); ++i, k+=n) mtx[i]=(a+k); }   // (init matrix row-pointers)
+
+   if (mtx && piv && xb && (n>0))
+   {
+      err = ::SNLS_LUP_Decompose(mtx,piv,n,tol);    // mtx = LU(mtx)
+      if (!err) {
+         for (int iRHS=0; iRHS<nRHS; ++iRHS) {
+            real8* xThis = &(xb[iRHS*n]);
+            for (int iX=0; iX<n; ++iX) {
+               wrk[iX] = xThis[iX];
+            }
+            err += ::SNLS_LUP_Solve(mtx,piv,xThis,wrk,n);
+         }
+      }
+   }
+
+   if (mtx && (mtx!=rows_lcl) ) { free(mtx); }
+   if (piv && (piv!=piv_lcl ) ) { free(piv); }
+   if (wrk && (wrk!=wrk_lcl ) ) { free(wrk); }
 
    return(err);
 }
