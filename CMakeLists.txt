@@ -64,6 +64,9 @@ set(SNLS_SOURCES
 #------------------------------------------------------------------------------
 set(SNLS_DEFINES)
 
+SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DDEBUG")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
+
 if (DEFINED MSLIB_SOURCE_DIR)
     list(APPEND SNLS_DEFINES SNLS_HAVE_MSLIB)
 endif (DEFINED MSLIB_SOURCE_DIR)
