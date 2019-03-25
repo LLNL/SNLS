@@ -1,3 +1,5 @@
+// -*-c++-*-
+
 #ifndef SNLS_TRDLDG_H
 #define SNLS_TRDLDG_H
 
@@ -128,7 +130,6 @@ public:
    bool  _rejectResIncrease ;
 };
 
-
 /** Helper templates to ensure compliant CRJ implementations */
 template<typename CRJ, typename = void>
 struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
@@ -187,20 +188,20 @@ class SNLSTrDlDenseG
    __snls_hdev__ SNLSTrDlDenseG(CRJ &crj) :
                _crj(crj),
                _fevals(0), _nIters(0), _nJFact(0),
-               _r(NULL), _x(NULL), _J(NULL), 
-               _deltaControl(NULL),
+               _r(nullptr), _x(nullptr), _J(nullptr), 
+               _deltaControl(nullptr),
                _outputLevel(0),
-               _os(NULL),
-               _x0(NULL), _nr(NULL), _delx(NULL), _ngrad(NULL), _nsd(NULL), _ntemp(NULL), _p(NULL), _rScratch(NULL),
-               _J0(NULL), _JScratch(NULL),
-               _ipiv(NULL),
+               _os(nullptr),
+               _x0(nullptr), _nr(nullptr), _delx(nullptr), _ngrad(nullptr), _nsd(nullptr), _ntemp(nullptr), _p(nullptr), _rScratch(nullptr),
+               _J0(nullptr), _JScratch(nullptr),
+               _ipiv(nullptr),
                _status(unConverged)
                {
                };
    // destructor
    __snls_hdev__ ~SNLSTrDlDenseG() {
 #ifdef __cuda_host_only__
-      if ( _outputLevel > 1 && _os != NULL ) {
+      if ( _outputLevel > 1 && _os != nullptr ) {
          *_os << "Function and Jacobian factorizations: " << _fevals << " " << _nJFact << std::endl;
       }
 #endif
@@ -255,7 +256,7 @@ class SNLSTrDlDenseG
 
       __snls_hdev__ void   setOutputlevel( int    outputLevel ) {
          _outputLevel = outputLevel ;
-         _os          = NULL ;
+         _os          = nullptr ;
          //
          if ( _outputLevel > 0 ) {
 #ifdef __cuda_host_only__
@@ -372,7 +373,7 @@ class SNLSTrDlDenseG
                pred_resid = 0e0 ;
 
 #ifdef __cuda_host_only__
-               if ( _os != NULL ) {
+               if ( _os != nullptr ) {
                   *_os << "trying newton step" << std::endl ;
                }
 #endif
@@ -399,7 +400,7 @@ class SNLSTrDlDenseG
                   pred_resid = signFact * sqrt(fabs(pred_resid)) ;
             
 #ifdef __cuda_host_only__
-                  if ( _os != NULL ) {
+                  if ( _os != nullptr ) {
                      *_os << "trying step along first leg" << std::endl ;
                   }
 #endif
@@ -461,7 +462,7 @@ class SNLSTrDlDenseG
                   pred_resid = this->normvec( _ntemp ) ;
 
 #ifdef __cuda_host_only__
-                  if ( _os != NULL ) {
+                  if ( _os != nullptr ) {
                      *_os << "trying step along second leg" << std::endl ;
                   }
 #endif
@@ -491,7 +492,7 @@ class SNLSTrDlDenseG
                else {
                   res = this->normvec(_r) ;
 #ifdef __cuda_host_only__
-                  if ( _os != NULL ) {
+                  if ( _os != nullptr ) {
                      *_os << "res = " << res << std::endl ;
                   }
 #endif
@@ -502,7 +503,7 @@ class SNLSTrDlDenseG
 
                   if ( res < _tolerance ) {
 #ifdef __cuda_host_only__
-                     if ( _os != NULL ) {
+                     if ( _os != nullptr ) {
                         *_os << "converged" << std::endl ;
                      }
 #endif
@@ -527,7 +528,7 @@ class SNLSTrDlDenseG
             if ( reject_prev ) { 
 
 #ifdef __cuda_host_only__
-               if ( _os != NULL ) {
+               if ( _os != nullptr ) {
                   *_os << "rejecting solution" << std::endl ;
                }
 #endif
@@ -552,10 +553,54 @@ class SNLSTrDlDenseG
       }
 
       // convenience wrapper
-      __snls_hdev__ bool  computeRJ         () {
+      __snls_hdev__ bool  computeRJ() {
+         
          _fevals++ ;
          bool retval = this->_crj.computeRJ(_r, _J, _x);
+         
+#ifdef DEBUG
+#ifdef __cuda_host_only__
+         if ( _outputLevel > 2 && _os != nullptr ) {
+            // do finite differencing
+            // assume system is scaled such that perturbation size can be standard
+
+            real8 r_base[_nDim]; 
+            for ( int jX = 0; jX < _nDim ; ++jX ) {
+               r_base[jX] = _r[jX] ;
+            }
+            
+            const real8 pert_val     = 1.0e-7 ;
+            const real8 pert_val_inv = 1.0/pert_val ;
+            
+            real8 J_FD[_nXnDim] ;
+            
+            for ( int iX = 0; iX < _nDim ; ++iX ) {
+               real8 r_pert[_nDim];
+               real8 x_pert[_nDim];
+               for ( int jX = 0; jX < _nDim ; ++jX ) {
+                  x_pert[jX] = _x[jX] ;
+               }
+               x_pert[iX] = x_pert[iX] + pert_val ;
+               bool retvalThis = this->_crj.computeRJ( r_pert, nullptr, x_pert ) ;
+               if ( !retvalThis ) {
+                  SNLS_FAIL(__func__, "Problem while finite-differencing");
+               }
+               for ( int iR = 0; iR < _nDim ; iR++ ) {
+                  J_FD[SNLSTRDLDG_J_INDX(iR,iX,_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
+               }
+            }
+            
+            *_os << "J_an = " << std::endl ; printMatJ( _J,   *_os ) ;
+            *_os << "J_fd = " << std::endl ; printMatJ( J_FD, *_os ) ;
+
+            // put things back the way they were ;
+            retval = this->_crj.computeRJ(_r, _J, _x);
+            
+         } // _os != nullptr
+#endif
+#endif         
          return retval ;
+         
       }
       
       __snls_hdev__ void  computeNewtonStep (real8* const newton  ) {
@@ -698,28 +743,27 @@ class SNLSTrDlDenseG
          return a ;
       }
       
-      __snls_hdev__ void  printVecX         (const real8* const y ) {
+#ifdef DEBUG
 #ifdef __cuda_host_only__
-         std::cout << std::setprecision(14) ;
+      __snls_hdev__ void  printVecX         (const real8* const y, std::ostream & oss ) {
+         oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
-            std::cout << y[iX] << " " ;
+            oss << y[iX] << " " ;
          }
-         std::cout << std::endl ;
-#endif
+         oss << std::endl ;
       }
       
-      __snls_hdev__ void  printMatJ         (const real8* const A ) {
-#ifdef __cuda_host_only__
-         std::cout << std::setprecision(14) ;
+      __snls_hdev__ void  printMatJ         (const real8* const A, std::ostream & oss ) {
+         oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             for ( int jX=0; jX<_nDim; ++jX) {
-               std::cout << A[SNLSTRDLDG_J_INDX(iX,jX,_nDim)] << " " ;
+               oss << std::setw(21) << std::setprecision(11) << A[SNLSTRDLDG_J_INDX(iX,jX,_nDim)] << " " ;
             }
-            std::cout << std::endl ;
+            oss << std::endl ;
          } 
-#endif
       }
-
+#endif
+#endif
 
    protected:
       static const int _nXnDim = _nDim * _nDim ;

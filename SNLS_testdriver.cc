@@ -149,7 +149,7 @@ int main(int , char ** )
    snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
    snls::TrDeltaControl deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
-   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 10);
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
    real8* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
