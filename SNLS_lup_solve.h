@@ -3,6 +3,7 @@
 #ifndef __SNLS_LUP_SOLVE_H
 #define __SNLS_LUP_SOLVE_H
 
+#include "SNLS_cuda_portability.h"
 #include "SNLS_port.h"
 
 extern __snls_hdev__ void   SNLS_LUP_Fix_Columns (real8 **a ,         int n, real8 tol);
