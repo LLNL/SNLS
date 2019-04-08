@@ -653,24 +653,26 @@ class SNLSTrDlDenseG
 // Solver was originally intended for testing the GPU-enabled code base..
 //
 // Note - this method has been updated to deal with both row and column-major matrices.
-   
-         int n = _nDim;
 
-         // create a local, row-major copy that can be modified by the LUP solver...
+         {
+            const int n = _nDim;
+
+            // create a local, row-major copy that can be modified by the LUP solver...
 
 #if SNLSTRDLDG_J_COLUMN_MAJOR
-         for (int i=0,k=0; (i<n); ++i )
-            for (int j=0,m=i; (j<n); ++j, ++k, m+=n) { _JScratch[m] = _J[k]; }
+            for (int i=0,k=0; (i<n); ++i )
+               for (int j=0,m=i; (j<n); ++j, ++k, m+=n) { _JScratch[m] = _J[k]; }
 #else
-         for (int i=0; (i<(n*n)); ++i ) { _JScratch[i] = _J[i]; }
+            for (int i=0; (i<(n*n)); ++i ) { _JScratch[i] = _J[i]; }
 #endif
 
-         int   err = SNLS_LUP_Solve(_JScratch,newton,_r,n);      // J = LUP_Solve(J,newton,r)
-         //
-         for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }     // newton = -newton
+            int   err = SNLS_LUP_Solve<n>(_JScratch,newton,_r);      // J = LUP_Solve(J,newton,r)
+            //
+            for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }     // newton = -newton
 
-         if (err<0) {
-            SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
+            if (err<0) {
+               SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
+            }
          }
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)

@@ -56,7 +56,6 @@ set(SNLS_HEADERS
     SNLS_TrDLDenseG.h)
 
 set(SNLS_SOURCES
-    SNLS_lup_solve.cc
     SNLS_TrDLDenseG.cxx)
 
 #------------------------------------------------------------------------------
