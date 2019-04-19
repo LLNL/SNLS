@@ -15,6 +15,8 @@
 #include <iomanip>
 #endif
 
+#define SNLS_USE_LAPACK 0
+
 #if HAVE_LAPACK && SNLS_USE_LAPACK
 #if SNLS_HAVE_MSLIB
 #include "MS_Matmodel.h"
@@ -22,31 +24,12 @@
 #include "MS_FortranWrappers.h"
 #else
 
-#define SNLS_USE_LAPACK 0
-
 extern "C" {
    int DGETRF(const int* m, const int* n, double* A, const int* lda, int* ipiv, int* info);
    int DGETRS(const char* trans, const int* n, const int* nrhs, const double* const A, const int* lda,
               const int* const ipiv, double* b, const int* ldb, int* info);
 }
 #endif
-
-#ifdef _WIN32
-#include <mathimf.h>
-#else
-#include <math.h>
-#endif
-
-#ifndef M_PI
-#define M_PI       3.14159265358979323846264338327950288
-#endif
-
-#ifndef M_SQRT2    
-#define M_SQRT2    1.41421356237309504880168872420969808
-#endif
-
-typedef double real8 ;
-
 #endif
 
 //////////////////////////////////////////////////////////////////////
