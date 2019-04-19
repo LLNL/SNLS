@@ -15,7 +15,9 @@
 #include <iomanip>
 #endif
 
+#ifndef SNLS_USE_LAPACK
 #define SNLS_USE_LAPACK 0
+#endif
 
 #if HAVE_LAPACK && SNLS_USE_LAPACK
 #if SNLS_HAVE_MSLIB
