@@ -5,7 +5,10 @@ using namespace std;
 
 #include "SNLS_TrDLDenseG.h"
 
+#ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
+#endif
+
 #define NL_MAXITER 200
 #define NL_TOLER 1e-12
 
@@ -39,7 +42,8 @@ public:
       : _lambda(-1)
       {
          _lambda = lambda ;
-         std::cout << "Broyden ill-conditioning: lambda = " << _lambda << "\n";          
+         std::cout << "Broyden ill-conditioning: lambda = "
+                   << std::setw(21) << std::setprecision(11) << _lambda << "\n";          
       } ;
 
    __snls_hdev__ bool computeRJ(real8* const r,
@@ -148,7 +152,7 @@ int main(int , char ** )
    Broyden broyden( LAMBDA_BROYDEN ) ;
    snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
    snls::TrDeltaControl deltaControlBroyden ;
-   deltaControlBroyden._deltaInit = 1e0 ;
+   deltaControlBroyden._deltaInit = 100e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
    real8* x = solver.getXPntr() ;

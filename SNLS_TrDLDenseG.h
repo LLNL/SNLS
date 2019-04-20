@@ -243,11 +243,11 @@ class SNLSTrDlDenseG
          _outputLevel = outputLevel ;
          _os          = nullptr ;
          //
-         if ( _outputLevel > 0 ) {
 #ifdef __cuda_host_only__
+         if ( _outputLevel > 0 ) {
             _os = &(std::cout) ;
-#endif
          }
+#endif
       }
       
       // solve returns status
@@ -264,6 +264,9 @@ class SNLSTrDlDenseG
          bool have_ngrad = false, have_nr = false, have_trdl_dirs = false, have_p_a_b = false ; // ...have = .false.
 
          real8 delta = _deltaControl->getDeltaInit() ;
+#ifdef __cuda_host_only__
+         if (_os) { *_os << "initial delta = " << delta << std::endl ; }
+#endif
 
          {
             bool rjSuccess = this->computeRJ() ; // _r, _J, _x
