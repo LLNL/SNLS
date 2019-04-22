@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <iostream>
 
+#include <gtest/gtest.h>
+
 using namespace std;
 
 #include "SNLS_TrDLDenseG.h"
@@ -43,7 +45,7 @@ public:
       {
          _lambda = lambda ;
          std::cout << "Broyden ill-conditioning: lambda = "
-                   << std::setw(21) << std::setprecision(11) << _lambda << "\n";          
+                   << std::setw(21) << std::setprecision(11) << _lambda << std::endl;          
       } ;
 
    __snls_hdev__ bool computeRJ(real8* const r,
@@ -53,6 +55,12 @@ public:
          real8 fn ;
          real8 dfndxn;
          const int nDim = nDimSys ; // convenience -- less code change below
+         
+         std::cout << "Evaluating at x = " ;
+         for (int i=1; i<nDim; ++i) {
+            std::cout << std::setw(21) << std::setprecision(11) << x[i] << " ";
+         }
+         std::cout << std::endl ;
          
          r[0] = (3-2*x[0])*x[0] - 2*x[1] + 1;
          for (int i=1; i<nDim-1; i++)
@@ -93,7 +101,7 @@ void Test_SNLSBroyden_D (Broyden *broyden)
 {
    const int nDim = Broyden::nDimSys ;
    
-   *broyden = Broyden( LAMBDA_BROYDEN );
+   *broyden = Broyden( LAMBDA_BROYDEN ); 
    snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
    snls::TrDeltaControl deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
@@ -145,7 +153,73 @@ void snls::Test_SNLSBroyden_GPU(const int npoints)
 #endif
 // ifndef __cuda_host_only__
 
-int main(int , char ** )
+TEST(snls,broyden_a) // int main(int , char ** )
+{
+   const int nDim = Broyden::nDimSys ;
+
+   Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
+   snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
+   snls::TrDeltaControl deltaControlBroyden ;
+   deltaControlBroyden._deltaInit = 1e0 ;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
+
+   real8* x = solver.getXPntr() ;
+   for (int iX = 0; iX < nDim; ++iX) {
+      x[iX] = 0e0 ;
+   }
+   //
+   // real8 r[nDim], J[nDim*nDim] ;
+   real8* r = solver.getRPntr() ;
+   real8* J = solver.getJPntr() ;
+   //
+   solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
+
+   snls::SNLSStatus_t status = solver.solve( ) ;
+   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;
+   if ( status != snls::converged ){
+      char errmsg[256];
+      snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
+      SNLS_FAIL(__func__,errmsg);
+   }
+   std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";
+   EXPECT_EQ( solver.getNFEvals(), 19 ) << "Expected 19 function evaluations for this case" ;
+}
+
+TEST(snls,broyden_b)
+{
+   const int nDim = Broyden::nDimSys ;
+
+   Broyden broyden( 0.99999999 ) ; // LAMBDA_BROYDEN
+   snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
+   snls::TrDeltaControl deltaControlBroyden ;
+   deltaControlBroyden._deltaInit = 100e0 ;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
+
+   real8* x = solver.getXPntr() ;
+   for (int iX = 0; iX < nDim; ++iX) {
+      x[iX] = 0e0 ;
+   }
+   //
+   // real8 r[nDim], J[nDim*nDim] ;
+   real8* r = solver.getRPntr() ;
+   real8* J = solver.getJPntr() ;
+   //
+   solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
+
+   snls::SNLSStatus_t status = solver.solve( ) ;
+   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;
+   if ( status != snls::converged ){
+      char errmsg[256];
+      snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
+      SNLS_FAIL(__func__,errmsg);
+   }
+   std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
+   EXPECT_EQ( solver.getNFEvals(), 23 ) << "Expected 23 function evaluations for this case" ;
+}
+
+
+#ifdef __CUDACC__
+TEST(snls,broyden_gpu_a)
 {
    const int nDim = Broyden::nDimSys ;
 
@@ -166,18 +240,7 @@ int main(int , char ** )
    //
    solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 
-#ifdef __cuda_host_only__
-   snls::SNLSStatus_t status = solver.solve( ) ;
-   if ( status != snls::converged ){
-      char errmsg[256];
-      snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
-      SNLS_FAIL(__func__,errmsg);
-   }
-   std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
-#else
    int npoints=40;
    Test_SNLSBroyden_GPU(npoints);
-#endif
-
-   exit(0);
 }
+#endif

@@ -121,9 +121,8 @@ if(ENABLE_TESTS)
 
     blt_add_executable(NAME       snlstest
                        SOURCES    SNLS_testdriver.cc
-                       DEFINES    LAMBDA_BROYDEN=0.99999999
                        OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                       DEPENDS_ON ${SNLSTEST_DEPENDS})
+                       DEPENDS_ON ${SNLSTEST_DEPENDS} gtest)
     blt_add_test(NAME    snlstest
                  COMMAND snlstest)
 endif(ENABLE_TESTS)
