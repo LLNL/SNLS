@@ -11,6 +11,10 @@ using namespace std;
 #define LAMBDA_BROYDEN 0.9999
 #endif
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
 #define NL_MAXITER 200
 #define NL_TOLER 1e-12
 
@@ -53,14 +57,22 @@ public:
                                 const real8* const x )
       {
          real8 fn ;
-         real8 dfndxn;
          const int nDim = nDimSys ; // convenience -- less code change below
          
+#if DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {
             std::cout << std::setw(21) << std::setprecision(11) << x[i] << " ";
          }
          std::cout << std::endl ;
+#endif
+
+         bool doComputeJ = (J != nullptr) ;
+         if ( doComputeJ ) {
+            for ( int ijJ=0; ijJ<_nXn; ++ijJ ) {
+               J[ijJ] = 0.0 ;
+            }
+         }
          
          r[0] = (3-2*x[0])*x[0] - 2*x[1] + 1;
          for (int i=1; i<nDim-1; i++)
@@ -69,22 +81,24 @@ public:
          fn = (3-2*x[nDim-1])*x[nDim-1] - x[nDim-2] + 1;
          r[nDim-1] = (1-_lambda)*fn + _lambda*(fn*fn);
 
-         // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
-         J[SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[0];
-         J[SNLSTRDLDG_J_INDX(0,1,nDim)] = -2;
+         if ( doComputeJ ) {
+            // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
+            J[SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[0];
+            J[SNLSTRDLDG_J_INDX(0,1,nDim)] = -2;
 
-         // F(i) = (3-2*x[i])*x[i] - x[i-1] - 2*x[i+1] + 1;
-         for (int i=1; i<nDim-1; i++) {
-            J[SNLSTRDLDG_J_INDX(i,i-1,nDim)] = -1;
-            J[SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[i];
-            J[SNLSTRDLDG_J_INDX(i,i+1,nDim)] = -2;
+            // F(i) = (3-2*x[i])*x[i] - x[i-1] - 2*x[i+1] + 1;
+            for (int i=1; i<nDim-1; i++) {
+               J[SNLSTRDLDG_J_INDX(i,i-1,nDim)] = -1;
+               J[SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[i];
+               J[SNLSTRDLDG_J_INDX(i,i+1,nDim)] = -2;
+            }
+
+            // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
+            fn = (3-2*x[nDim-1])*x[nDim-1] - x[nDim-2] + 1;
+            real8 dfndxn = 3-4*x[nDim-1];
+            J[SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
+            J[SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }
-
-         // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
-         fn = (3-2*x[nDim-1])*x[nDim-1] - x[nDim-2] + 1;
-         dfndxn = 3-4*x[nDim-1];
-         J[SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
-         J[SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
 
          return true ;
          
@@ -92,6 +106,7 @@ public:
    
    private:
       real8 _lambda ;
+      static const int _nXn = nDimSys*nDimSys ;
 };
 
 #ifndef __cuda_host_only__
