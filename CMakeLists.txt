@@ -33,7 +33,7 @@ else()
     endif()
 endif()
 
-set(ENABLE_GTEST OFF CACHE BOOL "")
+# set(ENABLE_GTEST OFF CACHE BOOL "")
 set(ENABLE_FRUIT OFF CACHE BOOL "")
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
