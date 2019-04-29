@@ -33,7 +33,7 @@ else()
     endif()
 endif()
 
-# set(ENABLE_GTEST OFF CACHE BOOL "")
+set(ENABLE_GTEST OFF CACHE BOOL "")
 set(ENABLE_FRUIT OFF CACHE BOOL "")
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
@@ -45,6 +45,11 @@ set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 if (DEFINED MSLIB_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
 endif (DEFINED MSLIB_SOURCE_DIR)
+
+# turn off testing if building under ECMech, because gtest dependence does not seem to work
+if (DEFINED ECMECH_SOURCE_DIR)
+    set(ENABLE_TESTS OFF)
+endif (DEFINED ECMECH_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Sources
@@ -113,6 +118,7 @@ endif(BUILD_STATIC_LIBS)
 #------------------------------------------------------------------------------
 
 if(ENABLE_TESTS)
+    set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
     if (BUILD_STATIC_LIBS)
         set(SNLSTEST_DEPENDS snls_static)
     else()
