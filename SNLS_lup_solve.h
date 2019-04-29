@@ -220,10 +220,9 @@ int SNLS_LUP_SolveX
    real8   wrk[n  ];   // local workspace 
    int     piv[n+1];   // local pivot vector 
 
-   if (mtx) 
    { for (int i=0,k=0; (i<n); ++i, k+=n) mtx[i]=(a+k); }   // (init matrix row-pointers)
 
-   if (mtx && piv && xb && (n>0))
+   if (xb && (n>0))
    {
       err = ::SNLS_LUP_Decompose<n>(mtx,piv,tol);    // mtx = LU(mtx)
       if (!err) {
