@@ -176,6 +176,7 @@ class SNLSTrDlDenseG
                _r(nullptr), _x(nullptr), _J(nullptr), 
                _deltaControl(nullptr),
                _outputLevel(0),
+               _rhoLast(0.0),
                _os(nullptr),
                _x0(nullptr), _nr(nullptr), _delx(nullptr), _ngrad(nullptr), _nsd(nullptr), _ntemp(nullptr), _p(nullptr), _rScratch(nullptr),
                _J0(nullptr), _JScratch(nullptr),
@@ -201,6 +202,7 @@ class SNLSTrDlDenseG
       __snls_hdev__ real8* getXPntr  () const { return(_x     ); };
       __snls_hdev__ real8* getRPntr  () const { return(_r     ); };
       __snls_hdev__ real8* getJPntr  () const { return(_J     ); };
+      __snls_hdev__ real8  getRhoLast() const { return(_rhoLast); };
 
       __snls_hdev__ void   setupSolver(int    maxIter,
                                        real8  tolerance,
@@ -500,10 +502,9 @@ class SNLSTrDlDenseG
                   }
 
                   {
-                     real8 rho ;
                      bool deltaSuccess = _deltaControl->updateDelta(_os,
                                                                     delta, res, res_0, pred_resid,
-                                                                    reject_prev, use_nr, nr2norm, rho) ;
+                                                                    reject_prev, use_nr, nr2norm, _rhoLast) ;
                      if ( ! deltaSuccess ) {
                         _status = deltaFailure ;
                         break ; // while ( _nIters < _maxIter ) 
@@ -767,6 +768,9 @@ class SNLSTrDlDenseG
       int   _maxIter    ;
       real8 _tolerance  ;
       int   _outputLevel;
+
+      // _rhoLast is not really needed -- but is kept for debug and testing purposes
+      real8 _rhoLast ;
 
 #ifdef __cuda_host_only__
       std::ostream* _os ;
