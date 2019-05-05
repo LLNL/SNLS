@@ -52,11 +52,11 @@ public:
                    << std::setw(21) << std::setprecision(11) << _lambda << std::endl;          
       } ;
 
-   __snls_hdev__ bool computeRJ(real8* const r,
-                                real8* const J,
-                                const real8* const x )
+   __snls_hdev__ bool computeRJ(double* const r,
+                                double* const J,
+                                const double* const x )
       {
-         real8 fn ;
+         double fn ;
          const int nDim = nDimSys ; // convenience -- less code change below
          
 #if DEBUG > 1
@@ -95,7 +95,7 @@ public:
 
             // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
             fn = (3-2*x[nDim-1])*x[nDim-1] - x[nDim-2] + 1;
-            real8 dfndxn = 3-4*x[nDim-1];
+            double dfndxn = 3-4*x[nDim-1];
             J[SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
             J[SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }
@@ -105,7 +105,7 @@ public:
       } ;
    
    private:
-      real8 _lambda ;
+      double _lambda ;
       static const int _nXn = nDimSys*nDimSys ;
 };
 
@@ -126,8 +126,8 @@ void Test_SNLSBroyden_D (Broyden *broyden)
 
    printf("(%s::%s(ln=%d) cuda bx=%d bw=%2d thrd=%2d i=%2d broyden=%p)\n", __FILE__, __func__, __LINE__, blockIdx .x, blockDim .x, threadIdx.x, i, &broyden);
 
-   // real8 r[nDim], J[nDim*nDim] ;
-   real8* x = solver.getXPntr() ;
+   // double r[nDim], J[nDim*nDim] ;
+   double* x = solver.getXPntr() ;
    //
    for (int iX = 0; iX < nDim; ++iX) {
       x[iX] = 0e0 ;
@@ -178,14 +178,14 @@ TEST(snls,broyden_a) // int main(int , char ** )
    deltaControlBroyden._deltaInit = 1e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
-   real8* x = solver.getXPntr() ;
+   double* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
       x[iX] = 0e0 ;
    }
    //
-   // real8 r[nDim], J[nDim*nDim] ;
-   real8* r = solver.getRPntr() ;
-   real8* J = solver.getJPntr() ;
+   // double r[nDim], J[nDim*nDim] ;
+   double* r = solver.getRPntr() ;
+   double* J = solver.getJPntr() ;
    //
    solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 
@@ -210,14 +210,14 @@ TEST(snls,broyden_b)
    deltaControlBroyden._deltaInit = 100e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
-   real8* x = solver.getXPntr() ;
+   double* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
       x[iX] = 0e0 ;
    }
    //
-   // real8 r[nDim], J[nDim*nDim] ;
-   real8* r = solver.getRPntr() ;
-   real8* J = solver.getJPntr() ;
+   // double r[nDim], J[nDim*nDim] ;
+   double* r = solver.getRPntr() ;
+   double* J = solver.getJPntr() ;
    //
    solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 
@@ -244,14 +244,14 @@ TEST(snls,broyden_gpu_a)
    deltaControlBroyden._deltaInit = 100e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
-   real8* x = solver.getXPntr() ;
+   double* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
       x[iX] = 0e0 ;
    }
    //
-   // real8 r[nDim], J[nDim*nDim] ;
-   real8* r = solver.getRPntr() ;
-   real8* J = solver.getJPntr() ;
+   // double r[nDim], J[nDim*nDim] ;
+   double* r = solver.getRPntr() ;
+   double* J = solver.getJPntr() ;
    //
    solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 

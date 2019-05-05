@@ -30,18 +30,18 @@ template<int n> // size of the system (NxN)
 __snls_hdev__ 
 void SNLS_LUP_Fix_Columns
 (
-   real8 **a  ,  ///< source matrix (NxN)
-   real8   tol   ///< error tolerance for degeneracy test
+   double **a  ,  ///< source matrix (NxN)
+   double   tol   ///< error tolerance for degeneracy test
 )
 {
    if (a && (n>0))
    {
       for(int i=0; (i<n); ++i)
       {
-         real8 cmax = 0.0;
+         double cmax = 0.0;
          for(int j=0; (j<n); ++j)
          {
-            real8 absa=fabs(a[j][i]);
+            double absa=fabs(a[j][i]);
             cmax = ( (absa>cmax) ? absa : cmax );
          }
 
@@ -69,9 +69,9 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 int SNLS_LUP_Decompose
 (
-   real8 **a  ,  ///< source matrix (NxN)
-   int    *p  ,  ///< pivot vector  (N+1)
-   real8   tol   ///< error tolerance for degeneracy test
+   double  **a  ,  ///< source matrix (NxN)
+   int     *p  ,  ///< pivot vector  (N+1)
+   double   tol   ///< error tolerance for degeneracy test
 )
 {
    if (a && p && (n>0) )
@@ -83,8 +83,8 @@ int SNLS_LUP_Decompose
          // locate max of remaining rows to pivot...
 
          int   imax = i;
-         real8 absa = 0.0;
-         real8 maxa = 0.0;
+         double absa = 0.0;
+         double maxa = 0.0;
    
          for(int k=i; (k<n); ++k)
             if((absa=fabs(a[k][i]))>maxa){ maxa=absa; imax=k; }
@@ -101,7 +101,7 @@ int SNLS_LUP_Decompose
          if (imax!=i)  // do we need to pivot?
          {
             { int    tmp=p[i]; p[i]=p[imax]; p[imax]=tmp; } // (swap pivot)
-            { real8 *tmp=a[i]; a[i]=a[imax]; a[imax]=tmp; } // (swap rows )
+            { double *tmp=a[i]; a[i]=a[imax]; a[imax]=tmp; } // (swap rows )
    
             p[n]++; // update total pivot count (for determinant)
          }
@@ -130,10 +130,10 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 int SNLS_LUP_Solve
 (
-   real8 **a,  ///< source matrix      (NxN, LUP decomposed)
-   int    *p,  ///< pivot vector       (N, or N+1)
-   real8  *x,  ///< computed solution  (N)
-   real8  *b   ///< rhs vector         (N)
+   double **a,  ///< source matrix      (NxN, LUP decomposed)
+   int     *p,  ///< pivot vector       (N, or N+1)
+   double  *x,  ///< computed solution  (N)
+   double  *b   ///< rhs vector         (N)
 )
 {
    if (a && p && x && b && (n>0))
@@ -180,15 +180,15 @@ template<int n> // size of the system (NxN)
 __snls_hdev__ 
 int SNLS_LUP_Solve 
 (
-   real8  *a  ,        ///< NxN source matrix, dense, row-major, modified on output
-   real8  *x  ,        ///< computed solution vector  (N)
-   real8  *b  ,        ///< rhs vector                (N)
-   real8   tol=1e-50   ///< error tolerance for degeneracy test
+   double  *a  ,        ///< NxN source matrix, dense, row-major, modified on output
+   double  *x  ,        ///< computed solution vector  (N)
+   double  *b  ,        ///< rhs vector                (N)
+   double   tol=1e-50   ///< error tolerance for degeneracy test
 )
 {
-   int     err = 0  ;   // default error return
-   real8  *mtx[n  ] ;   // local row pointers
-   int     piv[n+1] ;   // local pivot vector
+   int      err = 0  ;   // default error return
+   double  *mtx[n  ] ;   // local row pointers
+   int      piv[n+1] ;   // local pivot vector
 
    { for (int i=0,k=0; (i<n); ++i, k+=n) mtx[i]=(a+k); }   // (init matrix row-pointers)
 
@@ -209,16 +209,16 @@ template<int n> // size of the system (NxN)
 __snls_hdev__ 
 int SNLS_LUP_SolveX
 (
-   real8  *a    ,     ///< NxN source matrix, dense, row-major, modified on output
-   real8  *xb   ,     ///< rhs and solution vectors  (nRHS x N)
-   int     nRHS ,
-   real8   tol=1e-50  ///< error tolerance for degeneracy test
+   double  *a    ,     ///< NxN source matrix, dense, row-major, modified on output
+   double  *xb   ,     ///< rhs and solution vectors  (nRHS x N)
+   int      nRHS ,
+   double   tol=1e-50  ///< error tolerance for degeneracy test
 )
 {
-   int     err = 0;    // default error return
-   real8  *mtx[n  ];   // local row pointers 
-   real8   wrk[n  ];   // local workspace 
-   int     piv[n+1];   // local pivot vector 
+   int      err = 0;    // default error return
+   double  *mtx[n  ];   // local row pointers 
+   double   wrk[n  ];   // local workspace 
+   int      piv[n+1];   // local pivot vector 
 
    { for (int i=0,k=0; (i<n); ++i, k+=n) mtx[i]=(a+k); }   // (init matrix row-pointers)
 
@@ -227,7 +227,7 @@ int SNLS_LUP_SolveX
       err = ::SNLS_LUP_Decompose<n>(mtx,piv,tol);    // mtx = LU(mtx)
       if (!err) {
          for (int iRHS=0; iRHS<nRHS; ++iRHS) {
-            real8* xThis = &(xb[iRHS*n]);
+            double* xThis = &(xb[iRHS*n]);
             for (int iX=0; iX<n; ++iX) {
                wrk[iX] = xThis[iX];
             }
@@ -251,9 +251,9 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 void SNLS_LUP_Invert
 (
-   real8 **ai,   ///< inverse matrix     (NxN, result)
-   real8 **a ,   ///< source matrix      (NxN, LUP decomposed)
-   int    *p     ///< pivot vector       (N)
+   double **ai,   ///< inverse matrix     (NxN, result)
+   double **a ,   ///< source matrix      (NxN, LUP decomposed)
+   int     *p     ///< pivot vector       (N)
 )
 {
    if (ai && a && (ai!=a) && p && (n>0))
@@ -291,13 +291,13 @@ void SNLS_LUP_Invert
 
 template<int n> // size of the system (NxN)
 __snls_hdev__
-real8 SNLS_LUP_Determinant
+double SNLS_LUP_Determinant
 (
-   real8 **a,  ///< source matrix      (NxN, LUP decomposed)
-   int    *p   ///< pivot vector       (N+1)
+   double **a,  ///< source matrix      (NxN, LUP decomposed)
+   int     *p   ///< pivot vector       (N+1)
 )
 {
-   real8 det=0.0;
+   double det=0.0;
 
    if (a && p && (n>0))
    {

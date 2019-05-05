@@ -38,14 +38,14 @@ void TrDeltaControl::checkParams() const
 }
 
 __snls_hdev__   
-bool TrDeltaControl::decrDelta(void *strm, real8 &delta, real8 normfull, bool took_full) const
+bool TrDeltaControl::decrDelta(void *strm, double &delta, double normfull, bool took_full) const
 {
    bool success = true ;
    
    if ( took_full ) 
    {
-      real8 tempa = delta    * _xiDecDelta ;
-      real8 tempb = normfull * _xiDecDelta ;
+      double tempa = delta    * _xiDecDelta ;
+      double tempb = normfull * _xiDecDelta ;
       delta = sqrt( tempa*tempb ) ;
    }
    else 
@@ -71,7 +71,7 @@ bool TrDeltaControl::decrDelta(void *strm, real8 &delta, real8 normfull, bool to
 }
 
 __snls_hdev__
-void TrDeltaControl::incrDelta(void* strm, real8  &delta) const
+void TrDeltaControl::incrDelta(void* strm, double  &delta) const
 {
    delta = delta * _xiIncDelta;
 
@@ -92,19 +92,19 @@ void TrDeltaControl::incrDelta(void* strm, real8  &delta) const
 __snls_hdev__
 bool TrDeltaControl::updateDelta
 (
-   void   *strm      ,
-   real8  &delta     ,
-   real8   res       ,
-   real8   res_0     ,
-   real8   pred_resid,
-   bool   &reject    , // reject_prev
-   bool    took_full , // use_nr
-   real8   normfull  , // nr2norm
-   real8  &rho       ) const
+   void    * strm      ,
+   double  & delta     ,
+   double    res       ,
+   double    res_0     ,
+   double    pred_resid,
+   bool    & reject    , // reject_prev
+   bool      took_full , // use_nr
+   double    normfull  , // nr2norm
+   double  & rho       ) const
 {
    bool  success       = true;
-   real8 actual_change = res - res_0;
-   real8 pred_change   = pred_resid - res_0;
+   double actual_change = res - res_0;
+   double pred_change   = pred_resid - res_0;
 
    if ( pred_change == 0e0 ) 
    {
@@ -140,8 +140,8 @@ bool TrDeltaControl::updateDelta
          // truncating can cause trouble
          // else { 
          // 
-         //    real8 temp = delta;
-         //    real8 temp_b = normfull * _xiIncDelta;
+         //    double temp = delta;
+         //    double temp_b = normfull * _xiIncDelta;
          //    if (temp_b < delta) {
          //       delta = temp_b;
 #ifdef __cuda_host_only__

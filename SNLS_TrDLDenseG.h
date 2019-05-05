@@ -92,26 +92,26 @@ class TrDeltaControl
 public:
    __snls_hdev__  TrDeltaControl();
 
-   __snls_hdev__ real8 getDeltaInit() const { return _deltaInit;} ;
+   __snls_hdev__ double getDeltaInit() const { return _deltaInit;} ;
 
 
-   __snls_hdev__ void  incrDelta   (void *strm, real8 &delta) const;
-   __snls_hdev__ bool  decrDelta   (void *strm, real8 &delta, real8 normfull, bool took_full) const;
+   __snls_hdev__ void  incrDelta   (void *strm, double &delta) const;
+   __snls_hdev__ bool  decrDelta   (void *strm, double &delta, double normfull, bool took_full) const;
 
-   __snls_hdev__ bool  updateDelta (void   *strm       ,
-                                    real8  &delta      ,
-                                    real8   res        ,
-                                    real8   res_0      ,
-                                    real8   pred_resid ,
-                                    bool   &reject_prev,
-                                    bool    took_full  ,
-                                    real8   normfull   ,
-                                    real8  &rho         ) const ;
+   __snls_hdev__ bool  updateDelta (void    * strm       ,
+                                    double  & delta      ,
+                                    double    res        ,
+                                    double    res_0      ,
+                                    double    pred_resid ,
+                                    bool    & reject_prev,
+                                    bool      took_full  ,
+                                    double    normfull   ,
+                                    double  & rho         ) const ;
 
 private:
    __snls_hdev__ void checkParams() const ;
 public:
-   real8 _xiLG, _xiUG, _xiIncDelta, _xiLO, _xiUO, _xiDecDelta, _xiForcedIncDelta, _deltaInit, _deltaMin, _deltaMax;
+   double _xiLG, _xiUG, _xiIncDelta, _xiLO, _xiUO, _xiDecDelta, _xiForcedIncDelta, _deltaInit, _deltaMin, _deltaMax;
    bool  _rejectResIncrease ;
 };
 
@@ -123,7 +123,7 @@ template<typename CRJ>
 struct has_valid_computeRJ <
    CRJ,typename std::enable_if<
        std::is_same<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<real8* const>(), std::declval<real8* const>(),std::declval<const real8 *>())),
+           decltype(std::declval<CRJ>().computeRJ(std::declval<double* const>(), std::declval<double* const>(),std::declval<const double *>())),
            bool  
        >::value
        ,
@@ -151,7 +151,7 @@ struct has_ndim <
 //
 // CRJ should :
 // 	have member function
-// 		     __snls_hdev__ bool computeRJ( real8* const r, real8* const J, const real8* const x ) ;
+// 		     __snls_hdev__ bool computeRJ( double* const r, double* const J, const double* const x ) ;
 // 		computeRJ function returns true for successful evaluation
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
@@ -162,7 +162,7 @@ template< class CRJ >
 class SNLSTrDlDenseG 
 {
    public:
-      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( real8* const r, real8* const J, const real8* const x )");
+      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x )");
       static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
       static const int nxMult   = 10; // TODO ... may eventually be able to reduce this
       static const int nxXxMult =  3; // TODO ... may eventually be able to reduce this -- maybe do not need scratch space if factor Jacobian in-place, but may then need to guarantee that have doen and matrix-vector multiply first (computeSysMult for getting _ngrad -- maybe meaning that get rid of computeSysMult (or making it non-public) so that people do not think that we have stored a J that is good for multiplies)
@@ -197,17 +197,17 @@ class SNLSTrDlDenseG
       CRJ &_crj ;
       static const int _nDim = CRJ::nDimSys ;
                
-      __snls_hdev__ int    getNDim   () const { return(_nDim  ); };
-      __snls_hdev__ int    getNFEvals() const { return(_fevals); };
-      __snls_hdev__ real8* getXPntr  () const { return(_x     ); };
-      __snls_hdev__ real8* getRPntr  () const { return(_r     ); };
-      __snls_hdev__ real8* getJPntr  () const { return(_J     ); };
-      __snls_hdev__ real8  getRhoLast() const { return(_rhoLast); };
+      __snls_hdev__ int     getNDim   () const { return(_nDim  ); };
+      __snls_hdev__ int     getNFEvals() const { return(_fevals); };
+      __snls_hdev__ double* getXPntr  () const { return(_x     ); };
+      __snls_hdev__ double* getRPntr  () const { return(_r     ); };
+      __snls_hdev__ double* getJPntr  () const { return(_J     ); };
+      __snls_hdev__ double  getRhoLast() const { return(_rhoLast); };
 
-      __snls_hdev__ void   setupSolver(int    maxIter,
-                                       real8  tolerance,
-                                       TrDeltaControl* deltaControl,
-                                       int    outputLevel=0 ) {
+      __snls_hdev__ void   setupSolver(int              maxIter,
+                                       double           tolerance,
+                                       TrDeltaControl * deltaControl,
+                                       int              outputLevel=0 ) {
    
          _x           = &(_nxStorage[0]) ;
          _x0          = &(_nxStorage[_nDim]) ;
@@ -257,15 +257,14 @@ class SNLSTrDlDenseG
    
          _status = unConverged ;
          _fevals = 0 ;
-         _nJFact = 0 ; // ... cnt%fj
-         _nIters = 0 ; // ... cnt%ni
+         _nJFact = 0 ;
+         _nIters = 0 ;
 
          bool use_nr = false ;
          bool reject_prev = false ;
-         // bool converged = false ; ...
-         bool have_ngrad = false, have_nr = false, have_trdl_dirs = false, have_p_a_b = false ; // ...have = .false.
+         bool have_ngrad = false, have_nr = false, have_trdl_dirs = false, have_p_a_b = false ;
 
-         real8 delta = _deltaControl->getDeltaInit() ;
+         double delta = _deltaControl->getDeltaInit() ;
 #ifdef __cuda_host_only__
          if (_os) { *_os << "initial delta = " << delta << std::endl ; }
 #endif
@@ -278,19 +277,19 @@ class SNLSTrDlDenseG
             }
          }
          this->set0() ;
-         real8 res = this->normvec(_r) ;
-         real8 res_0 = res ;
+         double res = this->normvec(_r) ;
+         double res_0 = res ;
 #ifdef __cuda_host_only__
          if (_os) { *_os << "res = " << res << std::endl ; }
 #endif
 
          reject_prev = false ;
 
-         real8 alpha, Jg2 ;
-         real8 nr2norm ;
-         real8 norm_grad ;
-         real8 norm_grad_inv ;
-         real8 qa, qb ;
+         double alpha, Jg2 ;
+         double nr2norm ;
+         double norm_grad ;
+         double norm_grad_inv ;
+         double qa, qb ;
          //
          while ( _nIters < _maxIter ) {
             //
@@ -329,7 +328,7 @@ class SNLSTrDlDenseG
           
                // find Cauchy point
 
-               real8 norm2_grad = this->normvecSq( _ngrad ) ;
+               double norm2_grad = this->normvecSq( _ngrad ) ;
                norm_grad = sqrt( norm2_grad ) ;
                this->computeSysMult( _ngrad, _ntemp, false ) ;
                Jg2 = this->normvecSq( _ntemp ) ;
@@ -353,7 +352,7 @@ class SNLSTrDlDenseG
 
             }
 
-            real8 pred_resid ;
+            double pred_resid ;
             //
             if ( use_nr ) {
 
@@ -374,7 +373,7 @@ class SNLSTrDlDenseG
                // step along dogleg path
 
                // optimal step along steapest descent is alpha*ngrad
-               real8 norm_s_sd_opt = alpha*norm_grad ;
+               double norm_s_sd_opt = alpha*norm_grad ;
 
                if ( norm_s_sd_opt >= delta ) {
 
@@ -384,9 +383,9 @@ class SNLSTrDlDenseG
                      _delx[iX] = _nsd[iX] * delta ;
                   }
             
-                  real8 val = -(delta*norm_grad) + 0.5*delta*delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
+                  double val = -(delta*norm_grad) + 0.5*delta*delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
                   pred_resid = 2.0*val + res_0*res_0 ;
-                  real8 signFact = ( pred_resid < 0 ? -1e0 : 1e0 ) ;
+                  double signFact = ( pred_resid < 0 ? -1e0 : 1e0 ) ;
                   pred_resid = signFact * sqrt(fabs(pred_resid)) ;
             
 #ifdef __cuda_host_only__
@@ -404,7 +403,7 @@ class SNLSTrDlDenseG
                         _p[iX] = _nr[iX] - alpha*_ngrad[iX] ;
                      }
    
-                     real8 gam0 = 0e0 ;
+                     double gam0 = 0e0 ;
                      for (int iX = 0; iX < _nDim; ++iX) {
                         gam0 += _p[iX] * _nsd[iX] ;
                      }
@@ -414,15 +413,15 @@ class SNLSTrDlDenseG
                         _ntemp[iX] = _p[iX] - gam0 * _nsd[iX] ;
                      }
                      //
-                     real8 normTemp = this->normvec( _ntemp ) ;
+                     double normTemp = this->normvec( _ntemp ) ;
                      if ( normTemp > 0e0 ) {
-                        real8 normTempInv = 1.0 / normTemp ;
+                        double normTempInv = 1.0 / normTemp ;
                         for (int iX = 0; iX < _nDim; ++iX) {
                            _ntemp[iX] = _ntemp[iX] * normTempInv ;
                         }
                      }
    
-                     real8 gam1 = 0e0 ;
+                     double gam1 = 0e0 ;
                      for (int iX = 0; iX < _nDim; ++iX) {
                         gam1 += _p[iX] * _ntemp[iX] ;
                      }
@@ -436,9 +435,9 @@ class SNLSTrDlDenseG
 
                   // qc and beta depend on delta
                   //
-                  real8 qc = norm_s_sd_opt*norm_s_sd_opt - delta*delta ;
+                  double qc = norm_s_sd_opt*norm_s_sd_opt - delta*delta ;
                   //
-                  real8 beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
+                  double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
 
                   for (int iX = 0; iX < _nDim; ++iX) {
                      _delx[iX] = alpha*_ngrad[iX] + beta*_p[iX] ;
@@ -529,7 +528,7 @@ class SNLSTrDlDenseG
             }
             else {
                this->set0() ;
-               have_ngrad = false; have_nr = false; have_trdl_dirs = false; have_p_a_b = false ; // ...have = .false.
+               have_ngrad = false; have_nr = false; have_trdl_dirs = false; have_p_a_b = false ;
                // always have current residual and Jacobian
             }
 
@@ -553,19 +552,19 @@ class SNLSTrDlDenseG
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
 
-            real8 r_base[_nDim]; 
+            double r_base[_nDim]; 
             for ( int jX = 0; jX < _nDim ; ++jX ) {
                r_base[jX] = _r[jX] ;
             }
             
-            const real8 pert_val     = 1.0e-7 ;
-            const real8 pert_val_inv = 1.0/pert_val ;
+            const double pert_val     = 1.0e-7 ;
+            const double pert_val_inv = 1.0/pert_val ;
             
-            real8 J_FD[_nXnDim] ;
+            double J_FD[_nXnDim] ;
             
             for ( int iX = 0; iX < _nDim ; ++iX ) {
-               real8 r_pert[_nDim];
-               real8 x_pert[_nDim];
+               double r_pert[_nDim];
+               double x_pert[_nDim];
                for ( int jX = 0; jX < _nDim ; ++jX ) {
                   x_pert[jX] = _x[jX] ;
                }
@@ -592,7 +591,7 @@ class SNLSTrDlDenseG
          
       }
       
-      __snls_hdev__ void  computeNewtonStep (real8* const newton  ) {
+      __snls_hdev__ void  computeNewtonStep (double* const newton  ) {
          
          _nJFact++ ;
          
@@ -667,7 +666,7 @@ class SNLSTrDlDenseG
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
       
-      __snls_hdev__ void  computeSysMult    (const real8* const v, real8* const p, bool transpose ) {
+      __snls_hdev__ void  computeSysMult    (const double* const v, double* const p, bool transpose ) {
 #if SNLSTRDLDG_J_COLUMN_MAJOR
          bool sysByV =     transpose ;
 #else
@@ -698,7 +697,7 @@ class SNLSTrDlDenseG
          }
       }
       
-      __snls_hdev__ void  update            (const real8* const delX ) {
+      __snls_hdev__ void  update            (const double* const delX ) {
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX] = _x0[iX] + delX[iX] ;
          }
@@ -722,12 +721,12 @@ class SNLSTrDlDenseG
          }
       }
       
-      __snls_hdev__ real8 normvec           (const real8* const v) {
+      __snls_hdev__ double normvec           (const double* const v) {
          return sqrt( this->normvecSq(v) ) ;
       }
       
-      __snls_hdev__ real8 normvecSq         (const real8* const v) {
-         real8 a = 0e0;
+      __snls_hdev__ double normvecSq         (const double* const v) {
+         double a = 0e0;
          for (int iX = 0; iX < _nDim; ++iX) {
             a += v[iX]*v[iX] ;
          }
@@ -736,7 +735,7 @@ class SNLSTrDlDenseG
       
 #ifdef DEBUG
 #ifdef __cuda_host_only__
-      __snls_hdev__ void  printVecX         (const real8* const y, std::ostream & oss ) {
+      __snls_hdev__ void  printVecX         (const double* const y, std::ostream & oss ) {
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             oss << y[iX] << " " ;
@@ -744,7 +743,7 @@ class SNLSTrDlDenseG
          oss << std::endl ;
       }
       
-      __snls_hdev__ void  printMatJ         (const real8* const A, std::ostream & oss ) {
+      __snls_hdev__ void  printMatJ         (const double* const A, std::ostream & oss ) {
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             for ( int jX=0; jX<_nDim; ++jX) {
@@ -760,17 +759,17 @@ class SNLSTrDlDenseG
       static const int _nXnDim = _nDim * _nDim ;
       
       int _fevals, _nIters, _nJFact ;
-      real8 *_r, *_x, *_J ;
+      double *_r, *_x, *_J ;
 
    private:
       TrDeltaControl* _deltaControl ;
 
       int   _maxIter    ;
-      real8 _tolerance  ;
+      double _tolerance  ;
       int   _outputLevel;
 
       // _rhoLast is not really needed -- but is kept for debug and testing purposes
-      real8 _rhoLast ;
+      double _rhoLast ;
 
 #ifdef __cuda_host_only__
       std::ostream* _os ;
@@ -778,12 +777,12 @@ class SNLSTrDlDenseG
       char* _os ; // do not use
 #endif
 
-      real8 _nxStorage[nxMult*_nDim];
-      real8 _nxXxStorage[nxXxMult*_nDim*_nDim];
+      double _nxStorage[nxMult*_nDim];
+      double _nxXxStorage[nxXxMult*_nDim*_nDim];
       int   _niStorage[niMult*_nDim];
       //
-      real8 *_x0, *_nr, *_delx, *_ngrad, *_nsd, *_ntemp, *_p, *_rScratch ;
-      real8 *_J0, *_JScratch ;
+      double *_x0, *_nr, *_delx, *_ngrad, *_nsd, *_ntemp, *_p, *_rScratch ;
+      double *_J0, *_JScratch ;
       int   *_ipiv ;
 
       SNLSStatus_t  _status ;
