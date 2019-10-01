@@ -47,10 +47,10 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
       }
    }
    this->set0() ;
-   real8 res = this->normvec(_r) ;
-   real8 res_0 = res ;
+   _res = this->normvec(_r) ;
+   real8 res_0 = _res ;
 #ifdef __cuda_host_only__
-   if (_os) { *_os << "res = " << res << std::endl ; }
+   if (_os) { *_os << "res = " << _res << std::endl ; }
 #endif
 
    reject_prev = false ;
@@ -249,10 +249,10 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
             reject_prev = true ;
          }
          else {
-            res = this->normvec(_r) ;
+            _res = this->normvec(_r) ;
 #ifdef __cuda_host_only__
             if ( _os != NULL ) {
-               *_os << "res = " << res << std::endl ;
+               *_os << "res = " << _res << std::endl ;
             }
 #endif
 
@@ -260,7 +260,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
             // case the delta update can do funny things if the residual was
             // already very small 
 
-            if ( res < _tolerance ) {
+            if ( _res < _tolerance ) {
 #ifdef __cuda_host_only__
                if ( _os != NULL ) {
                   *_os << "converged" << std::endl ;
@@ -273,7 +273,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
             {
                real8 rho ;
                bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                              _delta, res, res_0, pred_resid,
+                                                              _delta, _res, res_0, pred_resid,
                                                               reject_prev, use_nr, nr2norm, rho) ;
                if ( ! deltaSuccess ) {
                   _status = SNLSTrDlDenseG::deltaFailure ;
@@ -291,7 +291,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
             *_os << "rejecting solution" << std::endl ;
          }
 #endif
-         res = res_0 ;
+         _res = res_0 ;
          this->reject() ;
          for (int iX = 0; iX < _nDim; ++iX) {
             _r[iX] = _rScratch[iX] ;
@@ -303,7 +303,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
          // always have current residual and Jacobian
       }
 
-      res_0 = res ;
+      res_0 = _res ;
     
    } // _nIters < _maxIter
 

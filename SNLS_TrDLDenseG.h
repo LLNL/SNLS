@@ -138,7 +138,7 @@ class SNLSTrDlDenseG
    // constructor
    __snls_hdev__ SNLSTrDlDenseG() :
                _nDim(-1), _nXnDim(-1),
-               _fevals(0), _nIters(0), _nJFact(0), _delta(-1.0),
+               _fevals(0), _nIters(0), _nJFact(0), _delta(1e8), _res(1e20),
                _r(NULL), _x(NULL), _J(NULL), 
                _deltaControl(NULL),
                _outputLevel(0),
@@ -169,6 +169,8 @@ class SNLSTrDlDenseG
       __snls_hdev__ void   setOutputlevel( int    outputLevel ) ;
       
       // solve returns status
+      //
+      // on exit, _res is consistent with _x
       __snls_hdev__ SNLSStatus_t solve();
 
       // computeRJ functions return true for successful evaluation
@@ -189,7 +191,7 @@ class SNLSTrDlDenseG
    protected:
       int _nDim, _nXnDim;
       int _fevals, _nIters, _nJFact ;
-      real8 _delta ;
+      real8 _delta, _res ;
       real8 *_r, *_x, *_J ;
 
    private:
