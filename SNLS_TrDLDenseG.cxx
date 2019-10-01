@@ -37,7 +37,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
    // bool converged = false ; ...
    bool have_ngrad = false, have_nr = false, have_trdl_dirs = false, have_p_a_b = false ; // ...have = .false.
 
-   real8 delta = _deltaControl->getDeltaInit() ;
+   _delta = _deltaControl->getDeltaInit() ;
 
    {
       bool rjSuccess = this->computeRJ() ; // _r, _J, _x
@@ -74,7 +74,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
          have_nr = true ;
       }
       
-      if ( nr2norm <= delta ) {
+      if ( nr2norm <= _delta ) {
          // okay to use whole newton step
          // 2-norm(NR step) <= delta
         use_nr = true ;
@@ -145,15 +145,15 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
          // optimal step along steapest descent is alpha*ngrad
          real8 norm_s_sd_opt = alpha*norm_grad ;
 
-         if ( norm_s_sd_opt >= delta ) {
+         if ( norm_s_sd_opt >= _delta ) {
 
             // use step along steapest descent direction
 
             for (int iX = 0; iX < _nDim; ++iX) {
-               _delx[iX] = _nsd[iX] * delta ;
+               _delx[iX] = _nsd[iX] * _delta ;
             }
             
-            real8 val = -(delta*norm_grad) + 0.5*delta*delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
+            real8 val = -(_delta*norm_grad) + 0.5*_delta*_delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
             pred_resid = 2.0*val + res_0*res_0 ;
             real8 signFact = ( pred_resid < 0 ? -1e0 : 1e0 ) ;
             pred_resid = signFact * sqrt(fabs(pred_resid)) ;
@@ -205,7 +205,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
 
             // qc and beta depend on delta
             //
-            real8 qc = norm_s_sd_opt*norm_s_sd_opt - delta*delta ;
+            real8 qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
             //
             real8 beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
 
@@ -241,7 +241,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
          if ( !(rjSuccess) ) {
             // got an error doing the evaluation
             // try to cut back step size and go again
-            bool deltaSuccess = _deltaControl->decrDelta(_os, delta, nr2norm, use_nr ) ;
+            bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr2norm, use_nr ) ;
             if ( ! deltaSuccess ) {
                _status = SNLSTrDlDenseG::deltaFailure ;
                break ; // while ( _nIters < _maxIter ) 
@@ -273,7 +273,7 @@ SNLSTrDlDenseG::SNLSStatus_t SNLSTrDlDenseG::solve()
             {
                real8 rho ;
                bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                              delta, res, res_0, pred_resid,
+                                                              _delta, res, res_0, pred_resid,
                                                               reject_prev, use_nr, nr2norm, rho) ;
                if ( ! deltaSuccess ) {
                   _status = SNLSTrDlDenseG::deltaFailure ;
