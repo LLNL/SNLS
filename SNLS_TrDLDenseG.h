@@ -84,6 +84,7 @@ typedef enum {
    unConverged        = -10,
    deltaFailure       = -20,
    algFailure         = -100,
+   unset              = -200,
    convFailure        =  1
 } SNLSStatus_t ;
 
@@ -172,7 +173,7 @@ class SNLSTrDlDenseG
    // constructor
    __snls_hdev__ SNLSTrDlDenseG(CRJ &crj) :
                _crj(crj),
-               _fevals(0), _nIters(0), _nJFact(0),
+               _fevals(0), _nIters(0), _nJFact(0), _delta(1e8), _res(1e20),
                _r(nullptr), _x(nullptr), _J(nullptr), 
                _deltaControl(nullptr),
                _outputLevel(0),
@@ -203,7 +204,23 @@ class SNLSTrDlDenseG
       __snls_hdev__ double* getRPntr  () const { return(_r     ); };
       __snls_hdev__ double* getJPntr  () const { return(_J     ); };
       __snls_hdev__ double  getRhoLast() const { return(_rhoLast); };
+      __snls_hdev__ double  getDelta  () const { return(_delta ); };
+      __snls_hdev__ double  getRes    () const { return(_res   ); };
 
+      // setX can be used to set the initial guess
+      __snls_hdev__ void setX( const double* const x ) {
+         for (int iX = 0; iX < _nDim; ++iX) {
+            _x[iX] = x[iX] ;
+         }
+      };
+   
+      __snls_hdev__ void getX( double* const x ) const {
+         for (int iX = 0; iX < _nDim; ++iX) {
+            x[iX] = _x[iX] ;
+         }
+      };   
+
+   
       __snls_hdev__ void   setupSolver(int              maxIter,
                                        double           tolerance,
                                        TrDeltaControl * deltaControl,
@@ -253,6 +270,8 @@ class SNLSTrDlDenseG
       }
       
       // solve returns status
+      //
+      // on exit, _res is consistent with _x
       __snls_hdev__ SNLSStatus_t solve() {
    
          _status = unConverged ;
@@ -264,9 +283,9 @@ class SNLSTrDlDenseG
          bool reject_prev = false ;
          bool have_ngrad = false, have_nr = false, have_trdl_dirs = false, have_p_a_b = false ;
 
-         double delta = _deltaControl->getDeltaInit() ;
+         _delta = _deltaControl->getDeltaInit() ;
 #ifdef __cuda_host_only__
-         if (_os) { *_os << "initial delta = " << delta << std::endl ; }
+         if (_os) { *_os << "initial delta = " << _delta << std::endl ; }
 #endif
 
          {
@@ -277,10 +296,10 @@ class SNLSTrDlDenseG
             }
          }
          this->set0() ;
-         double res = this->normvec(_r) ;
-         double res_0 = res ;
+         _res = this->normvec(_r) ;
+         double res_0 = _res ;
 #ifdef __cuda_host_only__
-         if (_os) { *_os << "res = " << res << std::endl ; }
+         if (_os) { *_os << "res = " << _res << std::endl ; }
 #endif
 
          reject_prev = false ;
@@ -304,7 +323,7 @@ class SNLSTrDlDenseG
                have_nr = true ;
             }
       
-            if ( nr2norm <= delta ) {
+            if ( nr2norm <= _delta ) {
                // okay to use whole newton step
                // 2-norm(NR step) <= delta
                use_nr = true ;
@@ -375,15 +394,15 @@ class SNLSTrDlDenseG
                // optimal step along steapest descent is alpha*ngrad
                double norm_s_sd_opt = alpha*norm_grad ;
 
-               if ( norm_s_sd_opt >= delta ) {
+               if ( norm_s_sd_opt >= _delta ) {
 
                   // use step along steapest descent direction
 
                   for (int iX = 0; iX < _nDim; ++iX) {
-                     _delx[iX] = _nsd[iX] * delta ;
+                     _delx[iX] = _nsd[iX] * _delta ;
                   }
             
-                  double val = -(delta*norm_grad) + 0.5*delta*delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
+                  double val = -(_delta*norm_grad) + 0.5*_delta*_delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
                   pred_resid = 2.0*val + res_0*res_0 ;
                   double signFact = ( pred_resid < 0 ? -1e0 : 1e0 ) ;
                   pred_resid = signFact * sqrt(fabs(pred_resid)) ;
@@ -435,7 +454,7 @@ class SNLSTrDlDenseG
 
                   // qc and beta depend on delta
                   //
-                  double qc = norm_s_sd_opt*norm_s_sd_opt - delta*delta ;
+                  double qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
                   //
                   double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
 
@@ -471,7 +490,7 @@ class SNLSTrDlDenseG
                if ( !(rjSuccess) ) {
                   // got an error doing the evaluation
                   // try to cut back step size and go again
-                  bool deltaSuccess = _deltaControl->decrDelta(_os, delta, nr2norm, use_nr ) ;
+                  bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr2norm, use_nr ) ;
                   if ( ! deltaSuccess ) {
                      _status = deltaFailure ;
                      break ; // while ( _nIters < _maxIter ) 
@@ -479,10 +498,10 @@ class SNLSTrDlDenseG
                   reject_prev = true ;
                }
                else {
-                  res = this->normvec(_r) ;
+                  _res = this->normvec(_r) ;
 #ifdef __cuda_host_only__
                   if ( _os != nullptr ) {
-                     *_os << "res = " << res << std::endl ;
+                     *_os << "res = " << _res << std::endl ;
                   }
 #endif
 
@@ -490,7 +509,7 @@ class SNLSTrDlDenseG
                   // case the delta update can do funny things if the residual was
                   // already very small 
 
-                  if ( res < _tolerance ) {
+                  if ( _res < _tolerance ) {
 #ifdef __cuda_host_only__
                      if ( _os != nullptr ) {
                         *_os << "converged" << std::endl ;
@@ -502,7 +521,7 @@ class SNLSTrDlDenseG
 
                   {
                      bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                    delta, res, res_0, pred_resid,
+                                                                    _delta, _res, res_0, pred_resid,
                                                                     reject_prev, use_nr, nr2norm, _rhoLast) ;
                      if ( ! deltaSuccess ) {
                         _status = deltaFailure ;
@@ -520,7 +539,7 @@ class SNLSTrDlDenseG
                   *_os << "rejecting solution" << std::endl ;
                }
 #endif
-               res = res_0 ;
+               _res = res_0 ;
                this->reject() ;
                for (int iX = 0; iX < _nDim; ++iX) {
                   _r[iX] = _rScratch[iX] ;
@@ -532,7 +551,7 @@ class SNLSTrDlDenseG
                // always have current residual and Jacobian
             }
 
-            res_0 = res ;
+            res_0 = _res ;
     
          } // _nIters < _maxIter
 
@@ -759,6 +778,7 @@ class SNLSTrDlDenseG
       static const int _nXnDim = _nDim * _nDim ;
       
       int _fevals, _nIters, _nJFact ;
+      double _delta, _res ;
       double *_r, *_x, *_J ;
 
    private:
