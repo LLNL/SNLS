@@ -11,6 +11,8 @@ message(STATUS "Using cmake version ${CMAKE_VERSION}")
 
 project(SNLS LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 11)
+
 #--------------------------------------------------------------------------------
 # BLT
 #--------------------------------------------------------------------------------
@@ -35,6 +37,10 @@ endif()
 
 set(ENABLE_GTEST OFF CACHE BOOL "")
 set(ENABLE_FRUIT OFF CACHE BOOL "")
+
+if(ENABLE_TESTS)
+    set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
+endif(ENABLE_TESTS)
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 
@@ -118,7 +124,6 @@ endif(BUILD_STATIC_LIBS)
 #------------------------------------------------------------------------------
 
 if(ENABLE_TESTS)
-    set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
     if (BUILD_STATIC_LIBS)
         set(SNLSTEST_DEPENDS snls_static)
     else()
