@@ -5,8 +5,9 @@
 #include "MS_port.h"
 #else
 
-/* The interface uses 'real8' as a type */
-typedef double real8 ;
+/*
+ * used to do "typedef double double", but have switched to just using double
+ */
 
 #endif
 /* SNLS_HAVE_MSLIB */

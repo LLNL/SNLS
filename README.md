@@ -44,6 +44,26 @@ AUTHORS
 
 The principal devleoper of SNLS is Nathan Barton, nrbarton@llnl.gov. Brett Wayne has also made contributions. 
 
+CITATION
+======
+
+SNLS may be cited using the following `bibtex` entry:
+```
+@Misc{snls,
+title = {SNLS},
+author = {Wayne, Brett M. and Barton, Nathan R. and USDOE National Nuclear Security Administration},
+abstractNote = {{SNLS} (small non-linear solver) is a C++ library for solving non-linear systems. The emphasis is on small systems of equations for which direct factorization of the Jacobian is appropriate. The systems of equations may be numerically ill-conditioned. Implementation is amenable to {GPU} usage, with the idea that class instantiation would occur within device functions.},
+doi = {10.11578/dc.20181217.9},
+year = 2018,
+month = {9},
+url = {https://github.com/LLNL/SNLS},
+annote =    {
+   https://www.osti.gov//servlets/purl/1487196
+   https://www.osti.gov/biblio/1487196
+}
+}
+```
+
 LICENSE
 ======
 

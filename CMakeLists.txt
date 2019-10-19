@@ -11,6 +11,8 @@ message(STATUS "Using cmake version ${CMAKE_VERSION}")
 
 project(SNLS LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 11)
+
 #--------------------------------------------------------------------------------
 # BLT
 #--------------------------------------------------------------------------------
@@ -36,6 +38,10 @@ endif()
 set(ENABLE_GTEST OFF CACHE BOOL "")
 set(ENABLE_FRUIT OFF CACHE BOOL "")
 
+if(ENABLE_TESTS)
+    set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
+endif(ENABLE_TESTS)
+
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 
 set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
@@ -45,6 +51,11 @@ set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 if (DEFINED MSLIB_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
 endif (DEFINED MSLIB_SOURCE_DIR)
+
+# turn off testing if building under ECMech, because gtest dependence does not seem to work
+if (DEFINED ECMECH_SOURCE_DIR)
+    set(ENABLE_TESTS OFF)
+endif (DEFINED ECMECH_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Sources
@@ -56,13 +67,15 @@ set(SNLS_HEADERS
     SNLS_TrDLDenseG.h)
 
 set(SNLS_SOURCES
-    SNLS_lup_solve.cc
     SNLS_TrDLDenseG.cxx)
 
 #------------------------------------------------------------------------------
 # Defines
 #------------------------------------------------------------------------------
 set(SNLS_DEFINES)
+
+SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DDEBUG")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
 
 if (DEFINED MSLIB_SOURCE_DIR)
     list(APPEND SNLS_DEFINES SNLS_HAVE_MSLIB)
@@ -120,7 +133,7 @@ if(ENABLE_TESTS)
     blt_add_executable(NAME       snlstest
                        SOURCES    SNLS_testdriver.cc
                        OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                       DEPENDS_ON ${SNLSTEST_DEPENDS})
+                       DEPENDS_ON ${SNLSTEST_DEPENDS} gtest)
     blt_add_test(NAME    snlstest
                  COMMAND snlstest)
 endif(ENABLE_TESTS)
