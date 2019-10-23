@@ -3,6 +3,7 @@
 #ifndef SNLS_TRDLDG_H
 #define SNLS_TRDLDG_H
 
+#include "SNLS_base.h"
 #include "SNLS_cuda_portability.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_port.h"
@@ -36,36 +37,6 @@ extern "C" {
 
 //////////////////////////////////////////////////////////////////////
 
-#if SNLS_HAVE_MSLIB
-#include "MS_math.h"
-#else
-#if defined(_WIN32) && __INTEL_COMPILER
-#include <mathimf.h>
-#else
-#include <math.h>
-#endif
-#endif
-
-#if SNLS_HAVE_MSLIB
-#include "MS_Log.h"
-#ifdef __cuda_host_only__
-#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#else
-#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#endif
-#else
-#ifdef __cuda_host_only__
-#include <stdio.h>
-#include <exception>
-#include <stdexcept>
-#define SNLS_FAIL(loc,str) throw std::runtime_error(std::string("at ") + std::string(loc) + std::string(" failure : ") + std::string(str)) ;
-#else
-#define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
-#endif
-#endif
-
-//////////////////////////////////////////////////////////////////////
-
 #define SNLSTRDLDG_J_COLUMN_MAJOR 0
 
 #if SNLSTRDLDG_J_COLUMN_MAJOR
@@ -77,16 +48,6 @@ extern "C" {
 #endif
 
 namespace snls {
-
-typedef enum {
-   converged          =  0,
-   initEvalFailure    = -2,
-   unConverged        = -10,
-   deltaFailure       = -20,
-   algFailure         = -100,
-   unset              = -200,
-   convFailure        =  1
-} SNLSStatus_t ;
 
 class TrDeltaControl
 {
