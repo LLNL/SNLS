@@ -87,17 +87,17 @@ public:
       {
          delta = _deltaMin ;
 
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
          if (strm) { *((std::ostream *) strm) << "delta now at min " << delta << std::endl ; }
-   #endif
+#endif
 
          success = false ;
       }
 
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
       else 
          if (strm) { *((std::ostream *) strm) << "decr delta to " << delta << std::endl ; }
-   #endif
+#endif
 
       return success;
    }
@@ -111,14 +111,14 @@ public:
       {
          delta = _deltaMax ;
 
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
          if (strm) { *((std::ostream *) strm) << "delta now at max " << delta << std::endl ; }
-   #endif
+#endif
       }
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
       else 
          if (strm) { *((std::ostream *) strm) << "incr delta to "    << delta << std::endl ; }
-   #endif
+#endif
    }
 
    
@@ -142,15 +142,15 @@ public:
       {
          if ( delta >= _deltaMax ) {
             // things are going badly enough that the solver should probably stop
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero and delta at max" << std::endl; }
-   #endif
+#endif
             success = false ;
          }
          else {
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero, forcing delta larger" << std::endl; }
-   #endif
+#endif
             delta = fmin( delta * _xiForcedIncDelta, _deltaMax );
             // ierr = IERR_UPD_DELTA_PRZ_p; // do not report this as a failure
          }
@@ -158,9 +158,9 @@ public:
       else 
       {
          rho = actual_change / pred_change;
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
          if (strm) { *((std::ostream *) strm) << "rho = " << rho << std::endl; }
-   #endif
+#endif
          if ( ( rho > _xiLG ) &&
             ( actual_change < 0e0 ) &&
             ( rho < _xiUG ) ) {
@@ -176,11 +176,11 @@ public:
             //    double temp_b = normfull * _xiIncDelta;
             //    if (temp_b < delta) {
             //       delta = temp_b;
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
             //       if ( _os != NULL ) {
             //          _os << "took full step, delta truncated from " << temp << " to " << delta << std::endl;
             //       }
-   #endif
+#endif
             //    }
             // }
          }
@@ -332,7 +332,9 @@ class SNLSTrDlDenseG
          }
       };   
 
-   
+      /**
+       * Must call setupSolver before calling solve
+       */
       __snls_hdev__ void   setupSolver(int              maxIter,
                                        double           tolerance,
                                        TrDeltaControl * deltaControl,
@@ -385,7 +387,11 @@ class SNLSTrDlDenseG
       //
       // on exit, _res is consistent with _x
       __snls_hdev__ SNLSStatus_t solve() {
-   
+
+         if ( _deltaControl == nullptr ) {
+            SNLS_FAIL("solve", "_deltaControl not set") ;
+         }
+         
          _status = unConverged ;
          _fevals = 0 ;
          _nJFact = 0 ;
