@@ -17,7 +17,7 @@
 
 namespace snls {
 
-   const real8 mulTolXDefault = 1e-4 ;
+const double mulTolXDefault = 1e-4 ;
 
 /** Helper templates to ensure compliant CFJ implementations */
 template<typename CFJ, typename = void>
