@@ -17,6 +17,8 @@
 
 namespace snls {
 
+   const real8 mulTolXDefault = 1e-4 ;
+
 /** Helper templates to ensure compliant CFJ implementations */
 template<typename CFJ, typename = void>
 struct has_valid_computeFJ : std::false_type { static constexpr bool value = false;};
@@ -42,33 +44,51 @@ public:
    static_assert(has_valid_computeFJ<CFJ>::value, "The CFJ implementation in SNLSNewtonBB needs to implement bool computeFJ( double &f, double &J, double x )");
    
    // constructor
-   __snls_hdev__ NewtonBB( CFJ       *cfj,
-                           double    tol=1e-8,
-                           int       maxIter=40,
-                           double    mulTolX=1e-4
-                           ) :
+   __snls_hdev__ NewtonBB( CFJ       *cfj ) :
       _cfj(cfj),
-      _tol(tol),
-      _maxIter(maxIter),
-      _fevals(0)
+      _tol(1e-8),
+      _maxIter(40),
+      _fevals(0),
+      _outputLevel(0),
+      _os(nullptr)
       {
-         _tolx = _tol * mulTolX ;
+         _tolx = _tol * mulTolXDefault ;
       } ;
    
    // destructor
-   __snls_hdev__ ~NewtonBB() {} ;
+   __snls_hdev__ ~NewtonBB() {
+#ifdef __cuda_host_only__
+      if ( _outputLevel > 1 && _os != nullptr ) {
+         *_os << "NewtonBB Function evaluations : " << _fevals << std::endl;
+      }
+#endif
+   } ;
 
+   /**
+    * This call is optional 
+    */
+   __snls_hdev__
+   void
+   setupSolver(int       maxIter,
+               double    tolerance,
+               double    mulTolX=mulTolXDefault,
+               int       outputLevel=0 ) {
+      _tol = tolerance ;
+      _tolx = _tol * mulTolXDefault ;
+      this->setOutputlevel( outputLevel ) ;
+   } ;
+   
    __snls_hdev__
    inline
    int
    getNFEvals() const { return(_fevals); };
    
-   // bound for function for which x does not have limits ;
-   //
-   // xl and xh need to be set as inputs, fl and fh do not
-   //
-   // on exit of true, fl and fh are consistent with xl and xh
-   //
+   /** find bounds for zero of a function for which x does not have limits ;
+    *
+    * xl and xh need to be set as inputs, fl and fh do not
+    *
+    * on exit value of true, fl and fh are consistent with xl and xh
+    */
    __snls_hdev__
    inline
    bool
@@ -83,7 +103,8 @@ public:
          xh = tempvar ;
       }
       
-      double del = 0.2*fmax(xh-xl,fmax(fabs(xl), 1.0)) ;
+      double delH = 0.2*fmax(xh-xl,fmax(fabs(xl), 1.0)) ;
+      double delL = delH ;
 
       bool success ;
 
@@ -112,31 +133,36 @@ public:
       //
       for ( int iBracket = 0; iBracket < _maxIter; ++iBracket ){
 
-         if ( iBracket < 10 && dxhi > 0.0 ) {
-            xhPrev = xh ; xh = xh + fmin( del, 1.2 / dxhi) ; newH = true ;
+         // the ordering here biases the search toward exploring smaller x values
+         //
+         if ( iBracket < 10 && dxli < 0.0 ) {
+            xlPrev = xl ; xl = xl + fmax(-delH, 1.2 / dxli) ; newH = false ;
          }
-         else if ( iBracket < 10 && dxli < 0.0 ) {
-            xlPrev = xl ; xl = xl + fmax(-del, 1.2 / dxli) ; newH = false ;
+         else if ( iBracket < 10 && dxhi > 0.0 ) {
+            xhPrev = xh ; xh = xh + fmin( delL, 1.2 / dxhi) ; newH = true ;
          }
          else {
             // take turns
             if ( newH ) { 
-               xlPrev = xl ; xl = xl - del ; newH = false ;
+               xlPrev = xl ; xl = xl - delH ; newH = false ;
             }
             else {
-               xhPrev = xh ; xh = xh + del ; newH = true ;
+               xhPrev = xh ; xh = xh + delL ; newH = true ;
             }
          }
-         //
-         del = del * 1.8;
          
          if ( newH ) {
             double J ;
             double fhPrev = fh ;
             success = this->_cfj->computeFJ(fh, J, xh) ; _fevals++ ; 
             if ( !success ) {
-               // could concieve of a fallback
-               return false ;
+               // try a smaller step
+               xh = xhPrev ; fh = fhPrev ; // dxhi is as was before
+               delH = delH * 0.1 ;
+#ifdef __cuda_host_only__
+               if (_os) { *_os << "NewtonBB trouble in bounding, cut delH back to = " << delH << std::endl ; }
+#endif
+               continue ;
             }
             if ( fabs(fh) < _tol ) {
                return true ;
@@ -154,8 +180,13 @@ public:
             double flPrev = fl ;
             success = this->_cfj->computeFJ(fl, J, xl) ; _fevals++ ; 
             if ( !success ) {
-               // could concieve of a fallback
-               return false ;
+               // try a smaller step
+               xl = xlPrev ; fl = flPrev ; // dxli is as was before
+               delL = delL * 0.1 ;
+#ifdef __cuda_host_only__
+               if (_os) { *_os << "NewtonBB trouble in bounding, cut delL back to = " << delL << std::endl ; }
+#endif
+               continue ;
             }
             if ( fabs(fl) < _tol ) {
                return true ;
@@ -169,12 +200,26 @@ public:
             dxli = -J / fl;
          }
 
-      }
+         delH = delH * 1.8;
+         delL = delL * 1.8;
+      
+      } // iBracket
 
       return false ;
       
    } ;
 
+   __snls_hdev__ void   setOutputlevel( int    outputLevel ) {
+      _outputLevel = outputLevel ;
+      _os          = nullptr ;
+      //
+#ifdef __cuda_host_only__
+      if ( _outputLevel > 0 ) {
+         _os = &(std::cout) ;
+      }
+#endif
+   }
+      
    // x is an initial guess, must be in [xl,xh]
    //
    __snls_hdev__
@@ -278,11 +323,17 @@ public:
             dxold = dx;
             dx = ( xh - xl) / 2.0;
             x = xl + dx;
+#ifdef __cuda_host_only__
+            if (_os) { *_os << "NewtonBB doing bisection with dx : " << fabs(dx) << std::endl ; }
+#endif
          }
          else {
             dxold = dx;
-            dx = fun / J;
-            x = x - dx;
+            dx = -fun / J;
+#ifdef __cuda_host_only__
+            if (_os) { *_os << "NewtonBB trying newton step with dx : " << dx << std::endl ; }
+#endif
+            x = x + dx;
          }
   
          if ( fabs(dx) < _tolx  &&  j>10 ) {
@@ -297,6 +348,10 @@ public:
          }
 
          success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
+#ifdef __cuda_host_only__
+         if (_os) { *_os << "NewtonBB evaluation with f, J, x : " 
+                         << fun << " " << J << " " << x << std::endl ; }
+#endif
          if ( !success ) {
             status = evalFailure ;
             return status ;
@@ -322,11 +377,19 @@ public:
 
 public:
    CFJ     *_cfj ;
+   
 private:
    double  _tol, _tolx ;
    int     _maxIter ;
    int     _fevals ;
    
+   int   _outputLevel;
+#ifdef __cuda_host_only__
+   std::ostream* _os ;
+#else
+   char* _os ; // do not use
+#endif
+
 }; // class NewtonBB
 
 } // namespace snls
