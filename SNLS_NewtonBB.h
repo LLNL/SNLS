@@ -44,7 +44,7 @@ public:
    static_assert(has_valid_computeFJ<CFJ>::value, "The CFJ implementation in SNLSNewtonBB needs to implement bool computeFJ( double &f, double &J, double x )");
    
    // constructor
-   __snls_hdev__ NewtonBB( CFJ       &cfj,
+   __snls_hdev__ NewtonBB( CFJ       *cfj,
                            double    tol=1e-8,
                            int       maxIter=40,
                            double    mulTolX=1e-4
@@ -92,12 +92,12 @@ public:
       double dxhi, dxli ;
       {
          double Jh ;
-         success = this->_cfj.computeFJ(fh, Jh, xh) ; _fevals++ ; 
+         success = this->_cfj->computeFJ(fh, Jh, xh) ; _fevals++ ; 
          if ( !success ) {
             return false ;
          }
          double Jl ;
-         success = this->_cfj.computeFJ(fl, Jl, xl) ; _fevals++ ; 
+         success = this->_cfj->computeFJ(fl, Jl, xl) ; _fevals++ ; 
          if ( !success ) {
             return false ;
          }
@@ -135,7 +135,7 @@ public:
          if ( newH ) {
             double J ;
             double fhPrev = fh ;
-            success = this->_cfj.computeFJ(fh, J, xh) ; _fevals++ ; 
+            success = this->_cfj->computeFJ(fh, J, xh) ; _fevals++ ; 
             if ( !success ) {
                // could concieve of a fallback
                return false ;
@@ -154,7 +154,7 @@ public:
          else {
             double J ;
             double flPrev = fl ;
-            success = this->_cfj.computeFJ(fl, J, xl) ; _fevals++ ; 
+            success = this->_cfj->computeFJ(fl, J, xl) ; _fevals++ ; 
             if ( !success ) {
                // could concieve of a fallback
                return false ;
@@ -190,7 +190,7 @@ public:
       SNLSStatus_t status = unset ;
    
       double fun, J ;
-      bool success = this->_cfj.computeFJ(fun, J, x) ; _fevals++ ;
+      bool success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
       if ( !success ) {
          status = initEvalFailure ;
          return status ;
@@ -204,7 +204,7 @@ public:
       double fl, fh ;
       {
          double tmpJ;
-         success = this->_cfj.computeFJ(fl, tmpJ, xl) ; _fevals++ ;
+         success = this->_cfj->computeFJ(fl, tmpJ, xl) ; _fevals++ ;
          if ( !success ) {
             status = initEvalFailure ;
             return status ;
@@ -214,7 +214,7 @@ public:
             status = converged ;
             return status ;
          }
-         success = this->_cfj.computeFJ(fh, tmpJ, xh) ; _fevals++ ;
+         success = this->_cfj->computeFJ(fh, tmpJ, xh) ; _fevals++ ;
          if ( !success ) {
             status = initEvalFailure ;
             return status ;
@@ -232,12 +232,12 @@ public:
          if ( unbounded ) {
             bool success = doBoundA(xl, xh, fl, fh) ;
             if ( !success ) {
-               status = algFailure ;
+               status = bracketFailure ;
                return status ;
             }
          }
          else {
-            status = algFailure ;
+            status = bracketFailure ;
             return status ;
          }
       }
@@ -298,7 +298,7 @@ public:
             }
          }
 
-         success = this->_cfj.computeFJ(fun, J, x) ; _fevals++ ;
+         success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
          if ( !success ) {
             status = evalFailure ;
             return status ;
@@ -323,7 +323,7 @@ public:
    }
 
 public:
-   CFJ     &_cfj ;
+   CFJ     *_cfj ;
 private:
    double  _tol, _tolx ;
    int     _maxIter ;

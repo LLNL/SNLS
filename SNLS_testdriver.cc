@@ -265,7 +265,7 @@ TEST(snls,broyden_b)
 TEST(snls,newtonbb_a)
 {
    FunA fun(5.0) ;
-   snls::NewtonBB<FunA,true> solver(fun) ;
+   snls::NewtonBB<FunA,true> solver(&fun) ;
    double x = 0.0 ;
    snls::SNLSStatus_t status = solver.solve(x, 0.0, 0.0) ;
    EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;   
@@ -277,7 +277,7 @@ TEST(snls,newtonbb_a)
 TEST(snls,newtonbb_b)
 {
    FunA fun(5.0) ;
-   snls::NewtonBB<FunA,true> solver(fun) ;
+   snls::NewtonBB<FunA,true> solver(&fun) ;
    double x = 0.0 ;
    snls::SNLSStatus_t status = solver.solve(x, -10.0, 10.0) ;
    EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;   
@@ -289,7 +289,7 @@ TEST(snls,newtonbb_b)
 TEST(snls,newtonbb_c)
 {
    FunA fun(5.0) ;
-   snls::NewtonBB<FunA,true> solver(fun) ;
+   snls::NewtonBB<FunA,true> solver(&fun) ;
    double x = FUNASOLN+2.0 ;
    snls::SNLSStatus_t status = solver.solve(x, FUNASOLN+1.0, FUNASOLN+10.0) ;
    EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;   

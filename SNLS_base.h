@@ -12,6 +12,7 @@ typedef enum {
    unConverged        = -10,
    deltaFailure       = -20,
    algFailure         = -100,
+   bracketFailure     = -101,
    unset              = -200
 } SNLSStatus_t ;
 
