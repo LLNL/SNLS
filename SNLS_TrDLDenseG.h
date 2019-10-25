@@ -4,9 +4,7 @@
 #define SNLS_TRDLDG_H
 
 #include "SNLS_base.h"
-#include "SNLS_cuda_portability.h"
 #include "SNLS_lup_solve.h"
-#include "SNLS_port.h"
 
 #include <stdlib.h>
 #include <iostream>

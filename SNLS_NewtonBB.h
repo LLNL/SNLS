@@ -4,8 +4,6 @@
 #define SNLS_NEWTONBB_H
 
 #include "SNLS_base.h"
-#include "SNLS_cuda_portability.h"
-#include "SNLS_port.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -288,12 +286,12 @@ public:
          }
   
          if ( fabs(dx) < _tolx  &&  j>10 ) {
-            status = converged ;
+            status = convByBracket ;
             return status ;
          }
          if ( fabs(x) > _tolx ) {
             if ( fabs(dx) / fabs(x) < _tol ) {
-               status = converged ;
+               status = convByBracket ;
                return status ;
             }
          }

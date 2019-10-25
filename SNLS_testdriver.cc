@@ -220,7 +220,7 @@ TEST(snls,broyden_a) // int main(int , char ** )
    solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 
    snls::SNLSStatus_t status = solver.solve( ) ;
-   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;
+   EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;
    if ( status != snls::converged ){
       char errmsg[256];
       snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
@@ -252,7 +252,7 @@ TEST(snls,broyden_b)
    solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
 
    snls::SNLSStatus_t status = solver.solve( ) ;
-   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;
+   EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;
    if ( status != snls::converged ){
       char errmsg[256];
       snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
@@ -268,7 +268,7 @@ TEST(snls,newtonbb_a)
    snls::NewtonBB<FunA,true> solver(&fun) ;
    double x = 0.0 ;
    snls::SNLSStatus_t status = solver.solve(x, 0.0, 0.0) ;
-   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;   
+   EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;   
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
    EXPECT_LT( fabs(x-FUNASOLN), 1e-7 ) << "Expected the correct solution" ;
    EXPECT_EQ( solver.getNFEvals(), 15 ) << "Expected 15 function evaluations for this case" ;
@@ -280,7 +280,7 @@ TEST(snls,newtonbb_b)
    snls::NewtonBB<FunA,true> solver(&fun) ;
    double x = 0.0 ;
    snls::SNLSStatus_t status = solver.solve(x, -10.0, 10.0) ;
-   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;   
+   EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;   
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
    EXPECT_LT( fabs(x-FUNASOLN), 1e-7 ) << "Expected the correct solution" ;
    EXPECT_EQ( solver.getNFEvals(), 9 ) << "Expected 9 function evaluations for this case" ;
@@ -292,7 +292,7 @@ TEST(snls,newtonbb_c)
    snls::NewtonBB<FunA,true> solver(&fun) ;
    double x = FUNASOLN+2.0 ;
    snls::SNLSStatus_t status = solver.solve(x, FUNASOLN+1.0, FUNASOLN+10.0) ;
-   EXPECT_TRUE( status == snls::converged ) << "Expected solver to converge" ;   
+   EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;   
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
    EXPECT_LT( fabs(x-FUNASOLN), 1e-7 ) << "Expected the correct solution" ;
    EXPECT_EQ( solver.getNFEvals(), 10 ) << "Expected 10 function evaluations for this case" ;
