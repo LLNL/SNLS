@@ -136,18 +136,18 @@ public:
          // the ordering here biases the search toward exploring smaller x values
          //
          if ( iBracket < 10 && dxli < 0.0 ) {
-            xlPrev = xl ; xl = xl + fmax(-delH, 1.2 / dxli) ; newH = false ;
+            xlPrev = xl ; xl = xl + fmax(-delL, 1.2 / dxli) ; newH = false ;
          }
          else if ( iBracket < 10 && dxhi > 0.0 ) {
-            xhPrev = xh ; xh = xh + fmin( delL, 1.2 / dxhi) ; newH = true ;
+            xhPrev = xh ; xh = xh + fmin( delH, 1.2 / dxhi) ; newH = true ;
          }
          else {
             // take turns
             if ( newH ) { 
-               xlPrev = xl ; xl = xl - delH ; newH = false ;
+               xlPrev = xl ; xl = xl - delL ; newH = false ;
             }
             else {
-               xhPrev = xh ; xh = xh + delL ; newH = true ;
+               xhPrev = xh ; xh = xh + delH ; newH = true ;
             }
          }
          
@@ -155,6 +155,10 @@ public:
             double J ;
             double fhPrev = fh ;
             success = this->_cfj->computeFJ(fh, J, xh) ; _fevals++ ; 
+#ifdef __cuda_host_only__
+            if (_os) { *_os << "NewtonBB in bounding, have x, f, J : "
+                            << xh << " " <<  fh << " "  << J << std::endl ; }
+#endif
             if ( !success ) {
                // try a smaller step
                xh = xhPrev ; fh = fhPrev ; // dxhi is as was before
@@ -174,11 +178,16 @@ public:
                return true ;
             }
             dxhi = -J / fh;
+            delH = delH * 1.8;
          }
          else {
             double J ;
             double flPrev = fl ;
             success = this->_cfj->computeFJ(fl, J, xl) ; _fevals++ ; 
+#ifdef __cuda_host_only__
+            if (_os) { *_os << "NewtonBB in bounding, have x, f, J : "
+                            << xl << " " <<  fl << " "  << J << std::endl ; }
+#endif
             if ( !success ) {
                // try a smaller step
                xl = xlPrev ; fl = flPrev ; // dxli is as was before
@@ -198,10 +207,8 @@ public:
                return true ;
             }
             dxli = -J / fl;
+            delL = delL * 1.8;
          }
-
-         delH = delH * 1.8;
-         delL = delL * 1.8;
       
       } // iBracket
 
@@ -358,6 +365,11 @@ public:
          }
   
          if ( fabs(fun) < _tol ) {
+#ifdef __cuda_host_only__
+            if ( _os != nullptr ) {
+               *_os << "converged" << std::endl ;
+            }
+#endif
             status = converged ;
             return status ;
          }
