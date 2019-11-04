@@ -3,9 +3,8 @@
 #ifndef SNLS_TRDLDG_H
 #define SNLS_TRDLDG_H
 
-#include "SNLS_cuda_portability.h"
+#include "SNLS_base.h"
 #include "SNLS_lup_solve.h"
-#include "SNLS_port.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -36,36 +35,6 @@ extern "C" {
 
 //////////////////////////////////////////////////////////////////////
 
-#if SNLS_HAVE_MSLIB
-#include "MS_math.h"
-#else
-#if defined(_WIN32) && __INTEL_COMPILER
-#include <mathimf.h>
-#else
-#include <math.h>
-#endif
-#endif
-
-#if SNLS_HAVE_MSLIB
-#include "MS_Log.h"
-#ifdef __cuda_host_only__
-#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#else
-#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#endif
-#else
-#ifdef __cuda_host_only__
-#include <stdio.h>
-#include <exception>
-#include <stdexcept>
-#define SNLS_FAIL(loc,str) throw std::runtime_error(std::string("at ") + std::string(loc) + std::string(" failure : ") + std::string(str)) ;
-#else
-#define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
-#endif
-#endif
-
-//////////////////////////////////////////////////////////////////////
-
 #define SNLSTRDLDG_J_COLUMN_MAJOR 0
 
 #if SNLSTRDLDG_J_COLUMN_MAJOR
@@ -77,16 +46,6 @@ extern "C" {
 #endif
 
 namespace snls {
-
-typedef enum {
-   converged          =  0,
-   initEvalFailure    = -2,
-   unConverged        = -10,
-   deltaFailure       = -20,
-   algFailure         = -100,
-   unset              = -200,
-   convFailure        =  1
-} SNLSStatus_t ;
 
 class TrDeltaControl
 {
@@ -128,17 +87,17 @@ public:
       {
          delta = _deltaMin ;
 
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
          if (strm) { *((std::ostream *) strm) << "delta now at min " << delta << std::endl ; }
-   #endif
+#endif
 
          success = false ;
       }
 
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
       else 
          if (strm) { *((std::ostream *) strm) << "decr delta to " << delta << std::endl ; }
-   #endif
+#endif
 
       return success;
    }
@@ -152,14 +111,14 @@ public:
       {
          delta = _deltaMax ;
 
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
          if (strm) { *((std::ostream *) strm) << "delta now at max " << delta << std::endl ; }
-   #endif
+#endif
       }
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
       else 
          if (strm) { *((std::ostream *) strm) << "incr delta to "    << delta << std::endl ; }
-   #endif
+#endif
    }
 
    
@@ -183,15 +142,15 @@ public:
       {
          if ( delta >= _deltaMax ) {
             // things are going badly enough that the solver should probably stop
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero and delta at max" << std::endl; }
-   #endif
+#endif
             success = false ;
          }
          else {
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero, forcing delta larger" << std::endl; }
-   #endif
+#endif
             delta = fmin( delta * _xiForcedIncDelta, _deltaMax );
             // ierr = IERR_UPD_DELTA_PRZ_p; // do not report this as a failure
          }
@@ -199,9 +158,9 @@ public:
       else 
       {
          rho = actual_change / pred_change;
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
          if (strm) { *((std::ostream *) strm) << "rho = " << rho << std::endl; }
-   #endif
+#endif
          if ( ( rho > _xiLG ) &&
             ( actual_change < 0e0 ) &&
             ( rho < _xiUG ) ) {
@@ -217,11 +176,11 @@ public:
             //    double temp_b = normfull * _xiIncDelta;
             //    if (temp_b < delta) {
             //       delta = temp_b;
-   #ifdef __cuda_host_only__
+#ifdef __cuda_host_only__
             //       if ( _os != NULL ) {
             //          _os << "took full step, delta truncated from " << temp << " to " << delta << std::endl;
             //       }
-   #endif
+#endif
             //    }
             // }
          }
@@ -373,7 +332,9 @@ class SNLSTrDlDenseG
          }
       };   
 
-   
+      /**
+       * Must call setupSolver before calling solve
+       */
       __snls_hdev__ void   setupSolver(int              maxIter,
                                        double           tolerance,
                                        TrDeltaControl * deltaControl,
@@ -426,7 +387,11 @@ class SNLSTrDlDenseG
       //
       // on exit, _res is consistent with _x
       __snls_hdev__ SNLSStatus_t solve() {
-   
+
+         if ( _deltaControl == nullptr ) {
+            SNLS_FAIL("solve", "_deltaControl not set") ;
+         }
+         
          _status = unConverged ;
          _fevals = 0 ;
          _nJFact = 0 ;

@@ -61,10 +61,12 @@ endif (DEFINED ECMECH_SOURCE_DIR)
 # Sources
 #------------------------------------------------------------------------------
 set(SNLS_HEADERS
+    SNLS_base.h
     SNLS_cuda_portability.h
     SNLS_port.h
     SNLS_lup_solve.h
-    SNLS_TrDLDenseG.h)
+    SNLS_TrDLDenseG.h
+    SNLS_NewtonBB.h)
 
 set(SNLS_SOURCES
     SNLS_TrDLDenseG.cxx)
