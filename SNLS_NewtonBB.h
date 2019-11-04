@@ -344,14 +344,12 @@ public:
          }
   
          if ( fabs(dx) < _tolx  &&  j>10 ) {
+            //
+            // could additionally check (fabs(x) > _tolx) && (fabs(dx) / fabs(x) < _tol) for convergence
+            // but that may in some cases be too sloppy
+            //
             status = convByBracket ;
             return status ;
-         }
-         if ( fabs(x) > _tolx ) {
-            if ( fabs(dx) / fabs(x) < _tol ) {
-               status = convByBracket ;
-               return status ;
-            }
          }
 
          success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
