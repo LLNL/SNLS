@@ -211,7 +211,10 @@ TEST(snls,broyden_a) // int main(int , char ** )
    //
    double r[nDim], J[nDim*nDim] ;
    //
-   solver._crj.computeRJ(r, J, solver._x); // broyden.computeRJ(r, J, x);
+   // any of these should be equivalent:
+   // broyden.computeRJ(r, J, solver._x);
+   // solver._crj.computeRJ(r, J, solver._x); 
+   solver.computeRJ(r, J); 
 
    snls::SNLSStatus_t status = solver.solve( ) ;
    EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;

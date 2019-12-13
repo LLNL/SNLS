@@ -610,8 +610,6 @@ class SNLSTrDlDenseG
       
       }
 
-   private :
-   
       // convenience wrapper, for the current _x
       __snls_hdev__ inline bool computeRJ(double* const r,
                                           double* const J ) {
@@ -664,6 +662,8 @@ class SNLSTrDlDenseG
          
       }
       
+   private :
+   
       __snls_hdev__ inline void  computeNewtonStep (double* const       J,
                                                     const double* const r,
                                                     double* const       newton  ) {
