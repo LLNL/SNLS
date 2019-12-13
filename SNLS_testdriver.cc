@@ -156,11 +156,8 @@ void Test_SNLSBroyden_D (Broyden *broyden)
 
    printf("(%s::%s(ln=%d) cuda bx=%d bw=%2d thrd=%2d i=%2d broyden=%p)\n", __FILE__, __func__, __LINE__, blockIdx .x, blockDim .x, threadIdx.x, i, &broyden);
 
-   // double r[nDim], J[nDim*nDim] ;
-   double* x = solver.getXPntr() ;
-   //
    for (int iX = 0; iX < nDim; ++iX) {
-      x[iX] = 0e0 ;
+      solver._x[iX] = 0e0 ;
    }
 
    solver.solve( ) ;
@@ -208,16 +205,13 @@ TEST(snls,broyden_a) // int main(int , char ** )
    deltaControlBroyden._deltaInit = 1e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
-   double* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
-      x[iX] = 0e0 ;
+      solver._x[iX] = 0e0 ;
    }
    //
-   // double r[nDim], J[nDim*nDim] ;
-   double* r = solver.getRPntr() ;
-   double* J = solver.getJPntr() ;
+   double r[nDim], J[nDim*nDim] ;
    //
-   solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
+   solver._crj.computeRJ(r, J, solver._x); // broyden.computeRJ(r, J, x);
 
    snls::SNLSStatus_t status = solver.solve( ) ;
    EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;
@@ -240,16 +234,13 @@ TEST(snls,broyden_b)
    deltaControlBroyden._deltaInit = 100e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
-   double* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
-      x[iX] = 0e0 ;
+      solver._x[iX] = 0e0 ;
    }
    //
-   // double r[nDim], J[nDim*nDim] ;
-   double* r = solver.getRPntr() ;
-   double* J = solver.getJPntr() ;
+   double r[nDim], J[nDim*nDim] ;
    //
-   solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
+   solver._crj.computeRJ(r, J, solver._x); // broyden.computeRJ(r, J, x);
 
    snls::SNLSStatus_t status = solver.solve( ) ;
    EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;
@@ -260,6 +251,35 @@ TEST(snls,broyden_b)
    }
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
    EXPECT_EQ( solver.getNFEvals(), 23 ) << "Expected 23 function evaluations for this case" ;
+}
+
+TEST(snls,broyden_c) // int main(int , char ** )
+{
+   const int nDim = Broyden::nDimSys ;
+
+   Broyden broyden( 0.99 ) ; // LAMBDA_BROYDEN 
+   snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
+   snls::TrDeltaControl deltaControlBroyden ;
+   deltaControlBroyden._deltaInit = 1e-4 ;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
+
+   for (int iX = 0; iX < nDim; ++iX) {
+      solver._x[iX] = 0e0 ;
+   }
+   //
+   double r[nDim], J[nDim*nDim] ;
+   //
+   solver._crj.computeRJ(r, J, solver._x); // broyden.computeRJ(r, J, x);
+
+   snls::SNLSStatus_t status = solver.solve( ) ;
+   EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;
+   if ( status != snls::converged ){
+      char errmsg[256];
+      snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
+      SNLS_FAIL(__func__,errmsg);
+   }
+   std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";
+   EXPECT_EQ( solver.getNFEvals(), 35 ) << "Expected 35 function evaluations for this case" ;
 }
 
 TEST(snls,newtonbb_a)
@@ -310,16 +330,13 @@ TEST(snls,broyden_gpu_a)
    deltaControlBroyden._deltaInit = 100e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 1);
 
-   double* x = solver.getXPntr() ;
    for (int iX = 0; iX < nDim; ++iX) {
-      x[iX] = 0e0 ;
+      solver._x[iX] = 0e0 ;
    }
    //
-   // double r[nDim], J[nDim*nDim] ;
-   double* r = solver.getRPntr() ;
-   double* J = solver.getJPntr() ;
+   double r[nDim], J[nDim*nDim] ;
    //
-   solver._crj.computeRJ(r, J, x); // broyden.computeRJ(r, J, x);
+   solver._crj.computeRJ(r, J, solver._x); // broyden.computeRJ(r, J, x);
 
    int npoints=40;
    Test_SNLSBroyden_GPU(npoints);
