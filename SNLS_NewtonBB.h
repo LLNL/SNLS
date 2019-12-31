@@ -73,9 +73,12 @@ public:
                double    tolerance,
                double    mulTolX=mulTolXDefault,
                int       outputLevel=0 ) {
-      _tol = tolerance ;
-      _tolx = _tol * mulTolXDefault ;
+      
+      _maxIter = maxIter ;
+      _tol     = tolerance ;
+      _tolx    = _tol * mulTolXDefault ;
       this->setOutputlevel( outputLevel ) ;
+      
    } ;
    
    __snls_hdev__
@@ -348,6 +351,11 @@ public:
             // could additionally check (fabs(x) > _tolx) && (fabs(dx) / fabs(x) < _tol) for convergence
             // but that may in some cases be too sloppy
             //
+#ifdef __cuda_host_only__
+            if ( _os != nullptr ) {
+               *_os << "converged by bracketing" << std::endl ;
+            }
+#endif
             status = convByBracket ;
             return status ;
          }
