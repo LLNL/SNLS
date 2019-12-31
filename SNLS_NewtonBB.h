@@ -46,6 +46,8 @@ public:
    // constructor
    __snls_hdev__ NewtonBB( CFJ       *cfj ) :
       _cfj(cfj),
+      _boundStepGrowthFactor(1.2),
+      _boundOvershootFactor(1.2),
       _tol(1e-8),
       _maxIter(40),
       _fevals(0),
@@ -139,10 +141,10 @@ public:
          // the ordering here biases the search toward exploring smaller x values
          //
          if ( iBracket < 10 && dxli < 0.0 ) {
-            xlPrev = xl ; xl = xl + fmax(-delL, 1.2 / dxli) ; newH = false ;
+            xlPrev = xl ; xl = xl + fmax(-delL, _boundOvershootFactor / dxli) ; newH = false ;
          }
          else if ( iBracket < 10 && dxhi > 0.0 ) {
-            xhPrev = xh ; xh = xh + fmin( delH, 1.2 / dxhi) ; newH = true ;
+            xhPrev = xh ; xh = xh + fmin( delH, _boundOvershootFactor / dxhi) ; newH = true ;
          }
          else {
             // take turns
@@ -181,7 +183,7 @@ public:
                return true ;
             }
             dxhi = -J / fh;
-            delH = delH * 1.8;
+            delH = delH * _boundStepGrowthFactor;
          }
          else {
             double J ;
@@ -210,7 +212,7 @@ public:
                return true ;
             }
             dxli = -J / fl;
-            delL = delL * 1.8;
+            delL = delL * _boundStepGrowthFactor;
          }
       
       } // iBracket
@@ -395,6 +397,8 @@ public:
 
 public:
    CFJ     *_cfj ;
+   double  _boundStepGrowthFactor ;
+   double  _boundOvershootFactor ;
    
 private:
    double  _tol, _tolx ;
