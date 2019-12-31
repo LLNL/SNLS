@@ -30,8 +30,8 @@ template<int n> // size of the system (NxN)
 __snls_hdev__ 
 void SNLS_LUP_Fix_Columns
 (
-   double **a  ,  ///< source matrix (NxN)
-   double   tol   ///< error tolerance for degeneracy test
+   double ** const a  ,  ///< source matrix (NxN)
+   double          tol   ///< error tolerance for degeneracy test
 )
 {
    if (a && (n>0))
@@ -69,9 +69,9 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 int SNLS_LUP_Decompose
 (
-   double  **a  ,  ///< source matrix (NxN)
-   int     *p  ,  ///< pivot vector  (N+1)
-   double   tol   ///< error tolerance for degeneracy test
+   double** const a  ,  ///< source matrix (NxN)
+   int* const     p  ,  ///< pivot vector  (N+1)
+   double         tol   ///< error tolerance for degeneracy test
 )
 {
    if (a && p && (n>0) )
@@ -130,10 +130,10 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 int SNLS_LUP_Solve
 (
-   double **a,  ///< source matrix      (NxN, LUP decomposed)
-   int     *p,  ///< pivot vector       (N, or N+1)
-   double  *x,  ///< computed solution  (N)
-   double  *b   ///< rhs vector         (N)
+         double** const a,  ///< source matrix      (NxN, LUP decomposed)
+         int*     const p,  ///< pivot vector       (N, or N+1)
+         double*  const x,  ///< computed solution  (N)
+   const double*  const b   ///< rhs vector         (N)
 )
 {
    if (a && p && x && b && (n>0))
@@ -162,28 +162,16 @@ int SNLS_LUP_Solve
 //
 // Alternate version.  Given a source matrix, performs an LU decomposition on that matrix and
 // solves the system.  The original matrix is modified.
-//
-// Note - invoking new/malloc from a CUDA device function is horrifically inefficient. 
-// The LU solver uses a traditional c++ 2D array where pointers to the matrix rows are
-// used to perform the matrix lookup and assignment  mtx[row][col] where mtx[row] points
-// to a dense vector of values.
-//
-// For small systems (e.g. N<10), I maintain local arrays on the stack rather than 
-// allocate locals via malloc. This avoids hammering the local heap for small matrices.
-//
-// Note - this LUP solver was failing for some of the MS stiffness matrices because
-// the source matrices had zero (or near zero) columns. This routine checks and fixes
-// those columns before attempting to solve the system.
 //-----------------------------------------------------------------------------------------------
 
 template<int n> // size of the system (NxN)
 __snls_hdev__ 
 int SNLS_LUP_Solve 
 (
-   double  *a  ,        ///< NxN source matrix, dense, row-major, modified on output
-   double  *x  ,        ///< computed solution vector  (N)
-   double  *b  ,        ///< rhs vector                (N)
-   double   tol=1e-50   ///< error tolerance for degeneracy test
+         double* const a  ,        ///< NxN source matrix, dense, row-major, modified on output
+         double* const x  ,        ///< computed solution vector  (N)
+   const double* const b  ,        ///< rhs vector                (N)
+         double        tol=1e-50   ///< error tolerance for degeneracy test
 )
 {
    int      err = 0  ;   // default error return
@@ -209,10 +197,10 @@ template<int n> // size of the system (NxN)
 __snls_hdev__ 
 int SNLS_LUP_SolveX
 (
-   double  *a    ,     ///< NxN source matrix, dense, row-major, modified on output
-   double  *xb   ,     ///< rhs and solution vectors  (nRHS x N)
-   int      nRHS ,
-   double   tol=1e-50  ///< error tolerance for degeneracy test
+   double* const a    ,     ///< NxN source matrix, dense, row-major, modified on output
+   double* const xb   ,     ///< rhs and solution vectors  (nRHS x N)
+   int           nRHS ,
+   double        tol=1e-50  ///< error tolerance for degeneracy test
 )
 {
    int      err = 0;    // default error return
@@ -251,9 +239,9 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 void SNLS_LUP_Invert
 (
-   double **ai,   ///< inverse matrix     (NxN, result)
-   double **a ,   ///< source matrix      (NxN, LUP decomposed)
-   int     *p     ///< pivot vector       (N)
+   double** const ai,   ///< inverse matrix     (NxN, result)
+   double** const a ,   ///< source matrix      (NxN, LUP decomposed)
+   int*     const p     ///< pivot vector       (N)
 )
 {
    if (ai && a && (ai!=a) && p && (n>0))
@@ -293,8 +281,8 @@ template<int n> // size of the system (NxN)
 __snls_hdev__
 double SNLS_LUP_Determinant
 (
-   double **a,  ///< source matrix      (NxN, LUP decomposed)
-   int     *p   ///< pivot vector       (N+1)
+   double** const a,  ///< source matrix      (NxN, LUP decomposed)
+   int*     const p   ///< pivot vector       (N+1)
 )
 {
    double det=0.0;

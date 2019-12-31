@@ -35,15 +35,8 @@ extern "C" {
 
 //////////////////////////////////////////////////////////////////////
 
-#define SNLSTRDLDG_J_COLUMN_MAJOR 0
-
-#if SNLSTRDLDG_J_COLUMN_MAJOR
-// column-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)+(q)*(nDim)
-#else
 // row-major storage
 #define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
-#endif
 
 namespace snls {
 
@@ -277,23 +270,16 @@ class SNLSTrDlDenseG
    public:
       static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x )");
       static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
-      static const int nxMult   = 10; // TODO ... may eventually be able to reduce this
-      static const int nxXxMult =  3; // TODO ... may eventually be able to reduce this -- maybe do not need scratch space if factor Jacobian in-place, but may then need to guarantee that have doen and matrix-vector multiply first (computeSysMult for getting _ngrad -- maybe meaning that get rid of computeSysMult (or making it non-public) so that people do not think that we have stored a J that is good for multiplies)
-      static const int niMult   =  1;
 
    public:
    // constructor
    __snls_hdev__ SNLSTrDlDenseG(CRJ &crj) :
                _crj(crj),
                _fevals(0), _nIters(0), _nJFact(0), _delta(1e8), _res(1e20),
-               _r(nullptr), _x(nullptr), _J(nullptr), 
                _deltaControl(nullptr),
                _outputLevel(0),
                _rhoLast(0.0),
                _os(nullptr),
-               _x0(nullptr), _nr(nullptr), _delx(nullptr), _ngrad(nullptr), _nsd(nullptr), _ntemp(nullptr), _p(nullptr), _rScratch(nullptr),
-               _J0(nullptr), _JScratch(nullptr),
-               _ipiv(nullptr),
                _status(unConverged)
                {
                };
@@ -310,23 +296,20 @@ class SNLSTrDlDenseG
       CRJ &_crj ;
       static const int _nDim = CRJ::nDimSys ;
                
-      __snls_hdev__ int     getNDim   () const { return(_nDim  ); };
-      __snls_hdev__ int     getNFEvals() const { return(_fevals); };
-      __snls_hdev__ double* getXPntr  () const { return(_x     ); };
-      __snls_hdev__ double* getRPntr  () const { return(_r     ); };
-      __snls_hdev__ double* getJPntr  () const { return(_J     ); };
+      __snls_hdev__ int     getNDim   () const { return(_nDim   ); };
+      __snls_hdev__ int     getNFEvals() const { return(_fevals ); };
       __snls_hdev__ double  getRhoLast() const { return(_rhoLast); };
-      __snls_hdev__ double  getDelta  () const { return(_delta ); };
-      __snls_hdev__ double  getRes    () const { return(_res   ); };
+      __snls_hdev__ double  getDelta  () const { return(_delta  ); };
+      __snls_hdev__ double  getRes    () const { return(_res    ); };
 
       // setX can be used to set the initial guess
-      __snls_hdev__ void setX( const double* const x ) {
+      __snls_hdev__ inline void setX( const double* const x ) {
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX] = x[iX] ;
          }
       };
    
-      __snls_hdev__ void getX( double* const x ) const {
+      __snls_hdev__ inline void getX( double* const x ) const {
          for (int iX = 0; iX < _nDim; ++iX) {
             x[iX] = _x[iX] ;
          }
@@ -339,26 +322,6 @@ class SNLSTrDlDenseG
                                        double           tolerance,
                                        TrDeltaControl * deltaControl,
                                        int              outputLevel=0 ) {
-   
-         _x           = &(_nxStorage[0]) ;
-         _x0          = &(_nxStorage[_nDim]) ;
-         _r           = &(_nxStorage[_nDim*2]) ;
-         _nr          = &(_nxStorage[_nDim*3]) ;
-         _delx        = &(_nxStorage[_nDim*4]) ;
-         _ngrad       = &(_nxStorage[_nDim*5]) ;
-         _nsd         = &(_nxStorage[_nDim*6]) ;
-         _ntemp       = &(_nxStorage[_nDim*7]) ;
-         _p           = &(_nxStorage[_nDim*8]) ;
-         _rScratch    = &(_nxStorage[_nDim*9]) ;
-         // nxMult
-   
-         _J           = &(_nxXxStorage[0]) ;
-         _J0          = &(_nxXxStorage[_nXnDim]) ;
-         _JScratch    = &(_nxXxStorage[_nXnDim*2]) ;
-         // nxXxMult
-   
-         _ipiv        = &(_niStorage[0]) ;
-         // niMult
    
          _status = unConverged ;
          _fevals = 0 ;
@@ -382,12 +345,12 @@ class SNLSTrDlDenseG
          }
 #endif
       }
-      
+
       // solve returns status
       //
       // on exit, _res is consistent with _x
       __snls_hdev__ SNLSStatus_t solve() {
-
+         
          if ( _deltaControl == nullptr ) {
             SNLS_FAIL("solve", "_deltaControl not set") ;
          }
@@ -396,292 +359,276 @@ class SNLSTrDlDenseG
          _fevals = 0 ;
          _nJFact = 0 ;
          _nIters = 0 ;
-
-         bool use_nr = false ;
-         bool reject_prev = false ;
-         bool have_ngrad = false, have_nr = false, have_trdl_dirs = false, have_p_a_b = false ;
-
+         
          _delta = _deltaControl->getDeltaInit() ;
 #ifdef __cuda_host_only__
          if (_os) { *_os << "initial delta = " << _delta << std::endl ; }
 #endif
 
+         double residual[_nDim], Jacobian[_nXnDim] ;
+         //
          {
-            bool rjSuccess = this->computeRJ() ; // _r, _J, _x
+            bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
             if ( !(rjSuccess) ) {
                _status = initEvalFailure ;
                return _status ;
             }
          }
-         this->set0() ;
-         _res = this->normvec(_r) ;
+         _res = this->normvec(residual) ;
          double res_0 = _res ;
 #ifdef __cuda_host_only__
          if (_os) { *_os << "res = " << _res << std::endl ; }
 #endif
-
-         reject_prev = false ;
-
-         double alpha, Jg2 ;
-         double nr2norm ;
-         double norm_grad ;
-         double norm_grad_inv ;
-         double qa, qb ;
+         
+         bool reject_prev = false ;
+         //
+         // data for sorting out the step
+         double nr2norm = 0.0 ;
+         double alpha = 0.0 ;
+         double norm_s_sd_opt = 0.0 ;
+         double norm_grad = 0.0 ;
+         double norm_grad_inv = 0.0 ;
+         double qa = 0.0, qb = 0.0 ;
+         double Jg2 = 0.0 ;
+         double res_cauchy = 0.0 ;
+         double nrStep[_nDim] ;
+         double grad[_nDim] ;
          //
          while ( _nIters < _maxIter ) {
             //
             _nIters += 1 ;
 
-            use_nr = false ;
-
-            if ( ! have_nr ) {
-               // get newton step
-               this->computeNewtonStep( _nr ) ;
-               nr2norm = this->normvec( _nr ) ;
-               have_nr = true ;
-            }
-      
-            if ( nr2norm <= _delta ) {
-               // okay to use whole newton step
-               // 2-norm(NR step) <= delta
-               use_nr = true ;
-            }
-
-            if ( (! use_nr) && (! have_trdl_dirs) ) {
-
-               // need to get other directions
+            if ( !reject_prev ) {
                //
-               // always have current residual and Jacobian
+               // have a newly accepted solution point
+               // compute information for step determination
 
-               if ( ! have_ngrad ) {
-                  // the (negative) gradient is J'*r
-                  // steapest descent direction is -J'*r
-                  this->computeSysMult( _r, _ngrad, true );
-                  for (int iX = 0; iX < _nDim; ++iX) {
-                     _ngrad[iX] = -_ngrad[iX] ;
-                  }
-                  have_ngrad = true ;
-               }
-          
+               this->computeSysMult( Jacobian, residual, grad, true );
+               // used to keep :
+               //	ngrad[iX] = -grad[iX] ;
+               // 	nsd[iX]   = ngrad[iX] * norm_grad_inv ; 
+               
                // find Cauchy point
-
-               double norm2_grad = this->normvecSq( _ngrad ) ;
-               norm_grad = sqrt( norm2_grad ) ;
-               this->computeSysMult( _ngrad, _ntemp, false ) ;
-               Jg2 = this->normvecSq( _ntemp ) ;
-               if ( Jg2 > 0e0 ) { 
-                  alpha = norm2_grad / Jg2 ;
-               }
-               else {
+               //
+               {
+                  double norm2_grad = this->normvecSq( grad ) ;
+                  norm_grad = sqrt( norm2_grad ) ;
+                  {
+                     double ntemp[_nDim] ; 
+                     this->computeSysMult( Jacobian, grad, ntemp, false ) ; // was -grad in previous implementation, but sign does not matter
+                     Jg2 = this->normvecSq( ntemp ) ;
+                  }
+                  
                   alpha = 1e0 ;
-               }
-
-               // find n_sd
-               norm_grad_inv = 1e0 ;
-               if ( norm_grad > 0e0 ) {
-                  norm_grad_inv = 1e0 / norm_grad ;
-               }
-               for (int iX = 0; iX < _nDim; ++iX) {
-                  _nsd[iX] = _ngrad[iX] * norm_grad_inv ; 
-               }
-
-               have_trdl_dirs = true ;
-
-            }
-
-            double pred_resid ;
-            //
-            if ( use_nr ) {
-
-               for (int iX = 0; iX < _nDim; ++iX) {
-                  _delx[iX] = _nr[iX] ;
-               }
-               pred_resid = 0e0 ;
-
-#ifdef __cuda_host_only__
-               if ( _os != nullptr ) {
-                  *_os << "trying newton step" << std::endl ;
-               }
-#endif
-
-            }
-            else {
-
-               // step along dogleg path
-
-               // optimal step along steapest descent is alpha*ngrad
-               double norm_s_sd_opt = alpha*norm_grad ;
-
-               if ( norm_s_sd_opt >= _delta ) {
-
-                  // use step along steapest descent direction
-
-                  for (int iX = 0; iX < _nDim; ++iX) {
-                     _delx[iX] = _nsd[iX] * _delta ;
+                  res_cauchy = res_0 ;
+                  if ( Jg2 > 0e0 ) { 
+                     alpha = norm2_grad / Jg2 ;
+                     res_cauchy = sqrt(fmax(res_0*res_0 - alpha*norm2_grad,0.0)) ;
                   }
-            
-                  double val = -(_delta*norm_grad) + 0.5*_delta*_delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
-                  pred_resid = 2.0*val + res_0*res_0 ;
-                  double signFact = ( pred_resid < 0 ? -1e0 : 1e0 ) ;
-                  pred_resid = signFact * sqrt(fabs(pred_resid)) ;
-            
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "trying step along first leg" << std::endl ;
+
+                  // optimal step along steapest descent is alpha*ngrad
+                  norm_s_sd_opt = alpha*norm_grad ;
+                  
+                  norm_grad_inv = 1e0 ;
+                  if ( norm_grad > 0e0 ) {
+                     norm_grad_inv = 1e0 / norm_grad ;
                   }
-#endif
-            
+                  
                }
-               else{
 
-                  if ( ! have_p_a_b ) {
-               
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        _p[iX] = _nr[iX] - alpha*_ngrad[iX] ;
-                     }
-   
-                     double gam0 = 0e0 ;
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        gam0 += _p[iX] * _nsd[iX] ;
-                     }
-   
-                     // get n_perp to find gam1
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        _ntemp[iX] = _p[iX] - gam0 * _nsd[iX] ;
-                     }
-                     //
-                     double normTemp = this->normvec( _ntemp ) ;
-                     if ( normTemp > 0e0 ) {
-                        double normTempInv = 1.0 / normTemp ;
-                        for (int iX = 0; iX < _nDim; ++iX) {
-                           _ntemp[iX] = _ntemp[iX] * normTempInv ;
-                        }
-                     }
-   
-                     double gam1 = 0e0 ;
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        gam1 += _p[iX] * _ntemp[iX] ;
-                     }
-   
-                     qa = gam0*gam0 + gam1*gam1 ;
-                     qb = 2.0 * gam0 * norm_s_sd_opt ;
-               
-                     have_p_a_b = true ;
+               this->computeNewtonStep( Jacobian, residual, nrStep ) ;
+               nr2norm = this->normvec( nrStep ) ;
+               //
+               // as currently implemented, J is not factored in-place and computeSysMult no loner works ;
+               // or would have to be reworked for PLU=J
 
-                  } // not have_p_a_b
+               {
 
-                  // qc and beta depend on delta
+                  // inline the use of p instead of computing it
                   //
-                  double qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
-                  //
-                  double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
-
-                  for (int iX = 0; iX < _nDim; ++iX) {
-                     _delx[iX] = alpha*_ngrad[iX] + beta*_p[iX] ;
-                  }
-                  //
-                  this->computeSysMult( _delx, _ntemp, false );
-                  //
-                  for (int iX = 0; iX < _nDim; ++iX) {
-                     _ntemp[iX] = _r[iX] + _ntemp[iX] ;
-                  }
-                  pred_resid = this->normvec( _ntemp ) ;
-
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "trying step along second leg" << std::endl ;
-                  }
-#endif
-               } // if norm_s_sd_opt >= delta
-
-            } // if use_nr
-
-            this->update( _delx ) ;
-            reject_prev = false ;
-
-            for (int iX = 0; iX < _nDim; ++iX) {
-               _rScratch[iX] = _r[iX] ;
-            }
-            //
-            {
-               bool rjSuccess = this->computeRJ(); // _r, _J, _x
-               if ( !(rjSuccess) ) {
-                  // got an error doing the evaluation
-                  // try to cut back step size and go again
-                  bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr2norm, use_nr ) ;
-                  if ( ! deltaSuccess ) {
-                     _status = deltaFailure ;
-                     break ; // while ( _nIters < _maxIter ) 
-                  }
-                  reject_prev = true ;
-               }
-               else {
-                  _res = this->normvec(_r) ;
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "res = " << _res << std::endl ;
-                  }
-#endif
-
-                  // allow to exit now, may have forced one iteration anyway, in which
-                  // case the delta update can do funny things if the residual was
-                  // already very small 
-
-                  if ( _res < _tolerance ) {
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "converged" << std::endl ;
-                     }
-#endif
-                     _status = converged ;
-                     break ; // while ( _nIters < _maxIter ) 
-                  }
+                  // double p[_nDim] ;
+                  // for (int iX = 0; iX < _nDim; ++iX) {
+                  //    p[iX] = nrStep[iX] + alpha*grad[iX] ; // nrStep - alpha*ngrad
+                  // }
 
                   {
-                     bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                    _delta, _res, res_0, pred_resid,
-                                                                    reject_prev, use_nr, nr2norm, _rhoLast) ;
+                     double gam0 = 0e0 ;
+                     double norm2_p = 0.0 ;
+                     for (int iX = 0; iX < _nDim; ++iX) {
+                        double p_iX = nrStep[iX] + alpha*grad[iX] ;
+                        norm2_p += p_iX*p_iX ;
+                        gam0 += p_iX * grad[iX] ;
+                     }
+                     gam0 = -gam0 * norm_grad_inv ;
+
+                     qb = 2.0 * gam0 * norm_s_sd_opt ;
+
+                     qa = norm2_p ;
+                     
+                  }
+                     
+               }
+
+            } // !reject_prev
+
+            // compute the step given _delta
+            //
+            {
+               double delx[_nDim] ;
+               double pred_resid ;
+               bool use_nr = false ;
+               //
+               if ( nr2norm <= _delta ) {
+                  // use Newton step
+                  use_nr = true ;
+
+                  for (int iX = 0; iX < _nDim; ++iX) {
+                     delx[iX] = nrStep[iX] ;
+                  }
+                  pred_resid = 0e0 ;
+
+#ifdef __cuda_host_only__
+                  if ( _os != nullptr ) {
+                     *_os << "trying newton step" << std::endl ;
+                  }
+#endif
+               }
+               else { // use_nr
+
+                  // step along dogleg path
+               
+                  if ( norm_s_sd_opt >= _delta ) {
+
+                     // use step along steapest descent direction
+
+                     {
+                        double factor = -_delta * norm_grad_inv ;
+                        for (int iX = 0; iX < _nDim; ++iX) {
+                           delx[iX] = factor * grad[iX] ;
+                        }
+                     }
+
+                     {
+                        double val = -(_delta*norm_grad) + 0.5*_delta*_delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
+                        pred_resid = sqrt(fmax(2.0*val + res_0*res_0,0.0)) ;
+                     }
+            
+#ifdef __cuda_host_only__
+                     if ( _os != nullptr ) {
+                        *_os << "trying step along first leg" << std::endl ;
+                     }
+#endif
+            
+                  }
+                  else{
+
+                     // qc and beta depend on delta
+                     //
+                     double qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
+                     //
+                     double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
+#ifdef DEBUG
+                     if ( beta > 1.0 || beta < 0.0 ) {
+                        SNLS_FAIL(__func__, "beta not in [0,1]") ;
+                     }
+#endif
+                     beta = fmax(0.0,fmin(1.0,beta)) ; // to deal with and roundoff
+
+                     // delx[iX] = alpha*ngrad[iX] + beta*p[iX] = beta*nrStep[iX] - (1.0-beta)*alpha*grad[iX]
+                     //
+                     {
+                        double omb  = 1.0-beta ;
+                        double omba = omb*alpha ;
+                        for (int iX = 0; iX < _nDim; ++iX) {
+                           delx[iX] = beta * nrStep[iX] - omba*grad[iX] ;
+                        }
+                        pred_resid = omb * res_cauchy ;
+                     }
+
+#ifdef __cuda_host_only__
+                     if ( _os != nullptr ) {
+                        *_os << "trying step along second leg" << std::endl ;
+                     }
+#endif
+                  } // if norm_s_sd_opt >= delta
+
+               } // use_nr
+               
+               this->update( delx ) ;
+               reject_prev = false ;
+               //
+               {
+                  bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
+                  if ( !(rjSuccess) ) {
+                     // got an error doing the evaluation
+                     // try to cut back step size and go again
+                     bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr2norm, use_nr ) ;
                      if ( ! deltaSuccess ) {
                         _status = deltaFailure ;
                         break ; // while ( _nIters < _maxIter ) 
                      }
+                     reject_prev = true ;
                   }
-
-               }
-            }
-
-            if ( reject_prev ) { 
-
+                  else {
+                     _res = this->normvec(residual) ;
 #ifdef __cuda_host_only__
-               if ( _os != nullptr ) {
-                  *_os << "rejecting solution" << std::endl ;
-               }
+                     if ( _os != nullptr ) {
+                        *_os << "res = " << _res << std::endl ;
+                     }
 #endif
-               _res = res_0 ;
-               this->reject() ;
-               for (int iX = 0; iX < _nDim; ++iX) {
-                  _r[iX] = _rScratch[iX] ;
+
+                     // allow to exit now, may have forced one iteration anyway, in which
+                     // case the delta update can do funny things if the residual was
+                     // already very small 
+
+                     if ( _res < _tolerance ) {
+#ifdef __cuda_host_only__
+                        if ( _os != nullptr ) {
+                           *_os << "converged" << std::endl ;
+                        }
+#endif
+                        _status = converged ;
+                        break ; // while ( _nIters < _maxIter ) 
+                     }
+
+                     {
+                        bool deltaSuccess = _deltaControl->updateDelta(_os,
+                                                                       _delta, _res, res_0, pred_resid,
+                                                                       reject_prev, use_nr, nr2norm, _rhoLast) ;
+                        if ( ! deltaSuccess ) {
+                           _status = deltaFailure ;
+                           break ; // while ( _nIters < _maxIter ) 
+                        }
+                     }
+
+                  }
+               }
+
+               if ( reject_prev ) { 
+#ifdef __cuda_host_only__
+                  if ( _os != nullptr ) {
+                     *_os << "rejecting solution" << std::endl ;
+                  }
+#endif
+                  _res = res_0 ;
+                  this->reject( delx ) ;
                }
             }
-            else {
-               this->set0() ;
-               have_ngrad = false; have_nr = false; have_trdl_dirs = false; have_p_a_b = false ;
-               // always have current residual and Jacobian
-            }
-
+            //
             res_0 = _res ;
-    
+            
          } // _nIters < _maxIter
-
+         
          return _status ;
       
       }
 
-      // convenience wrapper
-      __snls_hdev__ bool  computeRJ() {
+      // convenience wrapper, for the current _x
+      __snls_hdev__ inline bool computeRJ(double* const r,
+                                          double* const J ) {
          
          _fevals++ ;
-         bool retval = this->_crj.computeRJ(_r, _J, _x);
+         bool retval = this->_crj.computeRJ(r, J, _x);
          
 #ifdef DEBUG
 #ifdef __cuda_host_only__
@@ -691,7 +638,7 @@ class SNLSTrDlDenseG
 
             double r_base[_nDim]; 
             for ( int jX = 0; jX < _nDim ; ++jX ) {
-               r_base[jX] = _r[jX] ;
+               r_base[jX] = r[jX] ;
             }
             
             const double pert_val     = 1.0e-7 ;
@@ -715,11 +662,11 @@ class SNLSTrDlDenseG
                }
             }
             
-            *_os << "J_an = " << std::endl ; printMatJ( _J,   *_os ) ;
+            *_os << "J_an = " << std::endl ; printMatJ( J,    *_os ) ;
             *_os << "J_fd = " << std::endl ; printMatJ( J_FD, *_os ) ;
 
             // put things back the way they were ;
-            retval = this->_crj.computeRJ(_r, _J, _x);
+            retval = this->_crj.computeRJ(r, J, _x);
             
          } // _os != nullptr
 #endif
@@ -728,7 +675,11 @@ class SNLSTrDlDenseG
          
       }
       
-      __snls_hdev__ void  computeNewtonStep (double* const newton  ) {
+   private :
+   
+      __snls_hdev__ inline void  computeNewtonStep (double* const       J,
+                                                    const double* const r,
+                                                    double* const       newton  ) {
          
          _nJFact++ ;
          
@@ -738,84 +689,61 @@ class SNLSTrDlDenseG
 // Note that we can replace this with a custom function if there are performance 
 // specializations (say for a known fixed system size)
    
-#if SNLSTRDLDG_J_COLUMN_MAJOR
-         const char trans = 'N';
-#else
+         // row-major storage
          const char trans = 'T';
-#endif
-
-         // might be able to avoid this copy and the use of _JScratch eventually,
-         // but for now do the factorization in scratch space
-         //
-         for (int iiJ = 0; iiJ < _nXnDim; ++iiJ) {
-            _JScratch[iiJ] = _J[iiJ] ;
-         }
 
          // LAPack is probably not the most efficient for the system sizes of interest ;
          // even simple linpack dgefa and dgesl would probably be better ;
          // but for now, just go with it
 
          int info=0;
-         DGETRF(&_nDim, &_nDim, _JScratch, &_nDim, _ipiv, &info) ;
+         int ipiv[_nDim] ;
+         DGETRF(&_nDim, &_nDim, J, &_nDim, ipiv, &info) ;
 
          if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from dgetrf"); }
 
-         // std::copy( _r, _r + _nDim, newton );
-
+         // std::copy( r, r + _nDim, newton );
          for (int iX = 0; iX < _nDim; ++iX) {
-            newton[iX] = - _r[iX] ; 
+            newton[iX] = - r[iX] ; 
          }
 
          int nRHS=1; info=0;
-         DGETRS(&trans, &_nDim, &nRHS, _JScratch, &_nDim, _ipiv, newton, &_nDim, &info);
+         DGETRS(&trans, &_nDim, &nRHS, J, &_nDim, ipiv, newton, &_nDim, &info);
 
          if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from lapack::dgetrs()") ; }
 
 #else
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
 
-// This is a alternate version that will work when LAPACK is not available.
-// Solver was originally intended for testing the GPU-enabled code base..
-//
-// Note - this method has been updated to deal with both row and column-major matrices.
-
          {
             const int n = _nDim;
 
-            // create a local, row-major copy that can be modified by the LUP solver...
-
-#if SNLSTRDLDG_J_COLUMN_MAJOR
-            for (int i=0,k=0; (i<n); ++i )
-               for (int j=0,m=i; (j<n); ++j, ++k, m+=n) { _JScratch[m] = _J[k]; }
-#else
-            for (int i=0; (i<(n*n)); ++i ) { _JScratch[i] = _J[i]; }
-#endif
-
-            int   err = SNLS_LUP_Solve<n>(_JScratch,newton,_r);      // J = LUP_Solve(J,newton,r)
-            //
-            for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }     // newton = -newton
-
+            int   err = SNLS_LUP_Solve<n>(J, newton, r);
             if (err<0) {
                SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
             }
+            //
+            for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
+
          }
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
       
-      __snls_hdev__ void  computeSysMult    (const double* const v, double* const p, bool transpose ) {
-#if SNLSTRDLDG_J_COLUMN_MAJOR
-         bool sysByV =     transpose ;
-#else
+      __snls_hdev__ inline void  computeSysMult(const double* const J, 
+                                                const double* const v,
+                                                double* const       p,
+                                                bool                transpose ) {
+         
+         // row-major storage
          bool sysByV = not transpose ;
-#endif
    
          if ( sysByV ) {
             int ipX = 0 ;
             for (int pX = 0; pX < _nDim; ++pX) {
                p[pX] = 0e0 ;
                for (int kX = 0; kX < _nDim; ++kX) {
-                  p[pX] += _J[kX+ipX] * v[kX] ;
+                  p[pX] += J[kX+ipX] * v[kX] ;
                }
                ipX += _nDim ; // ipX = pX*_nDim ;
             }
@@ -827,42 +755,30 @@ class SNLSTrDlDenseG
             int ikX = 0 ;
             for (int kX = 0; kX < _nDim; ++kX) {
                for (int pX = 0; pX < _nDim; ++pX) {
-                  p[pX] += _J[ikX+pX] * v[kX] ;
+                  p[pX] += J[ikX+pX] * v[kX] ;
                }
                ikX += _nDim ; // ikW = kX*_nDim ;
             }
          }
       }
       
-      __snls_hdev__ void  update            (const double* const delX ) {
+      __snls_hdev__ inline void  update(const double* const delX ) {
          for (int iX = 0; iX < _nDim; ++iX) {
-            _x[iX] = _x0[iX] + delX[iX] ;
+            _x[iX] = _x[iX] + delX[iX] ;
          }
       }
       
-      __snls_hdev__ void  reject            () {
+      __snls_hdev__ inline void  reject(const double* const delX ) {
          for (int iX = 0; iX < _nDim; ++iX) {
-            _x[iX] = _x0[iX] ;
-         }
-         for (int iiJ = 0; iiJ < _nXnDim; ++iiJ) {
-            _J[iiJ] = _J0[iiJ] ;
+            _x[iX] = _x[iX] - delX[iX] ;
          }
       }
       
-      __snls_hdev__ void  set0              () {
-         for (int iX = 0; iX < _nDim; ++iX) {
-            _x0[iX] = _x[iX] ;
-         }
-         for (int iiJ = 0; iiJ < _nXnDim; ++iiJ) {
-            _J0[iiJ] = _J[iiJ] ;
-         }
-      }
-      
-      __snls_hdev__ double normvec           (const double* const v) {
+      __snls_hdev__ inline double normvec(const double* const v) {
          return sqrt( this->normvecSq(v) ) ;
       }
       
-      __snls_hdev__ double normvecSq         (const double* const v) {
+      __snls_hdev__ inline double normvecSq(const double* const v) {
          double a = 0e0;
          for (int iX = 0; iX < _nDim; ++iX) {
             a += v[iX]*v[iX] ;
@@ -892,12 +808,14 @@ class SNLSTrDlDenseG
 #endif
 #endif
 
+   public:
+      double _x[_nDim] ;
+
    protected:
       static const int _nXnDim = _nDim * _nDim ;
       
       int _fevals, _nIters, _nJFact ;
       double _delta, _res ;
-      double *_r, *_x, *_J ;
 
    private:
       TrDeltaControl* _deltaControl ;
@@ -914,14 +832,6 @@ class SNLSTrDlDenseG
 #else
       char* _os ; // do not use
 #endif
-
-      double _nxStorage[nxMult*_nDim];
-      double _nxXxStorage[nxXxMult*_nDim*_nDim];
-      int   _niStorage[niMult*_nDim];
-      //
-      double *_x0, *_nr, *_delx, *_ngrad, *_nsd, *_ntemp, *_p, *_rScratch ;
-      double *_J0, *_JScratch ;
-      int   *_ipiv ;
 
       SNLSStatus_t  _status ;
 };
