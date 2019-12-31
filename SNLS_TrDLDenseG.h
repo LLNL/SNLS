@@ -786,6 +786,8 @@ class SNLSTrDlDenseG
          return a ;
       }
       
+   public:
+   
 #ifdef DEBUG
 #ifdef __cuda_host_only__
       __snls_hdev__ void  printVecX         (const double* const y, std::ostream & oss ) {
