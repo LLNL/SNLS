@@ -294,7 +294,7 @@ TEST(snls,newtonbb_a)
    EXPECT_TRUE( snls::isConverged(status) ) << "Expected solver to converge" ;   
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";    
    EXPECT_LT( fabs(x-FUNASOLN), 1e-7 ) << "Expected the correct solution" ;
-   EXPECT_EQ( solver.getNFEvals(), 15 ) << "Expected 15 function evaluations for this case" ;
+   EXPECT_EQ( solver.getNFEvals(), 16 ) << "Expected 16 function evaluations for this case" ;
 }
 
 TEST(snls,newtonbb_b)
