@@ -19,6 +19,10 @@ Examples of work that has made use of SNLS or substantially equivalent algorithm
   * [Journal publication](http://dx.doi.org/10.1063/1.4971654) on use with a porosity mechanics type model
   * [Journal publication](http://dx.doi.org/10.1088/0965-0393/17/3/035003) on use with a crystal mechanics type model
 
+Solvers currently in the library:
+  * `SNLSTrDlDenseG` Dogleg approximation to the trust-region sub-problem for multi-dimensional nonlinear systems of equations. This method reduces to a Newton-Raphson approach near the solution. These methods are sometimes described as "restricted step" approaches instead of trust-region approaches. See, for example, [Practical Methods of Optimization](https://doi.org/10.1002/9781118723203). As compared to general trust-region approaches in scalar minimization, the approach here for solving non-linear systems amounts to assuming that the Hessian matrix can be approximated using information from the Jacobian of the system.
+  * `NewtonBB` Simple 1D Newton solver with a fallback to bisection. If the zero of the function can be bounded then this solver can return a result even if the function is badly behaved. 
+
 BUILDING
 ======
 
