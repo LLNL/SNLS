@@ -7,8 +7,6 @@
 #include "MS_Log.h"
 #ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#else
-#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
 #endif
 
 #include "MS_math.h"
