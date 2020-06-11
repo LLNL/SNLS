@@ -240,12 +240,12 @@
     </Midl>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\SNLS_lup_solve.cc" />
-    <ClCompile Include="..\SNLS_TrDLDenseG.cxx" />
-    <ClInclude Include="..\SNLS_cuda_portability.h" />
     <ClInclude Include="..\SNLS_port.h" />
+    <ClInclude Include="..\SNLS_cuda_portability.h" />
+    <ClInclude Include="..\SNLS_base.h" />
     <ClInclude Include="..\SNLS_lup_solve.h" />
     <ClInclude Include="..\SNLS_TrDLDenseG.h" />
+    <ClInclude Include="..\SNLS_NewtonBB.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
