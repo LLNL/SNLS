@@ -44,9 +44,6 @@ endif(ENABLE_TESTS)
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 
-set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
-set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
-
 # turn off testing if building under MSLib, so that do not have to link ms to have MS_Fail
 if (DEFINED MSLIB_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
@@ -68,8 +65,7 @@ set(SNLS_HEADERS
     SNLS_TrDLDenseG.h
     SNLS_NewtonBB.h)
 
-set(SNLS_SOURCES
-    SNLS_TrDLDenseG.cxx)
+# no SNLS_SOURCES -- SNLS is header-only
 
 #------------------------------------------------------------------------------
 # Defines
@@ -99,38 +95,19 @@ if(ENABLE_CUDA)
    set(SNLS_DEPENDS cuda)
 endif()
 
-if(BUILD_SHARED_LIBS)
-    blt_add_library(NAME        snls_shared
-                    OUTPUT_NAME snls
-                    DEFINES     ${SNLS_DEFINES}
-                    INCLUDES    ${SNLS_INCLUDES}
-                    DEPENDS_ON  ${SNLS_DEPENDS}
-                    HEADERS     ${SNLS_HEADERS}
-                    SOURCES     ${SNLS_SOURCES}
-                    SHARED      TRUE)
-endif(BUILD_SHARED_LIBS)
-
-if(BUILD_STATIC_LIBS)
-    blt_add_library(NAME        snls_static
-                    OUTPUT_NAME snls
-                    DEFINES     ${SNLS_DEFINES}
-                    INCLUDES    ${SNLS_INCLUDES}
-                    DEPENDS_ON  ${SNLS_DEPENDS}
-                    HEADERS     ${SNLS_HEADERS}
-                    SOURCES     ${SNLS_SOURCES}
-                    SHARED      FALSE)
-endif(BUILD_STATIC_LIBS)
+blt_add_library(NAME        snls
+                DEFINES     ${SNLS_DEFINES}
+                INCLUDES    ${SNLS_INCLUDES}
+                DEPENDS_ON  ${SNLS_DEPENDS}
+                HEADERS     ${SNLS_HEADERS}
+                SHARED      FALSE)
 
 #------------------------------------------------------------------------------
 # Testing
 #------------------------------------------------------------------------------
 
 if(ENABLE_TESTS)
-    if (BUILD_STATIC_LIBS)
-        set(SNLSTEST_DEPENDS snls_static)
-    else()
-        set(SNLSTEST_DEPENDS snls_shared)
-    endif()
+    set(SNLSTEST_DEPENDS snls)
 
     blt_add_executable(NAME       snlstest
                        SOURCES    SNLS_testdriver.cc
@@ -146,10 +123,4 @@ endif(ENABLE_TESTS)
 
 install(FILES ${SNLS_HEADERS} DESTINATION include)
 
-if(BUILD_SHARED_LIBS)
-    install(TARGETS snls_shared DESTINATION lib)
-endif(BUILD_SHARED_LIBS)
-
-if(BUILD_STATIC_LIBS)
-    install(TARGETS snls_static DESTINATION lib)
-endif(BUILD_STATIC_LIBS)
+install(TARGETS snls DESTINATION lib)
