@@ -37,5 +37,8 @@
 #endif
 /* SNLS_HAVE_MSLIB */
 
+#ifdef WIN32
+#define not !
+#endif
 #endif
 /* SNLS_port_h__ */
