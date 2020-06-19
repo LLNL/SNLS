@@ -91,16 +91,10 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 #------------------------------------------------------------------------------
 # Build Targets
 #------------------------------------------------------------------------------
-if(ENABLE_CUDA)
-   set(SNLS_DEPENDS cuda)
-endif()
-
 blt_add_library(NAME        snls
                 DEFINES     ${SNLS_DEFINES}
                 INCLUDES    ${SNLS_INCLUDES}
-                DEPENDS_ON  ${SNLS_DEPENDS}
-                HEADERS     ${SNLS_HEADERS}
-                SHARED      FALSE)
+                HEADERS     ${SNLS_HEADERS})
 
 #------------------------------------------------------------------------------
 # Testing
