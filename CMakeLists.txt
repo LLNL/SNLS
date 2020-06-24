@@ -70,14 +70,9 @@ set(SNLS_HEADERS
 #------------------------------------------------------------------------------
 # Defines
 #------------------------------------------------------------------------------
-set(SNLS_DEFINES)
 
 SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DDEBUG")
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
-
-if (DEFINED MSLIB_SOURCE_DIR)
-    list(APPEND SNLS_DEFINES SNLS_HAVE_MSLIB)
-endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Includes
@@ -92,7 +87,6 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 # Build Targets
 #------------------------------------------------------------------------------
 blt_add_library(NAME        snls
-                DEFINES     ${SNLS_DEFINES}
                 INCLUDES    ${SNLS_INCLUDES}
                 HEADERS     ${SNLS_HEADERS})
 
@@ -101,12 +95,12 @@ blt_add_library(NAME        snls
 #------------------------------------------------------------------------------
 
 if(ENABLE_TESTS)
-    set(SNLSTEST_DEPENDS snls)
+    # do not have DEPENDS_ON snls, given that it is header-only 
 
     blt_add_executable(NAME       snlstest
                        SOURCES    SNLS_testdriver.cc
                        OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                       DEPENDS_ON ${SNLSTEST_DEPENDS} gtest)
+                       DEPENDS_ON gtest)
     blt_add_test(NAME    snlstest
                  COMMAND snlstest)
 endif(ENABLE_TESTS)

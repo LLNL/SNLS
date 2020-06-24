@@ -19,18 +19,12 @@
 #endif
 
 #if HAVE_LAPACK && SNLS_USE_LAPACK
-#if SNLS_HAVE_MSLIB
-#include "MS_Matmodel.h"
-// MS fortran wrappers for LAPack solvers
-#include "MS_FortranWrappers.h"
-#else
 
 extern "C" {
    int DGETRF(const int* m, const int* n, double* A, const int* lda, int* ipiv, int* info);
    int DGETRS(const char* trans, const int* n, const int* nrhs, const double* const A, const int* lda,
               const int* const ipiv, double* b, const int* ldb, int* info);
 }
-#endif
 #endif
 
 //////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 #ifndef SNLS_port_h__
 #define SNLS_port_h__
 
-#if SNLS_HAVE_MSLIB
+#if HAVE_MSLIB
 
 #include "MS_port.h"
 #include "MS_Log.h"
@@ -12,7 +12,7 @@
 #include "MS_math.h"
 
 #else
-/* SNLS_HAVE_MSLIB */
+/* HAVE_MSLIB */
 
 /*
  * used to do "typedef double double", but have switched to just using double
@@ -35,7 +35,7 @@
 
 
 #endif
-/* SNLS_HAVE_MSLIB */
+/* HAVE_MSLIB */
 
 #ifdef WIN32
 #define not !
