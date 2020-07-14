@@ -5,11 +5,7 @@
 
 #include "MS_port.h"
 #include "MS_Log.h"
-#ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#endif
-
-#include "MS_math.h"
 
 #else
 /* HAVE_MSLIB */
@@ -27,18 +23,18 @@
 #define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
 #endif
 
+#endif
+/* HAVE_MSLIB */
+
 #if defined(_WIN32) && __INTEL_COMPILER
 #include <mathimf.h>
 #else
 #include <math.h>
 #endif
 
-
-#endif
-/* HAVE_MSLIB */
-
 #ifdef WIN32
 #define not !
 #endif
+
 #endif
 /* SNLS_port_h__ */
