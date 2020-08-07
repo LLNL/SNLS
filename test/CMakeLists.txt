@@ -6,3 +6,14 @@ blt_add_executable(NAME       snlstest
                    DEPENDS_ON gtest snls)
 blt_add_test(NAME    snlstest
              COMMAND snlstest)
+set(SNLS_DEPENDS)
+
+snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
+                       DEPENDS_ON raja umpire cuda openmp)
+
+blt_add_executable(NAME       snls_mm
+                   SOURCES    SNLS_mm.cxx
+                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                   DEPENDS_ON gtest snls ${SNLS_DEPENDS})
+blt_add_test(NAME    snls_mm
+             COMMAND snls_mm)
