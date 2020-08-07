@@ -53,6 +53,14 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 if (DEFINED ECMECH_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
 endif (DEFINED ECMECH_SOURCE_DIR)
+################################
+# Include standard build system logic and options
+################################
+include(cmake/CMakeBasics.cmake)
+
+if(ENABLE_CUDA)
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -restrict -arch ${CUDA_ARCH} --expt-extended-lambda --expt-relaxed-constexpr")
+endif()
 
 #------------------------------------------------------------------------------
 # Sources

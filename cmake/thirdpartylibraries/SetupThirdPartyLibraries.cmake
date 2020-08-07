@@ -1,7 +1,7 @@
 # Provide backwards compatibility for *_PREFIX options
 set(_tpls 
-    umpire
-    raja)
+    raja
+    umpire)
 
 foreach(_tpl ${_tpls})
     string(TOUPPER ${_tpl} _uctpl)
@@ -21,7 +21,9 @@ if (DEFINED RAJA_DIR)
         blt_register_library( NAME       raja
                               TREAT_INCLUDES_AS_SYSTEM ON
                               INCLUDES   ${RAJA_INCLUDE_DIRS}
-                              LIBRARIES  ${RAJA_LIBRARY})
+                              DEPENDS_ON ${RAJA_DEPENDS}
+                              LIBRARIES  ${RAJA_LIBRARY}
+                              DEFINES    HAVE_RAJA)
     else()
         message(FATAL_ERROR "Unable to find RAJA with given path ${RAJA_DIR}")
     endif()
@@ -35,12 +37,17 @@ endif()
 ################################
 
 if (DEFINED UMPIRE_DIR)
+    if (ENABLE_CUDA)
+       set (UMPIRE_DEPENDS cuda CACHE PATH "")
+    endif()
     include(cmake/thirdpartylibraries/FindUmpire.cmake)
-    if (RAJA_FOUND)
+    if (UMPIRE_FOUND)
         blt_register_library( NAME       umpire
                               TREAT_INCLUDES_AS_SYSTEM ON
                               INCLUDES   ${UMPIRE_INCLUDE_DIRS}
-                              LIBRARIES  ${UMPIRE_LIBRARY})
+                              DEPENDS_ON ${UMPIRE_DEPENDS}
+                              LIBRARIES  ${UMPIRE_LIBRARY}
+                              DEFINES    HAVE_UMPIRE)
     else()
         message(FATAL_ERROR "Unable to find UMPIRE with given path ${UMPIRE_DIR}")
     endif()

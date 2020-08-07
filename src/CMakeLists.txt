@@ -7,10 +7,20 @@ set(SNLS_HEADERS
     SNLS_NewtonBB.h
     SNLS_device_forall.h
     SNLS_memory_manager.h)
+
 set(SNLS_SOURCES
     SNLS_device_forall.cxx
     SNLS_memory_manager.cxx)
-# no SNLS_SOURCES -- SNLS is header-only
+
+#------------------------------------------------------------------------------
+# Dependencies
+#------------------------------------------------------------------------------
+set(SNLS_DEPENDS)
+
+snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
+                       DEPENDS_ON raja umpire cuda openmp)
+
+message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 
 #------------------------------------------------------------------------------
 # Defines
@@ -32,6 +42,7 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 # Build Targets
 #------------------------------------------------------------------------------
 blt_add_library(NAME        snls
+                DEPENDS_ON  ${SNLS_DEPENDS}
                 INCLUDES    ${SNLS_INCLUDES}
                 HEADERS     ${SNLS_HEADERS}
                 SOURCES     ${SNLS_SOURCES})
