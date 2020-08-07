@@ -12,6 +12,8 @@
 #include "umpire/strategy/DynamicPool.hpp"
 #endif
 
+#include <cstring>
+
 namespace snls {
   
    /** Returns a reference to the global memoryManager object
@@ -56,10 +58,10 @@ namespace snls {
       if(_rm.getAllocator(id).getPlatform() == umpire::Platform::host) {
          _host_allocator = _rm.getAllocator(id);
       } else {
-         SNLS_FAIL("The supplied id should be associated with a host allocator");
+         SNLS_FAIL("memoryManager::setHostAllocator", "The supplied id should be associated with a host allocator");
       }
 #else
-      SNLS_WARN("SNLS was not compiled with Umpire");
+      SNLS_FAIL("memoryManager::setHostAllocator", "SNLS was not compiled with Umpire");
 #endif
    }
    /** Changes the internal device allocator to be one that
@@ -79,10 +81,10 @@ namespace snls {
       if(_rm.getAllocator(id).getPlatform() == umpire::Platform::cuda) {
          _device_allocator = _rm.getAllocator(id);
       } else {
-         SNLS_FAIL("The supplied id should be associated with a device allocator");
+         SNLS_FAIL("memoryManager::setDeviceAllocator", "The supplied id should be associated with a device allocator");
       }
 #else
-      SNLS_WARN("SNLS was not compiled with Umpire");
+      SNLS_FAIL("memoryManager::setDeviceAllocator", "SNLS was not compiled with Umpire");
 #endif
 #endif
    }
@@ -108,7 +110,7 @@ namespace snls {
    {
       if (!_rm.hasAllocator(src_ptr) || !_rm.hasAllocator(dst_ptr))
       {
-         SNLS_FAIL("One of the provided pointers was not created with Umpire.");
+	 SNLS_FAIL("memoryManager::copy","One of the provided pointers was not created with Umpire.");
       }
       _rm.copy(dst_ptr, src_ptr, size);
    }
@@ -151,13 +153,13 @@ namespace snls {
    {
       // What would be a nice way to error check this? Would memcpy_s be an acceptable
       // function to use?
-      memcpy(dst_ptr, src_ptr, size);
+      std::memcpy(dst_ptr, src_ptr, size);
    }
 #ifdef HAVE_UMPIRE
    void memoryManager::deallocUmpire(void *ptr){
       if (!_rm.hasAllocator(ptr))
       {
-	      SNLS_FAIL("The provided pointer was not created with Umpire.");
+         SNLS_FAIL("memoryManager::deallocUmpire", "The provided pointer was not created with Umpire.");
       }
       _rm.deallocate(ptr);
    }

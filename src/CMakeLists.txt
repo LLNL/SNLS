@@ -4,7 +4,12 @@ set(SNLS_HEADERS
     SNLS_port.h
     SNLS_lup_solve.h
     SNLS_TrDLDenseG.h
-    SNLS_NewtonBB.h)
+    SNLS_NewtonBB.h
+    SNLS_device_forall.h
+    SNLS_memory_manager.h)
+set(SNLS_SOURCES
+    SNLS_device_forall.cxx
+    SNLS_memory_manager.cxx)
 # no SNLS_SOURCES -- SNLS is header-only
 
 #------------------------------------------------------------------------------
@@ -28,7 +33,8 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 #------------------------------------------------------------------------------
 blt_add_library(NAME        snls
                 INCLUDES    ${SNLS_INCLUDES}
-                HEADERS     ${SNLS_HEADERS})
+                HEADERS     ${SNLS_HEADERS}
+                SOURCES     ${SNLS_SOURCES})
 #------------------------------------------------------------------------------
 # Install files
 #------------------------------------------------------------------------------
