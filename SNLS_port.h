@@ -1,20 +1,14 @@
 #ifndef SNLS_port_h__
 #define SNLS_port_h__
 
-#if SNLS_HAVE_MSLIB
+#if HAVE_MSLIB
 
 #include "MS_port.h"
 #include "MS_Log.h"
-#ifdef __cuda_host_only__
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#else
-#define SNLS_FAIL(loc,str) MS_Fail(loc,str);
-#endif
-
-#include "MS_math.h"
 
 #else
-/* SNLS_HAVE_MSLIB */
+/* HAVE_MSLIB */
 
 /*
  * used to do "typedef double double", but have switched to just using double
@@ -29,15 +23,18 @@
 #define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
 #endif
 
+#endif
+/* HAVE_MSLIB */
+
 #if defined(_WIN32) && __INTEL_COMPILER
 #include <mathimf.h>
 #else
 #include <math.h>
 #endif
 
-
+#ifdef WIN32
+#define not !
 #endif
-/* SNLS_HAVE_MSLIB */
 
 #endif
 /* SNLS_port_h__ */
