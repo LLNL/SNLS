@@ -17,3 +17,11 @@ blt_add_executable(NAME       snls_mm
                    DEPENDS_ON gtest snls ${SNLS_DEPENDS})
 blt_add_test(NAME    snls_mm
              COMMAND snls_mm)
+
+blt_add_executable(NAME       snlstest_batch
+                   SOURCES    SNLS_batch_testdriver.cc
+                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                   DEPENDS_ON gtest snls ${SNLS_DEPENDS})
+blt_add_test(NAME    snlstest_batch
+             COMMAND snlstest_batch)
+set(SNLS_DEPENDS)
