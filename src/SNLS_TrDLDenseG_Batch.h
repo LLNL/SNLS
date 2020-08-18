@@ -375,6 +375,7 @@ class SNLSTrDlDenseG_Batch
       _res = mm.alloc<double>(_npts);
       _delta = mm.alloc<double>(_npts);
       SNLS_FORALL(i, 0, _npts, {
+	 _x[i] = 0.0;
          _delta[i] = 1e8;
          _res[i] = 1e20;
          _status[i] = SNLSStatus_t::unConverged;
