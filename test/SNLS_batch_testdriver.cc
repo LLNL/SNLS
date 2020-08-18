@@ -64,16 +64,17 @@ public:
                                 const int offset,
                                 const int batch_size)
       {
-	SNLS_FORALL(ib, offset, offset + batch_size, { 
+	SNLS_FORALL(ib, 0, batch_size, { 
          double fn ;
          const int nDim = nDimSys ; // convenience -- less code change below
+         const int toff = offset * nDim + ib * nDim;
          const int voff = ib * nDim;
          const int moff = ib * nDim * nDim;
 #ifdef __cuda_host_only__         
 #if DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {
-            std::cout << std::setw(21) << std::setprecision(11) << x[voff + i] << " ";
+            std::cout << std::setw(21) << std::setprecision(11) << x[toff + i] << " ";
          }
          std::cout << std::endl ;
 #endif
@@ -85,28 +86,28 @@ public:
             }
          }
          
-         r[voff + 0] = (3-2*x[voff + 0])*x[voff + 0] - 2*x[voff + 1] + 1;
+         r[voff + 0] = (3-2*x[toff + 0])*x[toff + 0] - 2*x[toff + 1] + 1;
          for (int i=1; i<nDim-1; i++)
-            r[voff + i] = (3-2*x[voff + i])*x[voff + i] - x[voff + i-1] - 2*x[voff + i+1] + 1;
+            r[voff + i] = (3-2*x[toff + i])*x[toff + i] - x[toff + i-1] - 2*x[toff + i+1] + 1;
 
-         fn = (3-2*x[voff + nDim-1])*x[voff + nDim-1] - x[voff + nDim-2] + 1;
+         fn = (3-2*x[toff + nDim-1])*x[toff + nDim-1] - x[toff + nDim-2] + 1;
          r[voff + nDim-1] = (1-_lambda)*fn + _lambda*(fn*fn);
 
          if ( doComputeJ ) {
             // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
-            J[moff + SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[voff + 0];
+            J[moff + SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[toff + 0];
             J[moff + SNLSTRDLDG_J_INDX(0,1,nDim)] = -2;
 
             // F(i) = (3-2*x[i])*x[i] - x[i-1] - 2*x[i+1] + 1;
             for (int i=1; i<nDim-1; i++) {
                J[moff + SNLSTRDLDG_J_INDX(i,i-1,nDim)] = -1;
-               J[moff + SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[voff + i];
+               J[moff + SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[toff + i];
                J[moff + SNLSTRDLDG_J_INDX(i,i+1,nDim)] = -2;
             }
 
             // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
-            fn = (3-2*x[voff + nDim-1])*x[voff + nDim-1] - x[voff + nDim-2] + 1;
-            double dfndxn = 3-4*x[voff + nDim-1];
+            fn = (3-2*x[toff + nDim-1])*x[toff + nDim-1] - x[toff + nDim-2] + 1;
+            double dfndxn = 3-4*x[toff + nDim-1];
             J[moff + SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
             J[moff + SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }
@@ -134,13 +135,13 @@ void setX(snls::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
 TEST(snls,broyden_a) // int main(int , char ** )
 {
    const int nDim = Broyden::nDimSys ;
-   const int nBatch = 4000;
+   const int nBatch = 1000;
 
    Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
    snls::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
    snls::TrDeltaControl_Batch deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
-   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch);
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch - 100);
    setX(solver, nDim);
    //
    auto mm = snls::memoryManager::getInstance();

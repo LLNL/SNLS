@@ -509,8 +509,10 @@ class SNLSTrDlDenseG_Batch
             // if we are we need to either use initial batch size or the npts%initial_batch_size
             const int fin_batch = (_npts % _int_batch_size == 0) ? _int_batch_size : _npts % _int_batch_size;
             const int batch_size = (iblk != numblks - 1) ? _int_batch_size : fin_batch;
+
             //Reinitialize all of our data back to these values
             SNLS_FORALL(i, 0, batch_size, {
+	       rjSuccess[i] = true;
                reject_prev[i] = false;
                nr2norm[i] = 0.0;
                alpha[i] = 0.0;
@@ -946,14 +948,18 @@ class SNLSTrDlDenseG_Batch
       }
       // fix me this needs to be udated to be a compute kernel overall batches
       __snls_hdev__ inline void  update(const double* const delX, const int ielem, const int offset ) {
+	 const int toffset = ielem * _nDim + offset * _nDim;
+         //delX is already offset
          for (int iX = 0; iX < _nDim; ++iX) {
-            _x[iX] = _x[iX] + delX[iX] ;
+            _x[iX + toffset] = _x[iX + toffset] + delX[iX] ;
          }
       }
       // fix me this needs to be provided an offset value
       __snls_hdev__ inline void  reject(const double* const delX, const int ielem, const int offset ) {
+         const int toffset = ielem * _nDim + offset * _nDim;
+         // delX is already offset
          for (int iX = 0; iX < _nDim; ++iX) {
-            _x[iX] = _x[iX] - delX[iX] ;
+            _x[iX + toffset] = _x[iX + toffset] - delX[iX] ;
          }
       }
       
@@ -1042,6 +1048,15 @@ class SNLSTrDlDenseG_Batch
          return red_add;
       } // end of status_exitable
 
+      // Returns a pointer to the status array now on the host.
+      // The user is responsible for deleting this ptr after their done using it
+      // through the use of the SNLS::memoryManager::dealloc<T>(T* ptr) function  
+      SNLSStatus_t * getStatusHost() {
+	 auto mm = memoryManager::getInstance();
+         SNLSStatus_t *host_ptr = mm.allocHost<SNLSStatus_t>(_npts);
+         mm.copy(_status, host_ptr, _npts * sizeof(SNLSStatus_t));
+         return host_ptr;
+      }
    
 #ifdef DEBUG
       void  printVecX         (const double* const y, std::ostream & oss ) {
