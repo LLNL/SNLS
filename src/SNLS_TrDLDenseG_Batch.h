@@ -498,7 +498,12 @@ class SNLSTrDlDenseG_Batch
          double* nrStep = mm.alloc<double>(_int_batch_size * _nDim);
          double* grad = mm.alloc<double>(_int_batch_size * _nDim);
          double* delx = mm.alloc<double>(_int_batch_size * _nDim);
+         double* solx = mm.alloc<double>(_int_batch_size * _nDim);
          double* pred_resid = mm.alloc<double>(_int_batch_size);
+
+         int m_fevals = 0;
+         int m_nJFact = 0;
+         int m_nIters = 0;
 
          for(int iblk = 0; iblk < numblks; iblk++) {
             // fix me: modify these to become arrays sets???
@@ -523,6 +528,10 @@ class SNLSTrDlDenseG_Batch
                qb[i] = 0.0;
                use_nr[i] = false;
                _delta[i + offset] = _deltaControl->getDeltaInit() ;
+	    });
+            // Setting solx to initial x value
+	    SNLS_FORALL(i, 0, batch_size * _nDim, {
+	       solx[i] = _x[offset * _nDim + i];
 	    });
 
             this->computeRJ(residual, Jacobian, rjSuccess, offset, batch_size) ; // at _x
@@ -727,9 +736,14 @@ class SNLSTrDlDenseG_Batch
                            // allow to exit now, may have forced one iteration anyway, in which
                            // case the delta update can do funny things if the residual was
                            // already very small 
-
+                           // Now _x shouldn't change after we are no longer unconverged
+                           // due to all of the exits we have at the start of the loops
+                           // but just in case we save this value and assign it back when we exit 
                            if ( _res[i + offset] < _tolerance ) {
                               _status[i + offset] = converged ;
+                              for (int j = 0; j < _nDim; j++) {
+				solx[i * _nDim + j] = _x[offset * _nDim + i * _nDim + j];
+			      }
                               return; // equivalent to a continue in a while loop
                            }
 
@@ -771,9 +785,21 @@ class SNLSTrDlDenseG_Batch
                
             } // _nIters < _maxIter
 
+	    SNLS_FORALL(i, 0, batch_size * _nDim, {
+	       _x[offset * _nDim + i] = solx[i];
+	    });
+
+	    if(m_fevals < _fevals) m_fevals = _fevals;
+            if(m_nJFact < _nJFact) m_nJFact = _nJFact;
+            if(m_nIters < _nIters) m_nIters = _nIters;
+
             offset += batch_size;
 
          } // end of batch loop
+
+	 _fevals = m_fevals;
+         _nJFact = m_nJFact;
+         _nIters = m_nIters;
 
          // deallocate all of our temporary data
          mm.dealloc<bool>(reject_prev);
@@ -795,6 +821,7 @@ class SNLSTrDlDenseG_Batch
          mm.dealloc<double>(nrStep);
          mm.dealloc<double>(grad);
          mm.dealloc<double>(delx);
+         mm.dealloc<double>(solx);
          mm.dealloc<double>(pred_resid);
 
          bool converged = status_exit<false, SNLS_GPU_THREADS>(0, _npts);

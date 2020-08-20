@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <random>
 
 #include <gtest/gtest.h>
 
@@ -124,12 +125,20 @@ public:
 
 void setX(snls::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
    auto mm = snls::memoryManager::getInstance();
-   double *x = mm.alloc<double>(nDim);
-   SNLS_FORALL(iX, 0, nDim, {
-      x[iX] = 0.0;  
-   });
-   solver.setX(x);
-   mm.dealloc<double>(x);
+   double *xH = mm.allocHost<double>(nDim);
+   double *xD = mm.alloc<double>(nDim);
+   // provide a seed so things are reproducible
+   std::default_random_engine gen(42);
+   std::uniform_real_distribution<double> udistrib(-1.0, 1.0);
+   for (int i = 0; i < nDim; i++) {
+     // No idea how ill-conditioned this system is so don't want to perturb things
+     // too much from our initial guess
+     xH[i] = 0.001 * udistrib(gen);
+   }
+   mm.copy(xH, xD, nDim * sizeof(double));
+   solver.setX(xD);
+   mm.dealloc<double>(xH);
+   mm.dealloc<double>(xD);
 }
 
 TEST(snls,broyden_a) // int main(int , char ** )
