@@ -1,7 +1,7 @@
 // -*-c++-*-
 
-#ifndef SNLS_TRDLDG_H
-#define SNLS_TRDLDG_H
+#ifndef SNLS_TRDLDG_BATCH_H
+#define SNLS_TRDLDG_BATCH_H
 
 #include "SNLS_base.h"
 #include "SNLS_lup_solve.h"
@@ -36,6 +36,7 @@ extern "C" {
 #define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
 
 namespace snls {
+  namespace batch{
 
 class TrDeltaControl_Batch
 {
@@ -1133,7 +1134,7 @@ class SNLSTrDlDenseG_Batch
 
       SNLSStatus_t*  _status = nullptr;
 };
-
+  } // namespace batch
 } // namespace snls
 
-#endif  // SNLS_TRDLDG_H
+#endif  // SNLS_TRDLDG_BATCH_H

@@ -6,6 +6,7 @@
 
 using namespace std;
 
+#include "../src/SNLS_TrDLDenseG.h"
 #include "../src/SNLS_TrDLDenseG_Batch.h"
 #include "../src/SNLS_device_forall.h"
 #include "../src/SNLS_memory_manager.h"
@@ -123,7 +124,7 @@ public:
       static const int _nXn = nDimSys*nDimSys ;
 };
 
-void setX(snls::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
+void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
    auto mm = snls::memoryManager::getInstance();
    double *xH = mm.allocHost<double>(nDim);
    double *xD = mm.alloc<double>(nDim);
@@ -147,8 +148,8 @@ TEST(snls,broyden_a) // int main(int , char ** )
    const int nBatch = 1000;
 
    Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
-   snls::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
-   snls::TrDeltaControl_Batch deltaControlBroyden ;
+   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
+   snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch - 100);
    setX(solver, nDim);
