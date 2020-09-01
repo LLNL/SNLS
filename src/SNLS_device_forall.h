@@ -42,6 +42,13 @@ end,                                             \
 [=] __snls_device__ (int i) {__VA_ARGS__},       \
 [&] (int i) {__VA_ARGS__})
 
+// offset a vector / matrix to correct starting memory location given:
+// what local element we're on, what offset that local element is from the global 0,
+// and then the unrolled size of the vector / matrix
+#define SNLS_TOFF(ielem, offset, ndim) (offset * ndim) + (ielem * ndim)
+#define SNLS_VOFF(ielem, ndim) (ielem * ndim)
+#define SNLS_MOFF(ielem, ndim2) (ielem * ndim2)
+
 namespace snls {
    enum class ExecutionStrategy { CPU, CUDA, OPENMP };
    /// This has largely been inspired by the MFEM device
@@ -164,7 +171,6 @@ void OmpWrap(const int st, const int end, HBODY &&h_body)
          }
       } // End of switch
    } // end of forall wrap
-   
 }
 
 
