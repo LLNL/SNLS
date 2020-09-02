@@ -171,8 +171,8 @@ TEST(snls,broyden_a) // int main(int , char ** )
       snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
       SNLS_FAIL(__func__,errmsg);
    }
-   std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";
-   EXPECT_EQ( solver.getNFEvals(), 19 ) << "Expected 19 function evaluations for this case" ;
+   std::cout << "Function evaluations: " << solver.getMaxNFEvals() << "\n";
+   EXPECT_EQ( solver.getMaxNFEvals(), 19 ) << "Expected 19 function evaluations for this case" ;
    mm.dealloc<double>(r);
    mm.dealloc<double>(J);
    mm.dealloc<bool>(rjSuccess);

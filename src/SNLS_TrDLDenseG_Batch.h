@@ -360,7 +360,7 @@ class SNLSTrDlDenseG_Batch
    /// or else it defaults to just using 1 for batch solves
    SNLSTrDlDenseG_Batch(CRJ &crj, uint npts = 1) :
                _crj(crj),
-               _fevals(0), _nIters(0), _nJFact(0),
+               _mfevals(0), _nIters(0), _nJFact(0),
                _deltaControl(nullptr),
                _outputLevel(0),
                _os(nullptr),
@@ -375,7 +375,9 @@ class SNLSTrDlDenseG_Batch
       _x = mm.alloc<double>(_npts * CRJ::nDimSys);
       _res = mm.alloc<double>(_npts);
       _delta = mm.alloc<double>(_npts);
+      _fevals = mm.alloc<int>(_npts);
       SNLS_FORALL(i, 0, _npts, {
+	 _fevals[i] = 0;
 	 _x[i] = 0.0;
          _delta[i] = 1e8;
          _res[i] = 1e20;
@@ -389,6 +391,7 @@ class SNLSTrDlDenseG_Batch
       mm.dealloc<double>(_x);
       mm.dealloc<double>(_res);
       mm.dealloc<double>(_delta);
+      mm.dealloc<int>(_fevals);
       mm.dealloc<SNLSStatus_t>(_status);
       if ( _outputLevel > 1 && _os != nullptr ) {
          *_os << "Function and Jacobian factorizations: " << _fevals << " " << _nJFact << std::endl;
@@ -402,7 +405,8 @@ class SNLSTrDlDenseG_Batch
       // NFEvals, RhoLast, Delta, and Res... Do we return the largest one or do we just
       // change this to return a const pointer to the array these values are located at?         
       int     getNDim   () const { return(_nDim   ); };
-      int     getNFEvals() const { return(_fevals ); };
+      int     getMaxNFEvals() const { return(_mfevals ); };
+      const int*     getNFEvals() const { return(_fevals ); };
       const double*  getDelta  () const { return(_delta  ); };
       const double*  getRes   () const { return(_res    ); };
 
@@ -435,9 +439,8 @@ class SNLSTrDlDenseG_Batch
                          uint dflt_int_batch = 50000) {
          SNLS_FORALL(i, 0, _npts, {
             _status[i] = SNLSStatus_t::unConverged ;
-         });
-
-         _fevals = 0 ;
+            _fevals[i] = 0;
+	 });
 
          _maxIter = maxIter ;
          _tolerance = tolerance ;
@@ -471,6 +474,7 @@ class SNLSTrDlDenseG_Batch
          
          SNLS_FORALL(i, 0, _npts, {
             _status[i] = SNLSStatus_t::unConverged ;
+            _fevals[i] = 0;
          });
 
          const int numblks = (_npts + _int_batch_size - 1)/ _int_batch_size;
@@ -508,7 +512,7 @@ class SNLSTrDlDenseG_Batch
 
          for(int iblk = 0; iblk < numblks; iblk++) {
             // fix me: modify these to become arrays sets???
-            _fevals = 0 ;
+            _mfevals = 0 ;
             _nJFact = 0 ;
             _nIters = 0 ;
             // Checks to see if we're the last bulk and if not use the initial batch size
@@ -727,6 +731,7 @@ class SNLSTrDlDenseG_Batch
                            bool deltaSuccess = _deltaControl->decrDelta(_os, _delta[i + offset], nr2norm[i], use_nr[i] ) ;
                            if ( ! deltaSuccess ) {
                               _status[i + offset] = deltaFailure ;
+                              _fevals[i + offset] = _mfevals;
                               return; // equivalent to a continue in a while loop
                            }
                            reject_prev[i] = true ;
@@ -745,6 +750,7 @@ class SNLSTrDlDenseG_Batch
                               for (int j = 0; j < _nDim; j++) {
 				solx[i * _nDim + j] = _x[offset * _nDim + i * _nDim + j];
 			      }
+                              _fevals[i + offset] = _mfevals;
                               return; // equivalent to a continue in a while loop
                            }
 
@@ -754,6 +760,7 @@ class SNLSTrDlDenseG_Batch
                                                                            reject_prev[i], use_nr[i], nr2norm[i]) ;
                               if ( ! deltaSuccess ) {
                                  _status[i + offset] = deltaFailure ;
+                                 _fevals[i + offset] = _mfevals;
                                  return; // equivalent to a continue in a while loop
                               }
                            }
@@ -790,7 +797,7 @@ class SNLSTrDlDenseG_Batch
 	       _x[offset * _nDim + i] = solx[i];
 	    });
 
-	    if(m_fevals < _fevals) m_fevals = _fevals;
+	    if(m_fevals < _mfevals) m_fevals = _mfevals;
             if(m_nJFact < _nJFact) m_nJFact = _nJFact;
             if(m_nIters < _nIters) m_nIters = _nIters;
 
@@ -798,7 +805,7 @@ class SNLSTrDlDenseG_Batch
 
          } // end of batch loop
 
-	 _fevals = m_fevals;
+	 _mfevals = m_fevals;
          _nJFact = m_nJFact;
          _nIters = m_nIters;
 
@@ -840,7 +847,7 @@ class SNLSTrDlDenseG_Batch
                             const int offset,
                             const int batch_size) {
          
-         _fevals++ ;
+         _mfevals++ ;
          // We'll probably want to modify this as well to take in a bool array
          // that it's responsible for setting
          // fix me rJSuccess needs to be passed into _crj.computeRJ
@@ -1113,7 +1120,8 @@ class SNLSTrDlDenseG_Batch
    protected:
       static const int _nXnDim = _nDim * _nDim ;
       
-      int _fevals, _nIters, _nJFact ;
+      int _mfevals, _nIters, _nJFact ;
+      int* _fevals;
       double* _delta = nullptr;
       double* _res = nullptr;
 
