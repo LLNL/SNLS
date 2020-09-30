@@ -152,7 +152,7 @@ TEST(snls,broyden_a) // int main(int , char ** )
    snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch - 100);
-   setX(solver, nDim);
+   setX(solver, nDim * nBatch);
    //
    auto mm = snls::memoryManager::getInstance();
    double *r = mm.alloc<double>(nDim * nBatch);

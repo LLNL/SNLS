@@ -644,6 +644,7 @@ class SNLSTrDlDenseG_Batch
                   { // start of batch compute kernel 2
                      // this breaks out of the internal lambda and is essentially a loop continue
                      if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
+                     use_nr[i] = false;
                      if ( nr2norm[i] <= _delta[i + offset] ) {
                         // use Newton step
                         use_nr[i] = true ;
