@@ -1,7 +1,9 @@
 # Provide backwards compatibility for *_PREFIX options
-set(_tpls 
+set(_tpls
+    camp
     raja
-    umpire)
+    umpire
+    chai)
 
 foreach(_tpl ${_tpls})
     string(TOUPPER ${_tpl} _uctpl)
@@ -10,6 +12,28 @@ foreach(_tpl ${_tpls})
         mark_as_advanced(${_uctpl}_PREFIX)
     endif()
 endforeach()
+
+###############################
+# CUB
+###############################
+if (ENABLE_CUDA)
+    include(cmake/thirdpartylibraries/FindCUB.cmake)
+endif()
+
+################################
+# camp
+################################
+
+if (CAMP_DIR)
+    include(cmake/thirdpartylibraries/Findcamp.cmake)
+    if (CAMP_FOUND)
+        blt_register_library( NAME       camp
+                              TREAT_INCLUDES_AS_SYSTEM ON
+                              INCLUDES   ${CAMP_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "Unable to find camp with given path ${CAMP_DIR}")
+    endif()
+endif()
 
 ################################
 # RAJA
@@ -22,7 +46,7 @@ if (DEFINED RAJA_DIR)
                               TREAT_INCLUDES_AS_SYSTEM ON
                               INCLUDES   ${RAJA_INCLUDE_DIRS}
                               DEPENDS_ON ${RAJA_DEPENDS}
-                              LIBRARIES  ${RAJA_LIBRARY}
+                              LIBRARIES  ${RAJA_LIBRARIES}
                               DEFINES    HAVE_RAJA)
     else()
         message(FATAL_ERROR "Unable to find RAJA with given path ${RAJA_DIR}")
@@ -37,16 +61,13 @@ endif()
 ################################
 
 if (DEFINED UMPIRE_DIR)
-    if (ENABLE_CUDA)
-       set (UMPIRE_DEPENDS cuda CACHE PATH "")
-    endif()
     include(cmake/thirdpartylibraries/FindUmpire.cmake)
     if (UMPIRE_FOUND)
         blt_register_library( NAME       umpire
                               TREAT_INCLUDES_AS_SYSTEM ON
                               INCLUDES   ${UMPIRE_INCLUDE_DIRS}
                               DEPENDS_ON ${UMPIRE_DEPENDS}
-                              LIBRARIES  ${UMPIRE_LIBRARY}
+                              LIBRARIES  ${UMPIRE_LIBRARIES}
                               DEFINES    HAVE_UMPIRE)
     else()
         message(FATAL_ERROR "Unable to find UMPIRE with given path ${UMPIRE_DIR}")
