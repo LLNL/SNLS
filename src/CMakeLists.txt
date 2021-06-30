@@ -19,7 +19,7 @@ set(SNLS_SOURCES
 set(SNLS_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
-                       DEPENDS_ON raja umpire cuda openmp cub)
+                       DEPENDS_ON raja umpire chai cuda openmp cub)
 
 message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 

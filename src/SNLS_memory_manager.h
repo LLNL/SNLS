@@ -15,6 +15,10 @@
 #include "umpire/Allocator.hpp"
 #include "umpire/ResourceManager.hpp"
 #endif
+#ifdef HAVE_CHAI
+#include "chai/ManagedArray.hpp"
+#endif
+
 namespace snls {
    /*! A global memory manager designed to be used with the Umpire library.
     *  It provides methods to allocate on the host(H) or device(D);
@@ -59,6 +63,48 @@ namespace snls {
          /// Returns a boolean for whether or not the class is complete
          __snls_host__
 	      bool getComplete() { return _complete; }
+
+
+         template<typename T>
+         __snls_host__
+         inline
+         chai::ManagedArray<T> allocManagedArray(std::size_t size=0)
+         {
+            chai::ManagedArray<T> array(size, 
+            std::initializer_list<chai::ExecutionSpace>{chai::CPU
+#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+               , chai::GPU
+#endif
+               },
+               std::initializer_list<umpire::Allocator>{_host_allocator
+#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+               , _device_allocator
+#endif
+            });
+
+            return array;
+         }
+
+         template<typename T>
+         __snls_host__
+         inline
+         chai::ManagedArray<T>* allocPManagedArray(std::size_t size=0)
+         {
+            auto array = new chai::ManagedArray<T>(size, 
+            std::initializer_list<chai::ExecutionSpace>{chai::CPU
+#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+               , chai::GPU
+#endif
+               },
+               std::initializer_list<umpire::Allocator>{_host_allocator
+#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+               , _device_allocator
+#endif
+            });
+
+            return array;
+
+         }
          /*! Allocates a pointer with a given size / num pts through the use
 	       *  of the host allocator. This ptr should later be deallocated
 	       *  using the appropriate dealloc() function.
@@ -116,12 +162,12 @@ namespace snls {
             // is used.
             switch(Device::GetBackend()) {
 #ifdef __CUDACC__
-               case(ExecutionStrategy::CUDA): {
+               case(chai::ExecutionSpace::GPU): {
                   return allocDevice<T>(size);
                }
 #endif
-               case(ExecutionStrategy::OPENMP):
-               case(ExecutionStrategy::CPU):
+               case(chai::ExecutionSpace::NONE):
+               case(chai::ExecutionSpace::CPU):
                default: {
                  return allocHost<T>(size);
                }
@@ -170,7 +216,7 @@ namespace snls {
          /// Tells one whether the given pointer was allocated using Umpire.
 	      __snls_host__
 	      bool isUmpirePointer(void* ptr);
-         /// Deallocate a pointer given the ExecutionStrategy if Umpire isn't available.
+         /// Deallocate a pointer given the ExecutionSpace if Umpire isn't available.
 	      /// This version requires is templated on the typename and Umpire's isn't templated at all.
          /// If Umpire is available then this deallocates using Umpire's internal model.
          template<typename T>
@@ -183,13 +229,13 @@ namespace snls {
 #else
                switch(Device::GetBackend()) {
 #ifdef __CUDACC__
-                  case(ExecutionStrategy::CUDA): {
+                  case(chai::ExecutionSpace::GPU): {
                      CUDART_CHECK(cudaFree(ptr));
                      break;
                   }
 #endif
-                  case(ExecutionStrategy::OPENMP):
-                  case(ExecutionStrategy::CPU):
+                  case(chai::ExecutionSpace::NONE):
+                  case(chai::ExecutionSpace::CPU):
                   default: {
                      delete[] ptr;
                      break;

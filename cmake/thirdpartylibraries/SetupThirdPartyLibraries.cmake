@@ -75,3 +75,23 @@ if (DEFINED UMPIRE_DIR)
 else()
     message(FATAL_ERROR "UMPIRE_DIR was not provided. It is needed to find UMPIRE.")
 endif()
+
+################################
+# CHAI
+################################
+
+if (DEFINED CHAI_DIR)
+    include(cmake/thirdpartylibraries/FindCHAI.cmake)
+    if (CHAI_FOUND)
+        blt_register_library( NAME       chai
+                              TREAT_INCLUDES_AS_SYSTEM ON
+                              INCLUDES   ${CHAI_INCLUDE_DIRS}
+                              DEPENDS_ON ${CHAI_DEPENDS}
+                              LIBRARIES  ${CHAI_LIBRARIES}
+                              DEFINES    HAVE_CHAI)
+    else()
+        message(FATAL_ERROR "Unable to find CHAI with given path ${CHAI_DIR}")
+    endif()
+else()
+    message(FATAL_ERROR "CHAI_DIR was not provided. It is needed to find CHAI.")
+endif()

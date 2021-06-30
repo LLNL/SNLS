@@ -10,6 +10,7 @@ using namespace std;
 #include "../src/SNLS_TrDLDenseG_Batch.h"
 #include "../src/SNLS_device_forall.h"
 #include "../src/SNLS_memory_manager.h"
+#include "chai/ManagedArray.hpp"
 
 #ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
@@ -44,6 +45,42 @@ using namespace std;
   The standard starting point is x(i) = -1, but setting x(i) = 0 tests
   the selected global strategy.
 */
+
+class testCase
+{
+   public:
+      chai::ManagedArray<double> data_public;
+      // This is the only way I've found to work...
+      testCase(int nBatch) : data_public(chai::ManagedArray<double>(nBatch)),
+      data_private(chai::ManagedArray<double>(nBatch)) 
+      {
+         init(nBatch);
+      }
+      ~testCase()
+      {
+         data_public.free();
+         data_private.free();
+      }
+
+      void init(int nBatch)
+      {
+         auto mm = snls::memoryManager::getInstance();
+         // neither of these methods work
+         // I've also tried making this a pointer as well...
+         // data_public = mm.allocManagedArray<double>(nBatch); 
+         // data_private = mm.allocManagedArray<double>(nBatch);
+         printf("\nin init for testCase class\n");
+         SNLS_FORALL(i, 0, nBatch, {
+            data_public[i] = 1.0;
+            data_private[i] = 1.0;
+         });
+         printf("it worked \n");
+      }
+
+   private:
+      chai::ManagedArray<double> data_private;
+};
+
 class Broyden
 {
 public:
@@ -124,8 +161,27 @@ public:
       static const int _nXn = nDimSys*nDimSys ;
 };
 
+void smallTest(int nBatch)
+{
+   auto mm = snls::memoryManager::getInstance();
+
+   auto test = mm.allocManagedArray<double>(nBatch);
+
+   // Now this should work...
+   printf("Running a simple test of things...");
+   SNLS_FORALL(i, 0, nBatch, {
+      test[i] = 1.0;
+   });
+
+   test.free();
+
+   testCase test1(nBatch);
+}
+
 void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
    auto mm = snls::memoryManager::getInstance();
+
+   auto test = mm.allocManagedArray<double>(5000);
    double *xH = mm.allocHost<double>(nDim);
    double *xD = mm.alloc<double>(nDim);
    // provide a seed so things are reproducible
@@ -148,6 +204,9 @@ TEST(snls,broyden_a) // int main(int , char ** )
    const int nBatch = 1000;
 
    Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
+
+   smallTest(nBatch);
+
    snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
    snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
@@ -163,6 +222,9 @@ TEST(snls,broyden_a) // int main(int , char ** )
    // broyden.computeRJ(r, J, solver._x);
    // solver._crj.computeRJ(r, J, solver._x); 
    solver.computeRJ(&r[0], &J[0], &rjSuccess[0], 0, nBatch);
+   mm.dealloc<double>(r);
+   mm.dealloc<double>(J);
+   mm.dealloc<bool>(rjSuccess);
 
    bool status = solver.solve( ) ;
    EXPECT_TRUE( status ) << "Expected solver to converge" ;
@@ -173,7 +235,4 @@ TEST(snls,broyden_a) // int main(int , char ** )
    }
    std::cout << "Function evaluations: " << solver.getMaxNFEvals() << "\n";
    EXPECT_EQ( solver.getMaxNFEvals(), 19 ) << "Expected 19 function evaluations for this case" ;
-   mm.dealloc<double>(r);
-   mm.dealloc<double>(J);
-   mm.dealloc<bool>(rjSuccess);
 }
