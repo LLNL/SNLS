@@ -37,6 +37,9 @@ namespace snls {
       // Do we want to make this pinned memory instead?
       _device_allocator = _rm.makeAllocator<umpire::strategy::DynamicPool>
 	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"));
+      es = chai::ExecutionSpace::GPU;
+#else
+      es = chai::ExecutionSpace::CPU;
 #endif
    }
 #else

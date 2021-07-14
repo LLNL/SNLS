@@ -54,31 +54,55 @@ namespace snls {
    /// of the material models being used, so no clashing with
    /// multiple objects can occur in regards to which models
    /// run on what ExecutionSpace backend.
+   enum class ExecutionStrategy { CPU, CUDA, OPENMP };
+   /// This has largely been inspired by the MFEM device
+   /// class, since they make use of it with their FORALL macro
+   /// It's recommended to only have one object for the lifetime
+   /// of the material models being used, so no clashing with
+   /// multiple objects can occur in regards to which models
+   /// run on what ExecutionStrategy backend.
    class Device {
       private:
          static Device device_singleton;
-         chai::ExecutionSpace _es;
+         ExecutionStrategy _es;
          static Device& Get() { return device_singleton; }
       public:
 #ifdef __CUDACC__
-         Device() : _es(chai::ExecutionSpace::GPU) {}
+         Device() : _es(ExecutionStrategy::CUDA) {}
 #else
-         Device() : _es(chai::ExecutionSpace::CPU) {}
+         Device() : _es(ExecutionStrategy::CPU) {}
 #endif
-         Device(chai::ExecutionSpace es) : _es(es) {
+         Device(ExecutionStrategy es) : _es(es) {
             Get()._es = es;
          }
-         void SetBackend(chai::ExecutionSpace es) { Get()._es = es; }
-         static inline chai::ExecutionSpace GetBackend() { return Get()._es; }
+         void SetBackend(ExecutionStrategy es) { Get()._es = es; }
+         static inline ExecutionStrategy GetBackend() { return Get()._es; }
+         static inline chai::ExecutionSpace GetCHAIES() 
+         {
+            switch (Get()._es) {
+#ifdef __CUDACC__
+               case ExecutionStrategy::CUDA: {
+                  return chai::ExecutionSpace::GPU;
+               }
+#endif
+#ifdef OPENMP_ENABLE
+               case ExecutionStrategy::OPENMP:
+#endif
+               case ExecutionStrategy::CPU:
+               default: {
+                  return chai::ExecutionSpace::CPU;
+               }
+            }
+         }
+
          ~Device() {
 #ifdef __CUDACC__
-            Get()._es = chai::ExecutionSpace::GPU;
+            Get()._es = ExecutionStrategy::CUDA;
 #else
-            Get()._es = chai::ExecutionSpace::CPU;
+            Get()._es = ExecutionStrategy::CPU;
 #endif
          }
    };
-      
 
    /// The forall kernel body wrapper. It should be noted that one
    /// limitation of this wrapper is that the lambda captures can
@@ -101,20 +125,19 @@ namespace snls {
       switch(Device::GetBackend()) {
 #ifdef HAVE_RAJA
    #ifdef RAJA_ENABLE_CUDA
-         case(chai::ExecutionSpace::GPU): {
-            printf("Running on GPU...");
+         case(ExecutionStrategy::CUDA): {
             RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
             break;
          }
    #endif
    #ifdef RAJA_ENABLE_OPENMP && OPENMP_ENABLE
-         case(chai::ExecutionSpace::NONE): {
+         case(ExecutionStrategy::OPENMP): {
             RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(st, end), h_body);
             break;
          }
    #endif
 #endif
-         case(chai::ExecutionSpace::CPU):
+         case(ExecutionStrategy::CPU):
          default: {
             // Moved from a for loop to raja forall so that the chai ManagedArray
             // would automatically move the memory over

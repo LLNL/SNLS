@@ -9,7 +9,7 @@ blt_add_test(NAME    snlstest
 set(SNLS_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
-                       DEPENDS_ON raja umpire cuda openmp)
+                       DEPENDS_ON raja umpire chai cuda openmp)
 
 blt_add_executable(NAME       snls_mm
                    SOURCES    SNLS_mm.cxx
@@ -24,4 +24,10 @@ blt_add_executable(NAME       snlstest_batch
                    DEPENDS_ON gtest snls ${SNLS_DEPENDS})
 blt_add_test(NAME    snlstest_batch
              COMMAND snlstest_batch)
-set(SNLS_DEPENDS)
+
+blt_add_executable(NAME       chai_exp
+                   SOURCES    chai_min_exp.cxx
+                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                   DEPENDS_ON gtest ${SNLS_DEPENDS})
+blt_add_test(NAME    chai_exp
+             COMMAND chai_exp)

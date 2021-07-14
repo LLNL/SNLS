@@ -373,42 +373,31 @@ class SNLSTrDlDenseG_Batch
    void init() {
       memoryManager& mm = memoryManager::getInstance();
 
-      _status = mm.allocPManagedArray<SNLSStatus_t>(_npts);
-      _x = mm.allocPManagedArray<double>(_npts * CRJ::nDimSys);
-      _res = mm.allocPManagedArray<double>(_npts);
-      _delta = mm.allocPManagedArray<double>(_npts);
-      _fevals = mm.allocPManagedArray<int>(_npts);
+      _status = mm.allocManagedArray<SNLSStatus_t>(_npts);
+      _x = mm.allocManagedArray<double>(_npts * CRJ::nDimSys);
+      _res = mm.allocManagedArray<double>(_npts);
+      _delta = mm.allocManagedArray<double>(_npts);
+      _fevals = mm.allocManagedArray<int>(_npts);
 
       SNLS_FORALL(i, 0, _npts, {
-         printf(" i: %d\n", i);
-	      (*_fevals)[i] = 0;
-         printf("fevals ");
+	      _fevals[i] = 0;
          for (int j = 0; j < CRJ::nDimSys; j++){
-            (*_x)[i * CRJ::nDimSys + j] = 0.0;
+            _x[i * CRJ::nDimSys + j] = 0.0;
          }
-         printf("x ");
-         (*_delta)[i] = 1e8;
-         printf("delta ");
-         (*_res)[i] = 1e20;
-         printf("res ");
-         (*_status)[i] = SNLSStatus_t::unConverged;
-         printf("status\n");
+         _delta[i] = 1e8;
+         _res[i] = 1e20;
+         _status[i] = SNLSStatus_t::unConverged;
       });
    };
    /// destructor needs to dealloc the _x, _r, and _status variables
    ~SNLSTrDlDenseG_Batch() {
       //
       // memoryManager& mm = memoryManager::getInstance();
-      _x->free();
-      _res->free();
-      _delta->free();
-      _fevals->free();
-      _status->free();
-      delete _x;
-      delete _res;
-      delete _delta;
-      delete _fevals;
-      delete _status;
+      _x.free();
+      _res.free();
+      _delta.free();
+      _fevals.free();
+      _status.free();
       // if ( _outputLevel > 1 && _os != nullptr ) {
       //    *_os << "Function and Jacobian factorizations: " << _fevals << " " << _nJFact << std::endl;
       // }
@@ -422,16 +411,16 @@ class SNLSTrDlDenseG_Batch
       // change this to return a const pointer to the array these values are located at?         
       int     getNDim   () const { return(_nDim   ); };
       int     getMaxNFEvals() const { return(_mfevals ); };
-      const chai::ManagedArray<int>* getNFEvals() const { return _fevals; };
-      const chai::ManagedArray<double>*  getDelta  () const { return _delta; };
-      const chai::ManagedArray<double>*  getRes   () const { return _res; };
+      const chai::ManagedArray<int> getNFEvals() const { return _fevals; };
+      const chai::ManagedArray<double>  getDelta  () const { return _delta; };
+      const chai::ManagedArray<double>  getRes   () const { return _res; };
 
       /// setX can be used to set the initial guess for all of the points used in the batch job
       // fix me so that this has a forall loop over this
       inline void setX( const double* const x) {
          SNLS_FORALL(ipts, 0, _npts, {
             for (int iX = 0; iX < _nDim; ++iX) {
-               (*_x)[ipts * _nDim + iX] = x[ipts * _nDim + iX] ;
+               _x[ipts * _nDim + iX] = x[ipts * _nDim + iX] ;
             }
          });
       }
@@ -440,7 +429,7 @@ class SNLSTrDlDenseG_Batch
       inline void getX( double* const x) const {
          SNLS_FORALL(ipts, 0, _npts, {
             for (int iX = 0; iX < _nDim; ++iX) {
-               x[ipts * _nDim + iX] = (*_x)[ipts * _nDim + iX] ;
+               x[ipts * _nDim + iX] = _x[ipts * _nDim + iX] ;
             }
          });
       };   
@@ -454,8 +443,8 @@ class SNLSTrDlDenseG_Batch
                          int outputLevel=0,
                          uint dflt_int_batch = 50000) {
          SNLS_FORALL(i, 0, _npts, {
-            (*_status)[i] = SNLSStatus_t::unConverged ;
-            (*_fevals)[i] = 0;
+            _status[i] = SNLSStatus_t::unConverged ;
+            _fevals[i] = 0;
 	      });
 
          _maxIter = maxIter ;
@@ -489,8 +478,8 @@ class SNLSTrDlDenseG_Batch
          }
          
          SNLS_FORALL(i, 0, _npts, {
-            (*_status)[i] = SNLSStatus_t::unConverged;
-            (*_fevals)[i] = 0;
+            _status[i] = SNLSStatus_t::unConverged;
+            _fevals[i] = 0;
          });
 
          const int numblks = (_npts + _int_batch_size - 1)/ _int_batch_size;
@@ -529,7 +518,7 @@ class SNLSTrDlDenseG_Batch
          int m_fevals = 0;
          int m_nJFact = 0;
          int m_nIters = 0;
-         const auto es = snls::Device::GetBackend();
+         const auto es = snls::Device::GetCHAIES();
 
          for(int iblk = 0; iblk < numblks; iblk++) {
             // fix me: modify these to become arrays sets???
@@ -553,23 +542,23 @@ class SNLSTrDlDenseG_Batch
                qa[i] = 0.0;
                qb[i] = 0.0;
                use_nr[i] = false;
-               (*_delta)[i + offset] = _deltaControl->getDeltaInit() ;
+               _delta[i + offset] = _deltaControl->getDeltaInit() ;
 	         });
             // Setting solx to initial x value
             SNLS_FORALL(i, 0, batch_size * _nDim, {
-               solx[i] = (*_x)[offset * _nDim + i];
+               solx[i] = _x[offset * _nDim + i];
             });
 
             this->computeRJ(residual.data(es), Jacobian.data(es), rjSuccess.data(es), offset, batch_size) ; // at _x
 
             SNLS_FORALL(i, 0, batch_size, {
                if ( !(rjSuccess[i]) ) {
-                  (*_status)[i + offset] = SNLSStatus_t::initEvalFailure ;
+                  _status[i + offset] = SNLSStatus_t::initEvalFailure ;
                }
                // this breaks out of the internal lambda and is essentially a loop continue
-               if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  (*_res)[i + offset] = this->normvec(&residual.data()[i * _nDim]) ;
-                  res_0[i] = (*_res)[i + offset];
+               if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
+                  _res[i + offset] = this->normvec(&residual.data()[i * _nDim]) ;
+                  res_0[i] = _res[i + offset];
                });
             // #ifdef __cuda_host_only__
             //          if (_os) { *_os << "res = " << _res << std::endl ; }
@@ -582,7 +571,7 @@ class SNLSTrDlDenseG_Batch
                SNLS_FORALL(i, 0, batch_size, 
                { // start of batch compute kernel 1
                   // this breaks out of the internal lambda and is essentially a loop continue
-                  if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
+                  if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev[i] ) {
                      //
                      // have a newly accepted solution point
@@ -664,9 +653,9 @@ class SNLSTrDlDenseG_Batch
                   SNLS_FORALL(i, 0, batch_size,
                   { // start of batch compute kernel 2
                      // this breaks out of the internal lambda and is essentially a loop continue
-                     if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
+                     if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                      use_nr[i] = false;
-                     if ( nr2norm[i] <= (*_delta)[i + offset] ) {
+                     if ( nr2norm[i] <= _delta[i + offset] ) {
                         // use Newton step
                         use_nr[i] = true ;
 
@@ -685,19 +674,19 @@ class SNLSTrDlDenseG_Batch
 
                         // step along dogleg path
                      
-                        if ( norm_s_sd_opt[i] >= (*_delta)[i + offset] ) {
+                        if ( norm_s_sd_opt[i] >= _delta[i + offset] ) {
 
                            // use step along steapest descent direction
 
                            {
-                              double factor = -(*_delta)[i + offset] * norm_grad_inv[i] ;
+                              double factor = -_delta[i + offset] * norm_grad_inv[i] ;
                               for (int iX = 0; iX < _nDim; ++iX) {
                                  delx[i * _nDim + iX] = factor * grad[i * _nDim + iX] ;
                               }
                            }
 
                            {
-                              double val = -((*_delta)[i + offset] * norm_grad[i]) + 0.5 * (*_delta)[i + offset] * (*_delta)[i + offset] * Jg2[i] * (norm_grad_inv[i] * norm_grad_inv[i]) ;
+                              double val = -(_delta[i + offset] * norm_grad[i]) + 0.5 * _delta[i + offset] * _delta[i + offset] * Jg2[i] * (norm_grad_inv[i] * norm_grad_inv[i]) ;
                               pred_resid[i] = sqrt(fmax(2.0 * val + res_0[i] * res_0[i], 0.0)) ;
                            }
                   
@@ -706,7 +695,7 @@ class SNLSTrDlDenseG_Batch
 
                            // qc and beta depend on delta
                            //
-                           double qc = norm_s_sd_opt[i] * norm_s_sd_opt[i] - (*_delta)[i + offset] * (*_delta)[i + offset] ;
+                           double qc = norm_s_sd_opt[i] * norm_s_sd_opt[i] - _delta[i + offset] * _delta[i + offset] ;
                            //
                            double beta = (-qb[i] + sqrt(qb[i] * qb[i] - 4.0 * qa[i] * qc))/(2.0 * qa[i]) ;
       #ifdef DEBUG
@@ -734,7 +723,7 @@ class SNLSTrDlDenseG_Batch
                   SNLS_FORALL(i, 0, batch_size,
                   { // start of batch compute kernel 3
                      // this breaks out of the internal lambda and is essentially a loop continue
-                     if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
+                     if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                      this->update( &delx.data()[i * _nDim], i, offset ) ;
                      reject_prev[i] = false ;
                   }); // end of batch compute kernel 3
@@ -746,20 +735,20 @@ class SNLSTrDlDenseG_Batch
                      SNLS_FORALL(i, 0, batch_size, 
                      { // start of batch compute kernel 5
                         // this breaks out of the internal lambda and is essentially a loop continue
-                        if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
+                        if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                         if ( !(rjSuccess[i]) ) {
                            // got an error doing the evaluation
                            // try to cut back step size and go again
-                           bool deltaSuccess = _deltaControl->decrDelta(_os, (*_delta)[i + offset], nr2norm[i], use_nr[i] ) ;
+                           bool deltaSuccess = _deltaControl->decrDelta(_os, _delta[i + offset], nr2norm[i], use_nr[i] ) ;
                            if ( ! deltaSuccess ) {
-                              (*_status)[i + offset] = deltaFailure ;
-                              (*_fevals)[i + offset] = _mfevals;
+                              _status[i + offset] = deltaFailure ;
+                              _fevals[i + offset] = _mfevals;
                               return; // equivalent to a continue in a while loop
                            }
                            reject_prev[i] = true ;
                         }
                         else {
-                           (*_res)[i + offset] = this->normvec(&residual.data()[i * _nDim]) ;
+                           _res[i + offset] = this->normvec(&residual.data()[i * _nDim]) ;
 
                            // allow to exit now, may have forced one iteration anyway, in which
                            // case the delta update can do funny things if the residual was
@@ -767,22 +756,22 @@ class SNLSTrDlDenseG_Batch
                            // Now _x shouldn't change after we are no longer unconverged
                            // due to all of the exits we have at the start of the loops
                            // but just in case we save this value and assign it back when we exit 
-                           if ( (*_res)[i + offset] < _tolerance ) {
-                              (*_status)[i + offset] = converged ;
+                           if ( _res[i + offset] < _tolerance ) {
+                              _status[i + offset] = converged ;
                               for (int j = 0; j < _nDim; j++) {
-                                 solx[i * _nDim + j] = (*_x)[offset * _nDim + i * _nDim + j];
+                                 solx[i * _nDim + j] = _x[offset * _nDim + i * _nDim + j];
                               }
-                              (*_fevals)[i + offset] = _mfevals;
+                              _fevals[i + offset] = _mfevals;
                               return; // equivalent to a continue in a while loop
                            }
 
                            {
                               bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                           (*_delta)[i + offset], (*_res)[i + offset], res_0[i], pred_resid[i],
+                                                                           _delta[i + offset], _res[i + offset], res_0[i], pred_resid[i],
                                                                            reject_prev[i], use_nr[i], nr2norm[i]) ;
                               if ( ! deltaSuccess ) {
-                                 (*_status)[i + offset] = deltaFailure ;
-                                 (*_fevals)[i + offset] = _mfevals;
+                                 _status[i + offset] = deltaFailure ;
+                                 _fevals[i + offset] = _mfevals;
                                  return; // equivalent to a continue in a while loop
                               }
                            }
@@ -792,9 +781,9 @@ class SNLSTrDlDenseG_Batch
                   SNLS_FORALL(i, 0, batch_size,
                   { // start of batch compute kernel 6
                      // this breaks out of the internal lambda and is essentially a loop continue
-                     if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
+                     if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                      if ( reject_prev[i] ) { 
-                        (*_res)[i + offset] = res_0[i] ;
+                        _res[i + offset] = res_0[i] ;
                         this->reject( &delx.data()[i * _nDim], i, offset ) ;
                      }
                   }); // end of batch compute kernel 6
@@ -803,8 +792,8 @@ class SNLSTrDlDenseG_Batch
                SNLS_FORALL(i, 0, batch_size,
                { // start of batch compute kernel 7
                   // this breaks out of the internal lambda and is essentially a loop continue
-                  if( (*_status)[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  res_0[i] = (*_res)[i + offset] ;
+                  if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
+                  res_0[i] = _res[i + offset] ;
                }); // end of batch compute kernel 7
 
                // If this is true then that means all of the batched items
@@ -816,7 +805,7 @@ class SNLSTrDlDenseG_Batch
             } // _nIters < _maxIter
 
 	    SNLS_FORALL(i, 0, batch_size * _nDim, {
-	       (*_x)[offset * _nDim + i] = solx[i];
+	       _x[offset * _nDim + i] = solx[i];
 	    });
 
 	    if(m_fevals < _mfevals) m_fevals = _mfevals;
@@ -873,7 +862,7 @@ class SNLSTrDlDenseG_Batch
          // We'll probably want to modify this as well to take in a bool array
          // that it's responsible for setting
          // fix me rJSuccess needs to be passed into _crj.computeRJ
-         this->_crj.computeRJ(r, J, _x->data(Device::GetBackend()), rJSuccess, offset, batch_size);
+         this->_crj.computeRJ(r, J, _x.data(Device::GetCHAIES()), rJSuccess, offset, batch_size);
          
 #ifdef DEBUG
          if ( _outputLevel > 2 && _os != nullptr ) {
@@ -894,7 +883,7 @@ class SNLSTrDlDenseG_Batch
                double r_pert[_nDim];
                double x_pert[_nDim];
                for ( int jX = 0; jX < _nDim ; ++jX ) {
-                  x_pert[jX] = (*_x)[jX] ;
+                  x_pert[jX] = _x[jX] ;
                }
                x_pert[iX] = x_pert[iX] + pert_val ;
                bool retvalThis = this->_crj.computeRJ( r_pert, nullptr, x_pert ) ;
@@ -1008,7 +997,7 @@ class SNLSTrDlDenseG_Batch
 	      const int toffset = ielem * _nDim + offset * _nDim;
          //delX is already offset
          for (int iX = 0; iX < _nDim; ++iX) {
-            (*_x)[iX + toffset] = (*_x)[iX + toffset] + delX[iX] ;
+            _x[iX + toffset] = _x[iX + toffset] + delX[iX] ;
          }
       }
       // fix me this needs to be provided an offset value
@@ -1016,7 +1005,7 @@ class SNLSTrDlDenseG_Batch
          const int toffset = ielem * _nDim + offset * _nDim;
          // delX is already offset
          for (int iX = 0; iX < _nDim; ++iX) {
-            (*_x)[iX + toffset] = (*_x)[iX + toffset] - delX[iX] ;
+            _x[iX + toffset] = _x[iX + toffset] - delX[iX] ;
          }
       }
       
@@ -1050,56 +1039,56 @@ class SNLSTrDlDenseG_Batch
          // is used.
          bool red_add = false;
          const int end = offset + batch_size;
-         SNLSStatus_t*  status = _status->data(Device::GetBackend());
-      #ifdef HAVE_RAJA
+         SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
+#ifdef HAVE_RAJA
          switch(Device::GetBackend()) {
-         #ifdef RAJA_ENABLE_CUDA
-         case(chai::ExecutionSpace::GPU): {
-	    //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-	    RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
-            RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
-            if(!batch_loop) { 
-	       if(isConverged(status[i])) output += 1;
+#ifdef RAJA_ENABLE_CUDA
+            case(ExecutionStrategy::CUDA): {
+               //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
+               RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
+                  if(!batch_loop) { 
+                     if(isConverged(status[i])) output += 1;
+                  }
+                  else {
+                     if(status[i] != SNLSStatus_t::unConverged) output += 1;
+                  }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
             }
-            else {
-	       if(status[i] != SNLSStatus_t::unConverged) output += 1;
+   #endif
+   #ifdef RAJA_ENABLE_OPENMP && OPENMP_ENABLE
+            case(ExecutionStrategy::OPENMP): {
+               //RAJA::ReduceBitAnd<RAJA::omp_reduce_ordered, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::omp_reduce_ordered, int> output(0);
+               RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(offset, end), [=] (int i) {
+                  if(!batch_loop) { 
+                     if(isConverged(status[i])) output += 1;
+                  }
+                  else {
+                     if(status[i] != SNLSStatus_t::unConverged) output += 1;
+                  }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
             }
-            });
-            red_add = (output.get() == batch_size) ? true : false;
-            break;
-         }
-         #endif
-         #ifdef RAJA_ENABLE_OPENMP && OPENMP_ENABLE
-         case(chai::ExecutionSpace::NONE): {
-	    //RAJA::ReduceBitAnd<RAJA::omp_reduce_ordered, bool> output(init_val);
-	    RAJA::ReduceSum<RAJA::omp_reduce_ordered, int> output(0);
-            RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(offset, end), [=] (int i) {
-            if(!batch_loop) { 
-	       if(isConverged(status[i])) output += 1;
+   #endif
+            case(ExecutionStrategy::CPU):
+            default: {
+               //RAJA::ReduceBitAnd<RAJA::seq_reduce, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::seq_reduce, int> output(0);
+               RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(offset, end), [=] (int i) {
+                  if(!batch_loop) { 
+                     if(isConverged(status[i])) output += 1;
+                  }
+                  else {
+                     if(status[i] != SNLSStatus_t::unConverged) output += 1;
+                  }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
             }
-            else {
-	       if(status[i] != SNLSStatus_t::unConverged) output += 1;
-            }
-            });
-            red_add = (output.get() == batch_size) ? true : false;
-            break;
-         }
-         #endif
-         case(chai::ExecutionSpace::CPU):
-         default: {
-	    //RAJA::ReduceBitAnd<RAJA::seq_reduce, bool> output(init_val);
-	    RAJA::ReduceSum<RAJA::seq_reduce, int> output(0);
-            RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(offset, end), [=] (int i) {
-            if(!batch_loop) { 
-	       if(isConverged(status[i])) output += 1;
-            }
-            else {
-	       if(status[i] != SNLSStatus_t::unConverged) output += 1;
-            }
-            });
-            red_add = (output.get() == batch_size) ? true : false;
-            break;
-         }
          } // End of switch
       #endif
          return red_add;
@@ -1109,7 +1098,7 @@ class SNLSTrDlDenseG_Batch
       // The user is responsible for deleting this ptr after their done using it
       // through the use of the SNLS::memoryManager::dealloc<T>(T* ptr) function  
       SNLSStatus_t * getStatusHost() {
-         return _status->data(chai::ExecutionSpace::CPU);
+         return _status.data(chai::ExecutionSpace::CPU);
       }
    
 #ifdef DEBUG
@@ -1134,15 +1123,15 @@ class SNLSTrDlDenseG_Batch
 
    // fix me lots of the below need to become arrays of values...
    public:
-      chai::ManagedArray<double>* _x;
+      chai::ManagedArray<double> _x;
 
    protected:
       static const int _nXnDim = _nDim * _nDim ;
       
       int _mfevals, _nIters, _nJFact ;
-      chai::ManagedArray<int>* _fevals;
-      chai::ManagedArray<double>* _delta;
-      chai::ManagedArray<double>* _res;
+      chai::ManagedArray<int> _fevals;
+      chai::ManagedArray<double> _delta;
+      chai::ManagedArray<double> _res;
 
    private:
       TrDeltaControl_Batch* _deltaControl ;
@@ -1159,7 +1148,7 @@ class SNLSTrDlDenseG_Batch
 
       std::ostream* _os ;
 
-      chai::ManagedArray<SNLSStatus_t>* _status;
+      chai::ManagedArray<SNLSStatus_t> _status;
 };
   } // namespace batch
 } // namespace snls

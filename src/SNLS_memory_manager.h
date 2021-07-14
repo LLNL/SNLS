@@ -80,7 +80,8 @@ namespace snls {
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
                , _device_allocator
 #endif
-            });
+               },
+               es);
 
             return array;
          }
@@ -100,7 +101,8 @@ namespace snls {
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
                , _device_allocator
 #endif
-            });
+               },
+               es);
 
             return array;
 
@@ -162,12 +164,12 @@ namespace snls {
             // is used.
             switch(Device::GetBackend()) {
 #ifdef __CUDACC__
-               case(chai::ExecutionSpace::GPU): {
+               case(ExecutionStrategy::CUDA): {
                   return allocDevice<T>(size);
                }
 #endif
-               case(chai::ExecutionSpace::NONE):
-               case(chai::ExecutionSpace::CPU):
+               case(ExecutionStrategy::OPENMP):
+               case(ExecutionStrategy::CPU):
                default: {
                  return allocHost<T>(size);
                }
@@ -229,13 +231,13 @@ namespace snls {
 #else
                switch(Device::GetBackend()) {
 #ifdef __CUDACC__
-                  case(chai::ExecutionSpace::GPU): {
+                  case(ExecutionStrategy::CUDA): {
                      CUDART_CHECK(cudaFree(ptr));
                      break;
                   }
 #endif
-                  case(chai::ExecutionSpace::NONE):
-                  case(chai::ExecutionSpace::CPU):
+                  case(ExecutionStrategy::OPENMP):
+                  case(ExecutionStrategy::CPU):
                   default: {
                      delete[] ptr;
                      break;
@@ -257,6 +259,9 @@ namespace snls {
 	      umpire::Allocator _device_allocator;
 #endif
 	      umpire::ResourceManager& _rm;
+#endif
+#ifdef HAVE_CHAI
+         chai::ExecutionSpace es;
 #endif
    };
 

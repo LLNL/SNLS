@@ -10,7 +10,13 @@ using namespace std;
 #include "../src/SNLS_TrDLDenseG_Batch.h"
 #include "../src/SNLS_device_forall.h"
 #include "../src/SNLS_memory_manager.h"
+
+
+#include "umpire/strategy/DynamicPool.hpp"
+#include "umpire/Allocator.hpp"
+#include "umpire/ResourceManager.hpp"
 #include "chai/ManagedArray.hpp"
+
 
 #ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
@@ -45,42 +51,6 @@ using namespace std;
   The standard starting point is x(i) = -1, but setting x(i) = 0 tests
   the selected global strategy.
 */
-
-class testCase
-{
-   public:
-      chai::ManagedArray<double> data_public;
-      // This is the only way I've found to work...
-      testCase(int nBatch) : data_public(chai::ManagedArray<double>(nBatch)),
-      data_private(chai::ManagedArray<double>(nBatch)) 
-      {
-         init(nBatch);
-      }
-      ~testCase()
-      {
-         data_public.free();
-         data_private.free();
-      }
-
-      void init(int nBatch)
-      {
-         auto mm = snls::memoryManager::getInstance();
-         // neither of these methods work
-         // I've also tried making this a pointer as well...
-         // data_public = mm.allocManagedArray<double>(nBatch); 
-         // data_private = mm.allocManagedArray<double>(nBatch);
-         printf("\nin init for testCase class\n");
-         SNLS_FORALL(i, 0, nBatch, {
-            data_public[i] = 1.0;
-            data_private[i] = 1.0;
-         });
-         printf("it worked \n");
-      }
-
-   private:
-      chai::ManagedArray<double> data_private;
-};
-
 class Broyden
 {
 public:
@@ -161,41 +131,21 @@ public:
       static const int _nXn = nDimSys*nDimSys ;
 };
 
-void smallTest(int nBatch)
-{
-   auto mm = snls::memoryManager::getInstance();
-
-   auto test = mm.allocManagedArray<double>(nBatch);
-
-   // Now this should work...
-   printf("Running a simple test of things...");
-   SNLS_FORALL(i, 0, nBatch, {
-      test[i] = 1.0;
-   });
-
-   test.free();
-
-   testCase test1(nBatch);
-}
-
 void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
    auto mm = snls::memoryManager::getInstance();
 
-   auto test = mm.allocManagedArray<double>(5000);
-   double *xH = mm.allocHost<double>(nDim);
-   double *xD = mm.alloc<double>(nDim);
+   auto x = mm.allocManagedArray<double>(nDim);
    // provide a seed so things are reproducible
    std::default_random_engine gen(42);
    std::uniform_real_distribution<double> udistrib(-1.0, 1.0);
+   double* xH = x.data(chai::ExecutionSpace::CPU);
    for (int i = 0; i < nDim; i++) {
      // No idea how ill-conditioned this system is so don't want to perturb things
      // too much from our initial guess
      xH[i] = 0.001 * udistrib(gen);
    }
-   mm.copy(xH, xD, nDim * sizeof(double));
-   solver.setX(xD);
-   mm.dealloc<double>(xH);
-   mm.dealloc<double>(xD);
+   solver.setX(x.data(snls::Device::GetCHAIES()));
+   x.free();
 }
 
 TEST(snls,broyden_a) // int main(int , char ** )
@@ -204,8 +154,6 @@ TEST(snls,broyden_a) // int main(int , char ** )
    const int nBatch = 1000;
 
    Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
-
-   smallTest(nBatch);
 
    snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
    snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
