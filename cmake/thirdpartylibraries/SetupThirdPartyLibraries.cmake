@@ -13,13 +13,6 @@ foreach(_tpl ${_tpls})
     endif()
 endforeach()
 
-###############################
-# CUB
-###############################
-if (ENABLE_CUDA)
-    include(cmake/thirdpartylibraries/FindCUB.cmake)
-endif()
-
 ################################
 # camp
 ################################
