@@ -227,7 +227,6 @@ class testCase
 {
    public:
       chai::ManagedArray<double> data_public;
-      // This is the only way I've found to work...
 
       testCase(int nBatch) 
       {
@@ -265,8 +264,6 @@ class testCase
          data_public = mm.allocManagedArray<double>(nBatch); 
          data_private = mm.allocManagedArray<double>(nBatch);
          printf("\nin init for testCase class\n");
-         auto &data_public_ref = data_public;
-         auto &data_private_ref = data_private;
          PROB_FORALL(i, 0, nBatch, {
             // test_fcn(data_public, i);
             data_public[i] = 1.0;
