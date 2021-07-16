@@ -312,8 +312,8 @@ template<typename CRJ>
 struct has_valid_computeRJ <
    CRJ,typename std::enable_if<
        std::is_void<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<double* const>(), std::declval<double* const>(),std::declval<const double * const>(), 
-                    std::declval<bool* const>(), std::declval<const int>(), std::declval<const int>())) 
+           decltype(std::declval<CRJ>().computeRJ(std::declval<chai::ManagedArray<double>&>(), std::declval<chai::ManagedArray<double>&>(),std::declval<const chai::ManagedArray<double>&>(), 
+                    std::declval<chai::ManagedArray<bool>&>(), std::declval<const int>(), std::declval<const int>())) 
        >::value
        ,
        void
@@ -352,8 +352,8 @@ template< class CRJ >
 class SNLSTrDlDenseG_Batch 
 {
    public:
-      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( double* const r, double* const J, const double* const x,"
-                                                      " bool* const rJSuccess, const int offset, const int nbatch )");
+      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( chai::ManagedArray<double> &r, chai::ManagedArray<double> &J, const chai::ManagedArray<double> &x,"
+                                                      " chai::ManagedArray<bool> &rJSuccess, const int offset, const int nbatch )");
       static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
    public:
@@ -380,7 +380,7 @@ class SNLSTrDlDenseG_Batch
       _fevals = mm.allocManagedArray<int>(_npts);
 
       SNLS_FORALL(i, 0, _npts, {
-	      _fevals[i] = 0;
+         _fevals[i] = 0;
          for (int j = 0; j < CRJ::nDimSys; j++){
             _x[i * CRJ::nDimSys + j] = 0.0;
          }
@@ -424,6 +424,14 @@ class SNLSTrDlDenseG_Batch
             }
          });
       }
+
+      inline void setX(const chai::ManagedArray<double> &x) {
+         SNLS_FORALL(ipts, 0, _npts, {
+            for (int iX = 0; iX < _nDim; ++iX) {
+               _x[ipts * _nDim + iX] = x[ipts * _nDim + iX] ;
+            }
+         });
+      }
       /// getX can be used to get solution for all of the points used in the batch job
       // fix me so that this has a forall loop over this
       inline void getX( double* const x) const {
@@ -432,7 +440,15 @@ class SNLSTrDlDenseG_Batch
                x[ipts * _nDim + iX] = _x[ipts * _nDim + iX] ;
             }
          });
-      };   
+      };
+
+      inline void getX( chai::ManagedArray<double> &x) const {
+         SNLS_FORALL(ipts, 0, _npts, {
+            for (int iX = 0; iX < _nDim; ++iX) {
+               x[ipts * _nDim + iX] = _x[ipts * _nDim + iX] ;
+            }
+         });
+      };
 
       /**
        * Must call setupSolver before calling solve
@@ -445,7 +461,7 @@ class SNLSTrDlDenseG_Batch
          SNLS_FORALL(i, 0, _npts, {
             _status[i] = SNLSStatus_t::unConverged ;
             _fevals[i] = 0;
-	      });
+         });
 
          _maxIter = maxIter ;
          _tolerance = tolerance ;
@@ -532,7 +548,7 @@ class SNLSTrDlDenseG_Batch
 
             //Reinitialize all of our data back to these values
             SNLS_FORALL(i, 0, batch_size, {
-	            rjSuccess[i] = true;
+               rjSuccess[i] = true;
                reject_prev[i] = false;
                nr2norm[i] = 0.0;
                alpha[i] = 0.0;
@@ -543,13 +559,13 @@ class SNLSTrDlDenseG_Batch
                qb[i] = 0.0;
                use_nr[i] = false;
                _delta[i + offset] = _deltaControl->getDeltaInit() ;
-	         });
+            });
             // Setting solx to initial x value
             SNLS_FORALL(i, 0, batch_size * _nDim, {
                solx[i] = _x[offset * _nDim + i];
             });
 
-            this->computeRJ(residual.data(es), Jacobian.data(es), rjSuccess.data(es), offset, batch_size) ; // at _x
+            this->computeRJ(residual, Jacobian, rjSuccess, offset, batch_size) ; // at _x
 
             SNLS_FORALL(i, 0, batch_size, {
                if ( !(rjSuccess[i]) ) {
@@ -730,7 +746,7 @@ class SNLSTrDlDenseG_Batch
                   //
                   {
                      // start of batch compute kernel 4
-                     this->computeRJ(residual.data(es), Jacobian.data(es), rjSuccess.data(es), offset, batch_size) ; // at _x
+                     this->computeRJ(residual, Jacobian, rjSuccess, offset, batch_size) ; // at _x
                      // end of batch compute kernel 4
                      SNLS_FORALL(i, 0, batch_size, 
                      { // start of batch compute kernel 5
@@ -804,11 +820,11 @@ class SNLSTrDlDenseG_Batch
                
             } // _nIters < _maxIter
 
-	    SNLS_FORALL(i, 0, batch_size * _nDim, {
-	       _x[offset * _nDim + i] = solx[i];
-	    });
+       SNLS_FORALL(i, 0, batch_size * _nDim, {
+          _x[offset * _nDim + i] = solx[i];
+       });
 
-	    if(m_fevals < _mfevals) m_fevals = _mfevals;
+       if(m_fevals < _mfevals) m_fevals = _mfevals;
             if(m_nJFact < _nJFact) m_nJFact = _nJFact;
             if(m_nIters < _nIters) m_nIters = _nIters;
 
@@ -852,9 +868,9 @@ class SNLSTrDlDenseG_Batch
 
       // convenience wrapper, for the current _x
       // no longer returns a bool but has a bool array argument
-      inline void computeRJ(double* const r,
-                            double* const J,
-                            bool* const   rJSuccess,
+      inline void computeRJ(chai::ManagedArray<double> &r,
+                            chai::ManagedArray<double> &J,
+                            chai::ManagedArray<bool>   &rJSuccess,
                             const int offset,
                             const int batch_size) {
          
@@ -862,9 +878,10 @@ class SNLSTrDlDenseG_Batch
          // We'll probably want to modify this as well to take in a bool array
          // that it's responsible for setting
          // fix me rJSuccess needs to be passed into _crj.computeRJ
-         this->_crj.computeRJ(r, J, _x.data(Device::GetCHAIES()), rJSuccess, offset, batch_size);
+         this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
          
 #ifdef DEBUG
+         // Needs to be rethought of for how to do this for the vectorized format...
          if ( _outputLevel > 2 && _os != nullptr ) {
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
@@ -994,7 +1011,7 @@ class SNLSTrDlDenseG_Batch
       }
       // fix me this needs to be udated to be a compute kernel overall batches
       __snls_hdev__ inline void  update(const double* const delX, const int ielem, const int offset ) {
-	      const int toffset = ielem * _nDim + offset * _nDim;
+         const int toffset = ielem * _nDim + offset * _nDim;
          //delX is already offset
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX + toffset] = _x[iX + toffset] + delX[iX] ;
@@ -1027,7 +1044,7 @@ class SNLSTrDlDenseG_Batch
       /// current batch can exit.
       template <const bool batch_loop, const int NUMTHREADS>
       inline bool status_exit(const int offset,
-                     const int batch_size)
+                              const int batch_size)
       {
          // Additional backends can be added as seen within the MFEM_FORALL
          // which this was based on.
@@ -1102,7 +1119,7 @@ class SNLSTrDlDenseG_Batch
       }
    
 #ifdef DEBUG
-      void  printVecX         (const double* const y, std::ostream & oss ) {
+      void  printVecX (const double* const y, std::ostream & oss ) {
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             oss << y[iX] << " " ;
@@ -1110,7 +1127,7 @@ class SNLSTrDlDenseG_Batch
          oss << std::endl ;
       }
       
-      void  printMatJ         (const double* const A, std::ostream & oss ) {
+      void  printMatJ (const double* const A, std::ostream & oss ) {
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             for ( int jX=0; jX<_nDim; ++jX) {

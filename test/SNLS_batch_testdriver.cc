@@ -66,14 +66,14 @@ public:
 #endif
       } ;
 
-   __snls_hdev__ void computeRJ(double* const r,
-                                double* const J,
-                                const double* x,
-                                bool* const rJSuccess,
+   __snls_hdev__ void computeRJ(chai::ManagedArray<double> &r,
+                                chai::ManagedArray<double> &J,
+                                const chai::ManagedArray<double> &x,
+                                chai::ManagedArray<bool> &rJSuccess,
                                 const int offset,
                                 const int batch_size)
       {
-	SNLS_FORALL(ib, 0, batch_size, { 
+      SNLS_FORALL(ib, 0, batch_size, { 
          double fn ;
          const int nDim = nDimSys ; // convenience -- less code change below
          const int toff = offset * nDim + ib * nDim;
@@ -88,7 +88,7 @@ public:
          std::cout << std::endl ;
 #endif
 #endif
-         bool doComputeJ = (J != nullptr) ;
+         bool doComputeJ = (J.size() > 0) ;
          if ( doComputeJ ) {
             for ( int ijJ=0; ijJ<_nXn; ++ijJ ) {
                J[ijJ + moff] = 0.0 ;
@@ -162,17 +162,17 @@ TEST(snls,broyden_a) // int main(int , char ** )
    setX(solver, nDim * nBatch);
    //
    auto mm = snls::memoryManager::getInstance();
-   double *r = mm.alloc<double>(nDim * nBatch);
-   double *J = mm.alloc<double>(nDim*nDim * nBatch);
-   bool *rjSuccess = mm.alloc<bool>(nBatch);
+   auto r = mm.allocManagedArray<double>(nDim * nBatch);
+   auto J = mm.allocManagedArray<double>(nDim*nDim * nBatch);
+   auto rjSuccess = mm.allocManagedArray<bool>(nBatch);
    //
    // any of these should be equivalent:
    // broyden.computeRJ(r, J, solver._x);
    // solver._crj.computeRJ(r, J, solver._x); 
-   solver.computeRJ(&r[0], &J[0], &rjSuccess[0], 0, nBatch);
-   mm.dealloc<double>(r);
-   mm.dealloc<double>(J);
-   mm.dealloc<bool>(rjSuccess);
+   solver.computeRJ(r, J, rjSuccess, 0, nBatch);
+   r.free();
+   J.free();
+   rjSuccess.free();
 
    bool status = solver.solve( ) ;
    EXPECT_TRUE( status ) << "Expected solver to converge" ;
