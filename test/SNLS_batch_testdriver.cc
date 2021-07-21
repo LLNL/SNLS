@@ -11,12 +11,7 @@ using namespace std;
 #include "../src/SNLS_device_forall.h"
 #include "../src/SNLS_memory_manager.h"
 
-
-#include "umpire/strategy/DynamicPool.hpp"
-#include "umpire/Allocator.hpp"
-#include "umpire/ResourceManager.hpp"
 #include "chai/ManagedArray.hpp"
-
 
 #ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
@@ -158,7 +153,7 @@ TEST(snls,broyden_a) // int main(int , char ** )
    snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
    snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
-   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch - 100);
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch);
    setX(solver, nDim * nBatch);
    //
    auto mm = snls::memoryManager::getInstance();
@@ -168,7 +163,7 @@ TEST(snls,broyden_a) // int main(int , char ** )
    //
    // any of these should be equivalent:
    // broyden.computeRJ(r, J, solver._x);
-   // solver._crj.computeRJ(r, J, solver._x); 
+   // solver._crj.computeRJ(r, J, solver._x);
    solver.computeRJ(r, J, rjSuccess, 0, nBatch);
    r.free();
    J.free();

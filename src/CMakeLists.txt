@@ -27,8 +27,8 @@ message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 # Defines
 #------------------------------------------------------------------------------
 
-SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DDEBUG")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
+SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DSNLS_DEBUG")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSNLS_DEBUG")
 
 #------------------------------------------------------------------------------
 # Includes

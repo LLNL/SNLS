@@ -714,7 +714,7 @@ class SNLSTrDlDenseG_Batch
                            double qc = norm_s_sd_opt[i] * norm_s_sd_opt[i] - _delta[i + offset] * _delta[i + offset] ;
                            //
                            double beta = (-qb[i] + sqrt(qb[i] * qb[i] - 4.0 * qa[i] * qc))/(2.0 * qa[i]) ;
-      #ifdef DEBUG
+      #ifdef SNLS_DEBUG
                            if ( beta > 1.0 || beta < 0.0 ) {
                               SNLS_FAIL(__func__, "beta not in [0,1]") ;
                            }
@@ -880,44 +880,62 @@ class SNLSTrDlDenseG_Batch
          // fix me rJSuccess needs to be passed into _crj.computeRJ
          this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
          
-#ifdef DEBUG
+#ifdef SNLS_DEBUG
          // Needs to be rethought of for how to do this for the vectorized format...
          if ( _outputLevel > 2 && _os != nullptr ) {
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
+            auto mm = snls::memoryManager::getInstance();
+            chai::ManagedArray<double> J_FD = mm.allocManagedArray<double>(J.size());
+            // Dummy variable since we got rid of using raw pointers
+            // The default initialization has a size of 0 which is what we want.
+            chai::ManagedArray<double> J_dummy;
+            chai::ManagedArray<double> r_pert = mm.allocManagedArray<double>(r.size());
+            chai::ManagedArray<double> x_pert = mm.allocManagedArray<double>(_x.size());
 
-            double r_base[_nDim]; 
-            for ( int jX = 0; jX < _nDim ; ++jX ) {
-               r_base[jX] = r[jX] ;
-            }
-            
             const double pert_val     = 1.0e-7 ;
-            const double pert_val_inv = 1.0/pert_val ;
-            
-            double J_FD[_nXnDim] ;
-            
+            const double pert_val_inv = 1.0/pert_val;
+
             for ( int iX = 0; iX < _nDim ; ++iX ) {
-               double r_pert[_nDim];
-               double x_pert[_nDim];
-               for ( int jX = 0; jX < _nDim ; ++jX ) {
-                  x_pert[jX] = _x[jX] ;
-               }
-               x_pert[iX] = x_pert[iX] + pert_val ;
-               bool retvalThis = this->_crj.computeRJ( r_pert, nullptr, x_pert ) ;
-               if ( !retvalThis ) {
+               SNLS_FORALL(iBatch, 0, batch_size, {
+                  const int off = SNLS_VOFF(iBatch, _nDim);
+                  const int toff = SNLS_TOFF(iBatch, offset, _nDim);
+                  for ( int jX = 0; jX < _nDim ; ++jX ) {
+                     x_pert[off + jX] = _x[toff + jX] ;
+                  }
+                  x_pert[off + iX] = x_pert[off + iX] + pert_val;
+               });
+               this->_crj.computeRJ( r_pert, J_dummy, x_pert, rJSuccess, 0, batch_size);
+               const bool success = reduced_rjSuccess<SNLS_GPU_THREADS>(rJSuccess, batch_size);
+               if ( !success ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
                }
-               for ( int iR = 0; iR < _nDim ; iR++ ) {
-                  J_FD[SNLSTRDLDG_J_INDX(iR,iX,_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
-               }
+               SNLS_FORALL(iBatch, 0, batch_size, {
+                  const int off = SNLS_VOFF(iBatch, _nDim);
+                  const int moff = SNLS_MOFF(iBatch, _nXnDim);
+                  for ( int iR = 0; iR < _nDim ; iR++ ) {
+                     J_FD[moff + SNLSTRDLDG_J_INDX(iR, iX, _nDim)] = pert_val_inv * ( r_pert[off + iR] - r[off + iR] );
+                  }
+               });
             }
-            
-            *_os << "J_an = " << std::endl ; printMatJ( J,    *_os ) ;
-            *_os << "J_fd = " << std::endl ; printMatJ( J_FD, *_os ) ;
+
+            const double* J_data = J.data(chai::ExecutionSpace::CPU);
+            const double* J_FD_data = J_FD.data(chai::ExecutionSpace::CPU);
+            for (int iBatch = 0; iBatch < batch_size; iBatch++) {
+               const int moff = SNLS_MOFF(iBatch, _nXnDim);
+               *_os << "Batch item # " << iBatch << std::endl;
+               *_os << "J_an = " << std::endl ; printMatJ( &J_data[moff],    *_os );
+               *_os << "J_fd = " << std::endl ; printMatJ( &J_FD_data[moff], *_os );
+            }
+
+            // Clean-up the memory these objects use.
+            x_pert.free();
+            r_pert.free();
+            J_FD.free();
+            J_dummy.free();
 
             // put things back the way they were ;
-            retval = this->_crj.computeRJ(r, J, _x);
-            
+            this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
          } // _os != nullptr
 #endif         
          
@@ -1111,6 +1129,61 @@ class SNLSTrDlDenseG_Batch
          return red_add;
       } // end of status_exitable
 
+      /// Performs a bitwise reduction and operation on _status to see if the
+      /// current batch can exit.
+      template <const int NUMTHREADS>
+      inline bool reduced_rjSuccess(chai::ManagedArray<bool> &rJSuccess,
+                                    const int batch_size)
+      {
+         // Additional backends can be added as seen within the MFEM_FORALL
+         // which this was based on.
+            
+         // Device::Backend makes use of a global variable
+         // so as long as this is set in one central location
+         // and you don't have multiple Device objects changing
+         // the backend things should just work no matter where this
+         // is used.
+         bool red_add = false;
+         const int end = batch_size;
+#ifdef HAVE_RAJA
+         switch(Device::GetBackend()) {
+#ifdef RAJA_ENABLE_CUDA
+            case(ExecutionStrategy::CUDA): {
+               //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
+               RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
+                  if (rJSuccess[i]) { output += 1; }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
+            }
+#endif
+#ifdef RAJA_ENABLE_OPENMP && OPENMP_ENABLE
+            case(ExecutionStrategy::OPENMP): {
+               //RAJA::ReduceBitAnd<RAJA::omp_reduce_ordered, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::omp_reduce_ordered, int> output(0);
+               RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0, end), [=] (int i) {
+                  if (rJSuccess[i]) { output += 1; }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
+            }
+#endif
+            case(ExecutionStrategy::CPU):
+            default: {
+               //RAJA::ReduceBitAnd<RAJA::seq_reduce, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::seq_reduce, int> output(0);
+               RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(0, end), [=] (int i) {
+                  if (rJSuccess[i]) { output += 1; }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
+            }
+         } // End of switch
+#endif
+         return red_add;
+      } // end of status_exitable
+
       // Returns a pointer to the status array now on the host.
       // The user is responsible for deleting this ptr after their done using it
       // through the use of the SNLS::memoryManager::dealloc<T>(T* ptr) function  
@@ -1118,7 +1191,8 @@ class SNLSTrDlDenseG_Batch
          return _status.data(chai::ExecutionSpace::CPU);
       }
    
-#ifdef DEBUG
+#ifdef SNLS_DEBUG
+#ifdef __cuda_host_only__
       void  printVecX (const double* const y, std::ostream & oss ) {
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
@@ -1136,6 +1210,7 @@ class SNLSTrDlDenseG_Batch
             oss << std::endl ;
          } 
       }
+#endif
 #endif
 
    // fix me lots of the below need to become arrays of values...

@@ -521,7 +521,7 @@ class SNLSTrDlDenseG
                      double qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
                      //
                      double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
-#ifdef DEBUG
+#ifdef SNLS_DEBUG
                      if ( beta > 1.0 || beta < 0.0 ) {
                         SNLS_FAIL(__func__, "beta not in [0,1]") ;
                      }
@@ -624,7 +624,7 @@ class SNLSTrDlDenseG
          _fevals++ ;
          bool retval = this->_crj.computeRJ(r, J, _x);
          
-#ifdef DEBUG
+#ifdef SNLS_DEBUG
 #ifdef __cuda_host_only__
          if ( _outputLevel > 2 && _os != nullptr ) {
             // do finite differencing
@@ -782,7 +782,7 @@ class SNLSTrDlDenseG
       
    public:
    
-#ifdef DEBUG
+#ifdef SNLS_DEBUG
 #ifdef __cuda_host_only__
       __snls_hdev__ void  printVecX         (const double* const y, std::ostream & oss ) {
          oss << std::setprecision(14) ;
