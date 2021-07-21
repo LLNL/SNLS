@@ -66,19 +66,20 @@ public:
                                 const chai::ManagedArray<double> &x,
                                 chai::ManagedArray<bool> &rJSuccess,
                                 const int offset,
+                                const int x_offset,
                                 const int batch_size)
       {
       SNLS_FORALL(ib, 0, batch_size, { 
          double fn ;
          const int nDim = nDimSys ; // convenience -- less code change below
-         const int toff = offset * nDim + ib * nDim;
+         const int xoff = x_offset * nDim + ib * nDim;
          const int voff = ib * nDim;
          const int moff = ib * nDim * nDim;
 #ifdef __cuda_host_only__         
 #if DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {
-            std::cout << std::setw(21) << std::setprecision(11) << x[toff + i] << " ";
+            std::cout << std::setw(21) << std::setprecision(11) << x[xoff + i] << " ";
          }
          std::cout << std::endl ;
 #endif
@@ -90,28 +91,28 @@ public:
             }
          }
          
-         r[voff + 0] = (3-2*x[toff + 0])*x[toff + 0] - 2*x[toff + 1] + 1;
+         r[voff + 0] = (3-2*x[xoff + 0])*x[xoff + 0] - 2*x[xoff + 1] + 1;
          for (int i=1; i<nDim-1; i++)
-            r[voff + i] = (3-2*x[toff + i])*x[toff + i] - x[toff + i-1] - 2*x[toff + i+1] + 1;
+            r[voff + i] = (3-2*x[xoff + i])*x[xoff + i] - x[xoff + i-1] - 2*x[xoff + i+1] + 1;
 
-         fn = (3-2*x[toff + nDim-1])*x[toff + nDim-1] - x[toff + nDim-2] + 1;
+         fn = (3-2*x[xoff + nDim-1])*x[xoff + nDim-1] - x[xoff + nDim-2] + 1;
          r[voff + nDim-1] = (1-_lambda)*fn + _lambda*(fn*fn);
 
          if ( doComputeJ ) {
             // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
-            J[moff + SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[toff + 0];
+            J[moff + SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[xoff + 0];
             J[moff + SNLSTRDLDG_J_INDX(0,1,nDim)] = -2;
 
             // F(i) = (3-2*x[i])*x[i] - x[i-1] - 2*x[i+1] + 1;
             for (int i=1; i<nDim-1; i++) {
                J[moff + SNLSTRDLDG_J_INDX(i,i-1,nDim)] = -1;
-               J[moff + SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[toff + i];
+               J[moff + SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[xoff + i];
                J[moff + SNLSTRDLDG_J_INDX(i,i+1,nDim)] = -2;
             }
 
             // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
-            fn = (3-2*x[toff + nDim-1])*x[toff + nDim-1] - x[toff + nDim-2] + 1;
-            double dfndxn = 3-4*x[toff + nDim-1];
+            fn = (3-2*x[xoff + nDim-1])*x[xoff + nDim-1] - x[xoff + nDim-2] + 1;
+            double dfndxn = 3-4*x[xoff + nDim-1];
             J[moff + SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
             J[moff + SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }

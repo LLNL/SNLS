@@ -313,7 +313,7 @@ struct has_valid_computeRJ <
    CRJ,typename std::enable_if<
        std::is_void<
            decltype(std::declval<CRJ>().computeRJ(std::declval<chai::ManagedArray<double>&>(), std::declval<chai::ManagedArray<double>&>(),std::declval<const chai::ManagedArray<double>&>(), 
-                    std::declval<chai::ManagedArray<bool>&>(), std::declval<const int>(), std::declval<const int>())) 
+                    std::declval<chai::ManagedArray<bool>&>(), std::declval<const int>(), std::declval<const int>(), std::declval<const int>())) 
        >::value
        ,
        void
@@ -341,7 +341,7 @@ struct has_ndim <
 // CRJ should :
 // 	have member function
 // 		     __snls_hdev__ computeRJ( double* const r, double* const J, const double* const x, 
-//                                     bool* const rJSuccess, const int offset, const int nbatch ) ;
+//                                     bool* const rJSuccess, const int offset, const int x_offset, const int nbatch ) ;
 // 		computeRJ function returns true for successful evaluation
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
@@ -353,7 +353,7 @@ class SNLSTrDlDenseG_Batch
 {
    public:
       static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( chai::ManagedArray<double> &r, chai::ManagedArray<double> &J, const chai::ManagedArray<double> &x,"
-                                                      " chai::ManagedArray<bool> &rJSuccess, const int offset, const int nbatch )");
+                                                      " chai::ManagedArray<bool> &rJSuccess, const int offset, const int x_offset, const int nbatch )");
       static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
    public:
@@ -878,7 +878,7 @@ class SNLSTrDlDenseG_Batch
          // We'll probably want to modify this as well to take in a bool array
          // that it's responsible for setting
          // fix me rJSuccess needs to be passed into _crj.computeRJ
-         this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
+         this->_crj.computeRJ(r, J, _x, rJSuccess, offset, offset, batch_size);
          
 #ifdef SNLS_DEBUG
          // Needs to be rethought of for how to do this for the vectorized format...
@@ -905,7 +905,7 @@ class SNLSTrDlDenseG_Batch
                   }
                   x_pert[off + iX] = x_pert[off + iX] + pert_val;
                });
-               this->_crj.computeRJ( r_pert, J_dummy, x_pert, rJSuccess, 0, batch_size);
+               this->_crj.computeRJ( r_pert, J_dummy, x_pert, rJSuccess, offset, 0, batch_size);
                const bool success = reduced_rjSuccess<SNLS_GPU_THREADS>(rJSuccess, batch_size);
                if ( !success ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
@@ -935,7 +935,7 @@ class SNLSTrDlDenseG_Batch
             J_dummy.free();
 
             // put things back the way they were ;
-            this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
+            this->_crj.computeRJ(r, J, _x, rJSuccess, offset, offset, batch_size);
          } // _os != nullptr
 #endif         
          
