@@ -70,6 +70,7 @@ namespace snls {
          inline
          chai::ManagedArray<T> allocManagedArray(std::size_t size=0)
          {
+            es = snls::Device::GetCHAIES();
             chai::ManagedArray<T> array(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)

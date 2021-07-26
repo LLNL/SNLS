@@ -16,6 +16,7 @@
 #include "RAJA/RAJA.hpp"
 #endif
 
+#include "chai/config.hpp"
 #include "chai/ExecutionSpaces.hpp"
 
    // Implementation of SNLS's "parallel for" (forall) device/host kernel

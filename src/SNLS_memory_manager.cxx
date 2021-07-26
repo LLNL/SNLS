@@ -32,7 +32,9 @@ namespace snls {
    _complete(false),
    _rm(umpire::ResourceManager::getInstance())
    {
-      _host_allocator = _rm.getAllocator("HOST");
+      _host_allocator = _rm.makeAllocator<umpire::strategy::DynamicPool>
+                         ("MSLib_HOST_pool", _rm.getAllocator("HOST"));
+      // _host_allocator = _rm.getAllocator("HOST");
 #ifdef __CUDACC__
       // Do we want to make this pinned memory instead?
       _device_allocator = _rm.makeAllocator<umpire::strategy::DynamicPool>
