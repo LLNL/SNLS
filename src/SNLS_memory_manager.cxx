@@ -32,13 +32,16 @@ namespace snls {
    _complete(false),
    _rm(umpire::ResourceManager::getInstance())
    {
-      _host_allocator = _rm.makeAllocator<umpire::strategy::DynamicPool>
-                         ("MSLib_HOST_pool", _rm.getAllocator("HOST"));
+      const int initial_size = (1024 * 1024 * 1024);
+      _host_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
+                         ("MSLib_HOST_pool", _rm.getAllocator("HOST"),
+                          initial_size);
       // _host_allocator = _rm.getAllocator("HOST");
 #ifdef __CUDACC__
       // Do we want to make this pinned memory instead?
-      _device_allocator = _rm.makeAllocator<umpire::strategy::DynamicPool>
-	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"));
+      _device_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
+	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"),
+                          initial_size);
       es = chai::ExecutionSpace::GPU;
 #else
       es = chai::ExecutionSpace::CPU;

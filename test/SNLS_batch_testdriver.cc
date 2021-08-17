@@ -52,7 +52,7 @@ public:
    static const int nDimSys = 8 ;
 
    // constructor
-   __snls_hdev__  Broyden(double lambda )
+   __snls_host__  Broyden(double lambda )
       : _lambda(lambda)
       {
 #ifdef __cuda_host_only__
@@ -61,66 +61,71 @@ public:
 #endif
       } ;
 
-   __snls_hdev__ void computeRJ(chai::ManagedArray<double> &r,
-                                chai::ManagedArray<double> &J,
-                                const chai::ManagedArray<double> &x,
+   __snls_host__ void computeRJ(rview2d &r,
+                                rview3d &J,
+                                const rview2d &x,
                                 chai::ManagedArray<bool> &rJSuccess,
+                                const chai::ManagedArray<snls::SNLSStatus_t>& status,
                                 const int offset,
                                 const int x_offset,
                                 const int batch_size)
       {
-      SNLS_FORALL(ib, 0, batch_size, { 
+      SNLS_FORALL(ib, 0, batch_size, {
+         if (status[ib + offset] != snls::SNLSStatus_t::unConverged) { 
+                     return;
+         }
          double fn ;
          const int nDim = nDimSys ; // convenience -- less code change below
-         const int xoff = x_offset * nDim + ib * nDim;
-         const int voff = ib * nDim;
-         const int moff = ib * nDim * nDim;
+         const int xoff = x_offset + ib;
 #ifdef __cuda_host_only__         
 #if DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {
-            std::cout << std::setw(21) << std::setprecision(11) << x[xoff + i] << " ";
+            std::cout << std::setw(21) << std::setprecision(11) << x(xoff, i) << " ";
          }
          std::cout << std::endl ;
 #endif
 #endif
-         bool doComputeJ = (J.size() > 0) ;
+         bool doComputeJ = (J.layout.size() > 0) ;
          if ( doComputeJ ) {
-            for ( int ijJ=0; ijJ<_nXn; ++ijJ ) {
-               J[ijJ + moff] = 0.0 ;
+            for ( int ii=0; ii< nDim; ++ii ) {
+               for (int jj = 0; jj < nDim; ++jj)
+               {
+                  J(ib, ii, jj) = 0.0;
+               }
             }
          }
          
-         r[voff + 0] = (3-2*x[xoff + 0])*x[xoff + 0] - 2*x[xoff + 1] + 1;
+         r(ib, 0) = (3-2*x(xoff, 0))*x(xoff, 0) - 2*x(xoff, 1) + 1;
          for (int i=1; i<nDim-1; i++)
-            r[voff + i] = (3-2*x[xoff + i])*x[xoff + i] - x[xoff + i-1] - 2*x[xoff + i+1] + 1;
+            r(ib, i) = (3-2*x(xoff, i))*x(xoff, i) - x(xoff, i-1) - 2*x(xoff, i+1) + 1;
 
-         fn = (3-2*x[xoff + nDim-1])*x[xoff + nDim-1] - x[xoff + nDim-2] + 1;
-         r[voff + nDim-1] = (1-_lambda)*fn + _lambda*(fn*fn);
+         fn = (3-2*x(xoff, nDim-1))*x(xoff, nDim-1) - x(xoff, nDim-2) + 1;
+         r(ib, nDim-1) = (1-_lambda)*fn + _lambda*(fn*fn);
 
          if ( doComputeJ ) {
             // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
-            J[moff + SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[xoff + 0];
-            J[moff + SNLSTRDLDG_J_INDX(0,1,nDim)] = -2;
+            J(ib, 0, 0) = 3 - 4*x(xoff, 0);
+            J(ib, 0, 1) = -2;
 
             // F(i) = (3-2*x[i])*x[i] - x[i-1] - 2*x[i+1] + 1;
             for (int i=1; i<nDim-1; i++) {
-               J[moff + SNLSTRDLDG_J_INDX(i,i-1,nDim)] = -1;
-               J[moff + SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[xoff + i];
-               J[moff + SNLSTRDLDG_J_INDX(i,i+1,nDim)] = -2;
+               J(ib, i, i-1) = -1;
+               J(ib, i, i)   = 3 - 4*x(xoff, i);
+               J(ib, i, i+1) = -2;
             }
 
             // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
-            fn = (3-2*x[xoff + nDim-1])*x[xoff + nDim-1] - x[xoff + nDim-2] + 1;
-            double dfndxn = 3-4*x[xoff + nDim-1];
-            J[moff + SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
-            J[moff + SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
+            fn = (3-2*x(xoff, nDim-1))*x(xoff, nDim-1) - x(xoff, nDim-2) + 1;
+            double dfndxn = 3-4*x(xoff, nDim-1);
+            J(ib, nDim-1, nDim-1) = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
+            J(ib, nDim-1, nDim-2) = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }
 
          rJSuccess[ib] = true ;
        });
          
-      } ;
+      };
    
    private:
       double _lambda ;
@@ -151,24 +156,30 @@ TEST(snls,broyden_a) // int main(int , char ** )
 
    Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
 
-   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch) ;
+   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch, nBatch) ;
    snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
-   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0, nBatch);
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0);
    setX(solver, nDim * nBatch);
    //
-   auto mm = snls::memoryManager::getInstance();
-   auto r = mm.allocManagedArray<double>(nDim * nBatch);
-   auto J = mm.allocManagedArray<double>(nDim*nDim * nBatch);
-   auto rjSuccess = mm.allocManagedArray<bool>(nBatch);
-   //
-   // any of these should be equivalent:
-   // broyden.computeRJ(r, J, solver._x);
-   // solver._crj.computeRJ(r, J, solver._x);
-   solver.computeRJ(r, J, rjSuccess, 0, nBatch);
-   r.free();
-   J.free();
-   rjSuccess.free();
+   {
+      auto mm = snls::memoryManager::getInstance();
+      auto r = mm.allocManagedArray<double>(nDim * nBatch);
+      auto J = mm.allocManagedArray<double>(nDim*nDim * nBatch);
+      auto rjSuccess = mm.allocManagedArray<bool>(nBatch);
+
+      const auto es = snls::Device::GetCHAIES();
+      rview2d rv(RSETUP(r, es, 0), nBatch, nDim);
+      rview3d Jv(RSETUP(J, es, 0), nBatch, nDim, nDim);
+      //
+      // any of these should be equivalent:
+      // broyden.computeRJ(r, J, solver._x);
+      // solver._crj.computeRJ(r, J, solver._x);
+      solver.computeRJ(rv, Jv, rjSuccess, 0, nBatch);
+      r.free();
+      J.free();
+      rjSuccess.free();
+   }
 
    bool status = solver.solve( ) ;
    EXPECT_TRUE( status ) << "Expected solver to converge" ;

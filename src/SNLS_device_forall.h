@@ -31,7 +31,7 @@ snls::SNLS_ForallWrap<SNLS_GPU_THREADS>(		  \
 st,                                            \
 end,                                           \
 [=] __snls_device__ (int i) {__VA_ARGS__},     \
-[&] (int i) {__VA_ARGS__})
+[=] (int i) {__VA_ARGS__})
 
 /// The MFEM_FORALL wrapper that allows one to change the number of GPU threads
 #define SNLS_FORALL_T(i, threads, st, end, ...)  \
@@ -39,7 +39,7 @@ snls::SNLS_ForallWrap<threads>(			          \
 st,                                              \
 end,                                             \
 [=] __snls_device__ (int i) {__VA_ARGS__},       \
-[&] (int i) {__VA_ARGS__})
+[=] (int i) {__VA_ARGS__})
 
 // offset a vector / matrix to correct starting memory location given:
 // what local element we're on, what offset that local element is from the global 0,
@@ -131,7 +131,7 @@ namespace snls {
             break;
          }
    #endif
-   #ifdef RAJA_ENABLE_OPENMP && OPENMP_ENABLE
+   #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
          case(ExecutionStrategy::OPENMP): {
             RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(st, end), h_body);
             break;
