@@ -64,7 +64,7 @@ public:
    __snls_host__ void computeRJ(rview2d &r,
                                 rview3d &J,
                                 const rview2d &x,
-                                chai::ManagedArray<bool> &rJSuccess,
+                                rview1b &rJSuccess,
                                 const chai::ManagedArray<snls::SNLSStatus_t>& status,
                                 const int offset,
                                 const int x_offset,
@@ -122,7 +122,7 @@ public:
             J(ib, nDim-1, nDim-2) = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }
 
-         rJSuccess[ib] = true ;
+         rJSuccess(ib) = true ;
        });
          
       };
@@ -163,22 +163,14 @@ TEST(snls,broyden_a) // int main(int , char ** )
    setX(solver, nDim * nBatch);
    //
    {
-      auto mm = snls::memoryManager::getInstance();
-      auto r = mm.allocManagedArray<double>(nDim * nBatch);
-      auto J = mm.allocManagedArray<double>(nDim*nDim * nBatch);
-      auto rjSuccess = mm.allocManagedArray<bool>(nBatch);
-
-      const auto es = snls::Device::GetCHAIES();
-      rview2d rv(RSETUP(r, es, 0), nBatch, nDim);
-      rview3d Jv(RSETUP(J, es, 0), nBatch, nDim, nDim);
+      rview2d& rv = solver.getResidualVec();
+      rview3d& Jv = solver.getJacobianMat();
+      rview1b& rjSuccess = solver.getrjSuccessVec();
       //
       // any of these should be equivalent:
       // broyden.computeRJ(r, J, solver._x);
       // solver._crj.computeRJ(r, J, solver._x);
       solver.computeRJ(rv, Jv, rjSuccess, 0, nBatch);
-      r.free();
-      J.free();
-      rjSuccess.free();
    }
 
    bool status = solver.solve( ) ;
