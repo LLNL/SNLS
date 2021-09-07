@@ -63,7 +63,10 @@ set(SNLS_HEADERS
     SNLS_port.h
     SNLS_lup_solve.h
     SNLS_TrDLDenseG.h
-    SNLS_NewtonBB.h)
+    SNLS_NewtonBB.h
+    SNLS_NLSPowell.h
+    SNLS_qr_solve.h
+    SNLS_linalg.h)
 
 # no SNLS_SOURCES -- SNLS is header-only
 
@@ -103,6 +106,12 @@ if(ENABLE_TESTS)
                        DEPENDS_ON gtest)
     blt_add_test(NAME    snlstest
                  COMMAND snlstest)
+    blt_add_executable(NAME       snlsNLS
+                       SOURCES    SNLS_testdriver_powell.cc
+                       OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                       DEPENDS_ON gtest)
+    blt_add_test(NAME    snlsNLS
+                 COMMAND snlsNLS)
 endif(ENABLE_TESTS)
 
 #------------------------------------------------------------------------------
