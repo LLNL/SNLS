@@ -4,6 +4,7 @@
 #define SNLS_TRDLDG_BATCH_H
 
 #include "SNLS_base.h"
+#if defined(SNLS_RAJA_PERF_SUITE)
 #include "SNLS_lup_solve.h"
 #include "SNLS_device_forall.h"
 #include "SNLS_memory_manager.h"
@@ -32,9 +33,11 @@ extern "C" {
 #endif
 
 //////////////////////////////////////////////////////////////////////
-
 // row-major storage
 #define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
+#define SNLS_RSETUP(wdata, es, offset) &(wdata.data(es))[offset]
+
+namespace snls {
 
 // useful RAJA views for our needs
 typedef RAJA::View<bool, RAJA::Layout<1> > rview1b;
@@ -42,10 +45,7 @@ typedef RAJA::View<double, RAJA::Layout<1> > rview1d;
 typedef RAJA::View<double, RAJA::Layout<2> > rview2d;
 typedef RAJA::View<double, RAJA::Layout<3> > rview3d;
 
-#define RSETUP(wdata, es, offset) &(wdata.data(es))[offset]
-
-namespace snls {
-  namespace batch{
+namespace batch{
 
 class TrDeltaControl_Batch
 {
@@ -396,21 +396,21 @@ class SNLSTrDlDenseG_Batch
       _fevals = mm.allocManagedArray<int>(_npts);
 
       wrkb_data = mm.allocManagedArray<bool>(3 * _int_batch_size);
-      _rjSuccess.set_data(RSETUP(wrkb_data, es, 0));
+      _rjSuccess.set_data(SNLS_RSETUP(wrkb_data, es, 0));
 
       int offset = 0;
       _offset_work = _npts * (2 + CRJ::nDimSys)
                    + _int_batch_size * (CRJ::nDimSys + CRJ::nDimSys * CRJ::nDimSys);
-      _x.set_data(RSETUP(wrk_data, es, offset));
+      _x.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _npts * CRJ::nDimSys;
-      _res.set_data(RSETUP(wrk_data, es, offset));
+      _res.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _npts;
-      _delta.set_data(RSETUP(wrk_data, es, offset));
+      _delta.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _npts;
 
-      _residual.set_data(RSETUP(wrk_data, es, offset));
+      _residual.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _int_batch_size * CRJ::nDimSys;
-      _Jacobian.set_data(RSETUP(wrk_data, es, offset));
+      _Jacobian.set_data(SNLS_RSETUP(wrk_data, es, offset));
 
       SNLS_FORALL(i, 0, _npts, {
          _fevals[i] = 0;
@@ -542,8 +542,8 @@ class SNLSTrDlDenseG_Batch
          // The data will automatically migrate to the location it needs
          // whether it's on the host or device.
          const auto es = snls::Device::GetCHAIES();
-         rview1b use_nr(RSETUP(wrkb_data, es, _int_batch_size), _int_batch_size);
-         rview1b reject_prev(RSETUP(wrkb_data, es, 2 * _int_batch_size), _int_batch_size);
+         rview1b use_nr(SNLS_RSETUP(wrkb_data, es, _int_batch_size), _int_batch_size);
+         rview1b reject_prev(SNLS_RSETUP(wrkb_data, es, 2 * _int_batch_size), _int_batch_size);
 
          int woffset = _offset_work;
          const int off2d = _int_batch_size * _nDim;
@@ -553,36 +553,36 @@ class SNLSTrDlDenseG_Batch
          // if ndim = 8 and batch_size = 500k then this is roughly 460MBs
          // We're probably close to 500 MBs total then for the solver at size
          // if batch_size and npts are equal
-         rview1d res_0(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d res_0(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d nr2norm(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d nr2norm(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d alpha(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d alpha(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d norm_s_sd_opt(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d norm_s_sd_opt(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d norm_grad(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d norm_grad(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d norm_grad_inv(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d norm_grad_inv(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d qa(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d qa(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d qb(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d qb(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d Jg2(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d Jg2(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d res_cauchy(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d res_cauchy(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
-         rview1d pred_resid(RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d pred_resid(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
          woffset += off1d;
 
-         rview2d nrStep(RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d nrStep(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
          woffset += off2d;
-         rview2d grad(RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d grad(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
          woffset += off2d;
-         rview2d delx(RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d delx(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
          woffset += off2d;
-         rview2d solx(RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d solx(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
          // offset += off2d;
 
          int m_fevals = 0;
@@ -1278,4 +1278,5 @@ class SNLSTrDlDenseG_Batch
   } // namespace batch
 } // namespace snls
 
+#endif //SNLS_RAJA_PERF_SUITE
 #endif  // SNLS_TRDLDG_BATCH_H

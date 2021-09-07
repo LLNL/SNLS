@@ -6,19 +6,18 @@
 
 using namespace std;
 
-#include "../src/SNLS_TrDLDenseG.h"
-#include "../src/SNLS_TrDLDenseG_Batch.h"
-#include "../src/SNLS_device_forall.h"
-#include "../src/SNLS_memory_manager.h"
+#include "SNLS_config.h"
+
+#if defined(SNLS_RAJA_PERF_SUITE)
+
+#include "SNLS_TrDLDenseG_Batch.h"
+#include "SNLS_device_forall.h"
+#include "SNLS_memory_manager.h"
 
 #include "chai/ManagedArray.hpp"
 
 #ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
-#endif
-
-#ifndef DEBUG
-#define DEBUG 0
 #endif
 
 #define NL_MAXITER 200
@@ -61,10 +60,10 @@ public:
 #endif
       } ;
 
-   __snls_host__ void computeRJ(rview2d &r,
-                                rview3d &J,
-                                const rview2d &x,
-                                rview1b &rJSuccess,
+   __snls_host__ void computeRJ(snls::rview2d &r,
+                                snls::rview3d &J,
+                                const snls::rview2d &x,
+                                snls::rview1b &rJSuccess,
                                 const chai::ManagedArray<snls::SNLSStatus_t>& status,
                                 const int offset,
                                 const int x_offset,
@@ -78,7 +77,7 @@ public:
          const int nDim = nDimSys ; // convenience -- less code change below
          const int xoff = x_offset + ib;
 #ifdef __cuda_host_only__         
-#if DEBUG > 1
+#if SNLS_DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {
             std::cout << std::setw(21) << std::setprecision(11) << x(xoff, i) << " ";
@@ -163,9 +162,9 @@ TEST(snls,broyden_a) // int main(int , char ** )
    setX(solver, nDim * nBatch);
    //
    {
-      rview2d& rv = solver.getResidualVec();
-      rview3d& Jv = solver.getJacobianMat();
-      rview1b& rjSuccess = solver.getrjSuccessVec();
+      snls::rview2d& rv = solver.getResidualVec();
+      snls::rview3d& Jv = solver.getJacobianMat();
+      snls::rview1b& rjSuccess = solver.getrjSuccessVec();
       //
       // any of these should be equivalent:
       // broyden.computeRJ(r, J, solver._x);
@@ -183,3 +182,5 @@ TEST(snls,broyden_a) // int main(int , char ** )
    std::cout << "Function evaluations: " << solver.getMaxNFEvals() << "\n";
    EXPECT_EQ( solver.getMaxNFEvals(), 19 ) << "Expected 19 function evaluations for this case" ;
 }
+
+#endif //HAVE_RAJA_PERF_SUITE

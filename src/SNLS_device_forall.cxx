@@ -6,9 +6,10 @@
  ***************************************************************************/
 
 #include "SNLS_device_forall.h"
-
+#if defined(SNLS_RAJA_PERF_SUITE)
 namespace snls {
    // ExecutionStrategy is set initially to the CPU
    // value even if this is never set.
    Device Device::device_singleton;
 }
+#endif

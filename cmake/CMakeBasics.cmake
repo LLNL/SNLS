@@ -1,3 +1,12 @@
+################################
+# Version
+################################
+set(PACKAGE_BUGREPORT "barton22@llnl.gov")
+
+set(SNLS_VERSION_MAJOR 0)
+set(SNLS_VERSION_MINOR 3)
+set(SNLS_VERSION_PATCH \"0\")
+
 set(HEADER_INCLUDE_DIR
     ${PROJECT_BINARY_DIR}/include
     CACHE PATH
@@ -7,6 +16,28 @@ set(HEADER_INCLUDE_DIR
 # Setup build options and their default values
 ################################
 #include(cmake/SNLSOptions.cmake)
+
+##############################
+# settings into SNLS_config.h
+##############################
+
+set(HAVE_SNLS "1" CACHE STRING "")
+
+if(USE_BATCH_SOLVERS)
+    set(SNLS_RAJA_PERF_SUITE "1" CACHE STRING "")
+endif()
+
+if(USE_LAPACK)
+    set(SNLS_USE_LAPACK "1" CACHE STRING "")
+endif()
+
+
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(SNLS_DEBUG "1" CACHE STRING "")
+endif()
+
+configure_file( src/SNLS_config.h.in
+                ${HEADER_INCLUDE_DIR}/SNLS_config.h )
 
 ################################
 # Third party library setup

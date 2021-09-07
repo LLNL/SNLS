@@ -13,6 +13,9 @@ foreach(_tpl ${_tpls})
     endif()
 endforeach()
 
+# Only search for these if the batch solver is enabled
+if(USE_BATCH_SOLVERS)
+
 ################################
 # camp
 ################################
@@ -88,3 +91,5 @@ if (DEFINED CHAI_DIR)
 else()
     message(FATAL_ERROR "CHAI_DIR was not provided. It is needed to find CHAI.")
 endif()
+
+endif() # end of enable batch solvers

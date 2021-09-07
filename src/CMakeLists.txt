@@ -1,4 +1,5 @@
 set(SNLS_HEADERS
+    ${HEADER_INCLUDE_DIR}/SNLS_config.h
     SNLS_base.h
     SNLS_cuda_portability.h
     SNLS_port.h
@@ -27,14 +28,11 @@ message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 # Defines
 #------------------------------------------------------------------------------
 
-SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DSNLS_DEBUG")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSNLS_DEBUG")
-
 #------------------------------------------------------------------------------
 # Includes
 #------------------------------------------------------------------------------
 set(SNLS_INCLUDES ${HEADER_INCLUDE_DIR}
-                  ${CMAKE_SOURCE_DIR}/snls/src)
+                  ${CMAKE_SOURCE_DIR}/src)
 if (DEFINED MSLIB_SOURCE_DIR)
     list(APPEND SNLS_INCLUDES ${MSLIB_SOURCE_DIR}/ms)
 endif (DEFINED MSLIB_SOURCE_DIR)
@@ -43,14 +41,19 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 # Build Targets
 #------------------------------------------------------------------------------
 blt_add_library(NAME        snls
+                OUTPUT_NAME snls
+                DEFINES     ${SNLS_DEFINES}
                 DEPENDS_ON  ${SNLS_DEPENDS}
                 INCLUDES    ${SNLS_INCLUDES}
                 HEADERS     ${SNLS_HEADERS}
-                SOURCES     ${SNLS_SOURCES})
+                SOURCES     ${SNLS_SOURCES}
+                SHARED      FALSE)
 #------------------------------------------------------------------------------
 # Install files
 #------------------------------------------------------------------------------
 
-install(FILES ${SNLS_HEADERS} DESTINATION include)
+set(SNLS_INSTALLED_HEADERS ${SNLS_HEADERS})
+
+install(FILES ${SNLS_INSTALLED_HEADERS} DESTINATION include)
 
 install(TARGETS snls DESTINATION lib)

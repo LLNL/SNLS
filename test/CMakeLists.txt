@@ -1,5 +1,3 @@
-# do not have DEPENDS_ON snls, given that it is header-only 
-
 blt_add_executable(NAME       snlstest
                    SOURCES    SNLS_testdriver.cc
                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
@@ -28,6 +26,6 @@ blt_add_test(NAME    snlstest_batch
 blt_add_executable(NAME       chai_exp
                    SOURCES    chai_min_exp.cxx
                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                   DEPENDS_ON gtest ${SNLS_DEPENDS})
+                   DEPENDS_ON gtest snls ${SNLS_DEPENDS})
 blt_add_test(NAME    chai_exp
              COMMAND chai_exp)

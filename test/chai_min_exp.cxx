@@ -2,11 +2,18 @@
 #define PROB_GPU_THREADS 256
 #endif
 
+#include "SNLS_config.h"
+
+#if defined(SNLS_RAJA_PERF_SUITE)
+
 #include "RAJA/RAJA.hpp"
 
 #include "umpire/strategy/DynamicPool.hpp"
 #include "umpire/Allocator.hpp"
 #include "umpire/ResourceManager.hpp"
+
+#include "chai/config.hpp"
+#include "chai/ExecutionSpaces.hpp"
 #include "chai/ManagedArray.hpp"
 
 /// The PROB_FORALL wrapper where GPU threads are set to a default value
@@ -15,7 +22,7 @@ PROB_ForallWrap<PROB_GPU_THREADS>(		  \
 st,                                            \
 end,                                           \
 [=] __device__ (int i) {__VA_ARGS__},     \
-[&] (int i) {__VA_ARGS__})
+[=] (int i) {__VA_ARGS__})
 
 /// The MFEM_FORALL wrapper that allows one to change the number of GPU threads
 #define PROB_FORALL_T(i, threads, st, end, ...)  \
@@ -23,7 +30,7 @@ PROB_ForallWrap<threads>(			          \
 st,                                              \
 end,                                             \
 [=] __device__ (int i) {__VA_ARGS__},       \
-[&] (int i) {__VA_ARGS__})
+[=] (int i) {__VA_ARGS__})
    /// This has largely been inspired by the MFEM device
    /// class, since they make use of it with their FORALL macro
    /// It's recommended to only have one object for the lifetime
@@ -95,6 +102,7 @@ end,                                             \
 #endif
          case(chai::ExecutionSpace::CPU):
          default: {
+            std::cout << "Using the CPU" << std::endl;
             // Moved from a for loop to raja forall so that the chai ManagedArray
             // would automatically move the memory over
             RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(st, end), h_body);
@@ -177,7 +185,7 @@ class memoryManager2 {
             , _device_allocator
 #endif
          },
-         chai::ExecutionSpace::CPU);
+         chai::ExecutionSpace::GPU);
 
          return array;
       }
@@ -198,7 +206,7 @@ class memoryManager2 {
             , _device_allocator
 #endif
          },
-         chai::ExecutionSpace::CPU);
+         chai::ExecutionSpace::GPU);
 
          return array;
 
@@ -256,6 +264,8 @@ class testCase
             test[i] = 1.0;
          });
 
+         std::cout << test.data()[0] << std::endl;
+
          test.free();
 
          // neither of these methods work
@@ -278,6 +288,56 @@ class testCase
 
 int main()
 {
+
+//       auto& rm = umpire::ResourceManager::getInstance();
+//       auto host_allocator = rm.getAllocator("HOST");
+// #ifdef __CUDACC__
+//       auto device_allocator = rm.makeAllocator<umpire::strategy::DynamicPool>
+//                               ("DEVICE_pool", rm.getAllocator("DEVICE"));
+// #endif
+
+//       const int size = 5000;
+
+//       chai::ManagedArray<double> array(size, 
+//       std::initializer_list<chai::ExecutionSpace>{chai::CPU
+// #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+//          , chai::GPU
+// #endif
+//          },
+//          std::initializer_list<umpire::Allocator>{host_allocator
+// #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+//          , device_allocator
+// #endif
+//       },
+//       chai::ExecutionSpace::GPU);
+
+//       std::cout << "Running GPU runs" << std::endl;
+//       // This works
+//       RAJA::forall<RAJA::cuda_exec<256>>(RAJA::RangeSegment(0, size),
+//          [=] __device__ (int i) {
+//             array[i] = i;
+//       });
+
+//       std::cout << "Running CPU runs" << std::endl;
+//       // This should work but fails
+//       // RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(0, size),
+//       //    [&] (int i) {
+//       //       array[i] = i;
+//       //    });
+//       // This works
+//       RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(0, size),
+//          [=] (int i) {
+//             array[i] = i;
+//          });
+//       std::cout << "Printing out data" << std::endl;
+//       // These work
+//       // std::cout << array.data(chai::ExecutionSpace::CPU)[0] << std::endl;
+//       std::cout << array.data()[0] << std::endl;
+//       // This should work since we last ran things on the CPU but fails
+//       // std::cout << array[0] << std::endl;
+//       array.free();
     testCase test(5000);
     return 0;
 }
+
+#endif

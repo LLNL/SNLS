@@ -5,15 +5,12 @@
 
 using namespace std;
 
-#include "../src/SNLS_TrDLDenseG.h"
-#include "../src/SNLS_NewtonBB.h"
+#include "SNLS_config.h"
+#include "SNLS_TrDLDenseG.h"
+#include "SNLS_NewtonBB.h"
 
 #ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
-#endif
-
-#ifndef DEBUG
-#define DEBUG 0
 #endif
 
 #define NL_MAXITER 200

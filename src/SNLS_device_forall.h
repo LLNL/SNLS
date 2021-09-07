@@ -12,10 +12,10 @@
 #define SNLS_GPU_THREADS 256
 #endif
 
-#ifdef HAVE_RAJA
-#include "RAJA/RAJA.hpp"
-#endif
+#include "SNLS_config.h"
 
+#if defined(SNLS_RAJA_PERF_SUITE)
+#include "RAJA/RAJA.hpp"
 #include "chai/config.hpp"
 #include "chai/ExecutionSpaces.hpp"
 
@@ -78,6 +78,7 @@ namespace snls {
          }
          void SetBackend(ExecutionStrategy es) { Get()._es = es; }
          static inline ExecutionStrategy GetBackend() { return Get()._es; }
+
          static inline chai::ExecutionSpace GetCHAIES() 
          {
             switch (Get()._es) {
@@ -124,19 +125,17 @@ namespace snls {
       // the backend things should just work no matter where this
       // is used.
       switch(Device::GetBackend()) {
-#ifdef HAVE_RAJA
-   #ifdef RAJA_ENABLE_CUDA
+#ifdef RAJA_ENABLE_CUDA
          case(ExecutionStrategy::CUDA): {
             RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
             break;
          }
-   #endif
-   #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
+#endif
+#if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
          case(ExecutionStrategy::OPENMP): {
             RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(st, end), h_body);
             break;
          }
-   #endif
 #endif
          case(ExecutionStrategy::CPU):
          default: {
@@ -148,6 +147,5 @@ namespace snls {
       } // End of switch
    } // end of forall wrap
 }
-
-
+#endif // SNLS_RAJA_PERF_SUITE
 #endif /* SNLS_device_forall_h */
