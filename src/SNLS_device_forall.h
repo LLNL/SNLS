@@ -33,7 +33,7 @@ end,                                           \
 [=] __snls_device__ (int i) {__VA_ARGS__},     \
 [=] (int i) {__VA_ARGS__})
 
-/// The MFEM_FORALL wrapper that allows one to change the number of GPU threads
+/// The SNLS_FORALL wrapper that allows one to change the number of GPU threads
 #define SNLS_FORALL_T(i, threads, st, end, ...)  \
 snls::SNLS_ForallWrap<threads>(			          \
 st,                                              \
@@ -49,17 +49,19 @@ end,                                             \
 #define SNLS_MOFF(ielem, ndim2) (ielem * ndim2)
 
 namespace snls {
-   /// This has largely been inspired by the MFEM device
-   /// class, since they make use of it with their FORALL macro
-   /// It's recommended to only have one object for the lifetime
-   /// of the material models being used, so no clashing with
-   /// multiple objects can occur in regards to which models
-   /// run on what ExecutionSpace backend.
+   /// ExecutionStrategy defines how one would like the
+   /// computations done.
+   /// CPU refers to serial executions of for loops on the Host
+   /// through RAJA forall abstractions
+   /// OPENMP refers to parallel executuons of for loops on the 
+   /// Host using OpenMP through RAJA forall abstractions
+   /// CUDA refers to parallel executions of for loops on the Device
+   /// using CUDA through RAJA forall abstractions
    enum class ExecutionStrategy { CPU, CUDA, OPENMP };
    /// This has largely been inspired by the MFEM device
    /// class, since they make use of it with their FORALL macro
    /// It's recommended to only have one object for the lifetime
-   /// of the material models being used, so no clashing with
+   /// of multiple models being used, so no clashing with
    /// multiple objects can occur in regards to which models
    /// run on what ExecutionStrategy backend.
    class Device {

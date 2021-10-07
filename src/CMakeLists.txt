@@ -4,6 +4,7 @@ set(SNLS_HEADERS
     SNLS_cuda_portability.h
     SNLS_port.h
     SNLS_lup_solve.h
+    SNLS_TrDelta.h
     SNLS_TrDLDenseG.h
     SNLS_TrDLDenseG_Batch.h
     SNLS_NewtonBB.h

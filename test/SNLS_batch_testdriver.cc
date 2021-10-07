@@ -23,8 +23,6 @@ using namespace std;
 #define NL_MAXITER 200
 #define NL_TOLER 1e-12
 
-#define FUNASOLN 2.345
-
 /*!
   Comment as in the Trilinos NOX package:
   
@@ -60,22 +58,29 @@ public:
 #endif
       } ;
 
+   // The residual (r), Jacobian (J), and rJSuccess all have dimensions
+   // of the batch size provided to the solver earlier.
+   // x is of the same size as the number of points of systems your solving for
+   // status is also of the same size as x and it tells us which points are still unconverged
    __snls_host__ void computeRJ(snls::rview2d &r,
                                 snls::rview3d &J,
                                 const snls::rview2d &x,
                                 snls::rview1b &rJSuccess,
                                 const chai::ManagedArray<snls::SNLSStatus_t>& status,
                                 const int offset,
-                                const int x_offset,
                                 const int batch_size)
       {
       SNLS_FORALL(ib, 0, batch_size, {
+         // First check to see the current point is unconverged, and if it
+         // isn't then we skip the point all together.
          if (status[ib + offset] != snls::SNLSStatus_t::unConverged) { 
-                     return;
+            return;
          }
          double fn ;
          const int nDim = nDimSys ; // convenience -- less code change below
-         const int xoff = x_offset + ib;
+         // If your batch size is different from your total number of points
+         // than your x array will have be offset by some amount >= 0
+         const int xoff = offset + ib;
 #ifdef __cuda_host_only__         
 #if SNLS_DEBUG > 1
          std::cout << "Evaluating at x = " ;
@@ -85,6 +90,8 @@ public:
          std::cout << std::endl ;
 #endif
 #endif
+         // Here we're just checking to see if the Jacobian has any size
+         // at all. If it does then we'll compute the Jacobian.
          bool doComputeJ = (J.layout.size() > 0) ;
          if ( doComputeJ ) {
             for ( int ii=0; ii< nDim; ++ii ) {
@@ -131,20 +138,49 @@ public:
       static const int _nXn = nDimSys*nDimSys ;
 };
 
-void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int nDim) {
+// Here we're setting out initial x values. Normally, one might do this
+// in the same code block as the solver. However, the solver is in a function
+// that is considered a private class function and so sadly lambda captures don't
+// work. Therefore, we had to move this to a public function that the lambda captures
+// would work in.
+void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int npts) {
+   // We could do this a number of differnt ways.
+   // However, we're just going to use chai arrays as their easy to use
    auto mm = snls::memoryManager::getInstance();
 
-   auto x = mm.allocManagedArray<double>(nDim);
+   auto x = mm.allocManagedArray<double>(npts);
    // provide a seed so things are reproducible
    std::default_random_engine gen(42);
    std::uniform_real_distribution<double> udistrib(-1.0, 1.0);
+   // Since we are using a host function to allocate things we bring our 
+   // chai array memory to the host and then just initiate our initial array
+   // here.
+   // If we'd set the execution strategy for our Device class to CPU or OpenMP
+   // then we  could have just used the forall loop here and just been fine.
+   // Let's assume we've compiled with CUDA then we do something like:
+   // auto device = snls::Device(ExecutionStrategy::CPU);
+   // SNLS_FORALL(i, 0, npts, { /* do init stuff */ });
+   // // Now set this back to the original execution strategy
+   // device.SetBackend(ExecutionStrategy::CUDA);
+   // If we didn't use a host function to init things
+   // Then we could set the solver._x directly within a SNLS_FORALL
    double* xH = x.data(chai::ExecutionSpace::CPU);
-   for (int i = 0; i < nDim; i++) {
+   for (int i = 0; i < npts; i++) {
      // No idea how ill-conditioned this system is so don't want to perturb things
      // too much from our initial guess
      xH[i] = 0.001 * udistrib(gen);
    }
+   // This function copies our local x array data to the solver._x array data
+   // If we pass in a raw pointer like down below we need to make sure the data
+   // exists in the same memory location. This is why we're getting the 
+   // chai memory location that corresponds to what our Device backend is set to
    solver.setX(x.data(snls::Device::GetCHAIES()));
+   // Alternatively, since we're using a chai managed array we could have just done the below.
+   // Here the chai managed array will automatically transfer the data if need be to the correct
+   // location based on our use of the snls_forall macros in setX.
+   // solver.setX(x);
+   // Make sure to call free() for your managedArray data type in order to properly
+   // free the data when you're done using it.
    x.free();
 }
 
@@ -155,23 +191,29 @@ TEST(snls,broyden_a) // int main(int , char ** )
 
    Broyden broyden( 0.9999 ) ; // LAMBDA_BROYDEN 
 
-   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch, nBatch) ;
-   snls::batch::TrDeltaControl_Batch deltaControlBroyden ;
+   // Here we're setting our batch size to be the same size as the number systems
+   // we want to solve for.
+   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch, nBatch);
+   snls::TrDeltaControl deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0);
    setX(solver, nDim * nBatch);
    //
    {
+      // Here we're making use of the internal solver working arrays
+      // for the below computeRJ call, so we can avoid the need to
+      // allocate additional data.
       snls::rview2d& rv = solver.getResidualVec();
       snls::rview3d& Jv = solver.getJacobianMat();
-      snls::rview1b& rjSuccess = solver.getrjSuccessVec();
+      snls::rview1b& rjSuccess = solver.getRJSuccessVec();
       //
-      // any of these should be equivalent:
-      // broyden.computeRJ(r, J, solver._x);
-      // solver._crj.computeRJ(r, J, solver._x);
       solver.computeRJ(rv, Jv, rjSuccess, 0, nBatch);
    }
-
+   // status here tells us whether or not all the systems solved correctly.
+   // If even just one system failed then this would return a value of false.
+   // If one wanted to check the status for each point then one could
+   // call solver.getStatusHost() which would return a pointer to the status
+   // array on the host.
    bool status = solver.solve( ) ;
    EXPECT_TRUE( status ) << "Expected solver to converge" ;
    if ( !status ){
