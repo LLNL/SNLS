@@ -96,20 +96,20 @@ class SNLSTrDlDenseG_Batch
    public:
    /// constructor which requires the number of points to be set
    /// or else it defaults to just using 1 for batch solves
-   SNLSTrDlDenseG_Batch(CRJ &crj, uint npts = 1, uint dflt_intial_batch = 50000) :
+   SNLSTrDlDenseG_Batch(CRJ &crj, uint npts = 1, uint dflt_initial_batch = 50000) :
                _crj(crj),
                _mfevals(0), _nIters(0), _nJFact(0),
                _deltaControl(nullptr),
                _outputLevel(0),
                _os(nullptr),
                _npts(npts),
-               _intial_batch_size(dflt_intial_batch),
+               _initial_batch_size(dflt_initial_batch),
                _x(nullptr, npts, CRJ::nDimSys),
                _res(nullptr, npts),
                _delta(nullptr, npts),
-               _residual(nullptr, dflt_int_batch, CRJ::nDimSys),
-               _Jacobian(nullptr, dflt_int_batch, CRJ::nDimSys, CRJ::nDimSys),
-               _rjSuccess(nullptr, dflt_int_batch)
+               _residual(nullptr, dflt_initial_batch, CRJ::nDimSys),
+               _Jacobian(nullptr, dflt_initial_batch, CRJ::nDimSys, CRJ::nDimSys),
+               _rjSuccess(nullptr, dflt_initial_batch)
    {
       init();
    };
@@ -119,19 +119,19 @@ class SNLSTrDlDenseG_Batch
       // of mallocs we need to create through out the life of the solver object
       memoryManager& mm = memoryManager::getInstance();
       const auto es = snls::Device::GetCHAIES();
-      // Values multiplied by _int_batch_size are related to the various
+      // Values multiplied by _initial_batch_size are related to the various
       // working arrays needed such as the residual and Jacobian matrices
       // Values multiplied _npts are those useful to the user such as the
       // solution variable _x, _delta, and l2 norm of residual (_res)
       // Working arrays used in the solve function are:
-      // 1d arrays [_int_batch_size]
+      // 1d arrays [_initial_batch_size]
       // res_0, nr2norm, alpha, norm_s_sd_opt, norm_grad
       // norm_grad_inv, qa, qb, Jg2, res_cauchy, pred_resid
-      // 2d arrays [_int_batch_size, CRJ::nDimSys]
+      // 2d arrays [_initial_batch_size, CRJ::nDimSys]
       // nrStep, grad, delx, solx, _residual
-      // 3d arrays [_int_batch_size, CRJ::nDimSys, CRJ::nDimSys]
+      // 3d arrays [_initial_batch_size, CRJ::nDimSys, CRJ::nDimSys]
       // _Jacobian
-      const int num_allocs = _int_batch_size * (11 + (5 * CRJ::nDimSys) + CRJ::nDimSys * CRJ::nDimSys) + 
+      const int num_allocs = _initial_batch_size * (11 + (5 * CRJ::nDimSys) + CRJ::nDimSys * CRJ::nDimSys) + 
                              _npts * (2 + CRJ::nDimSys);
       wrk_data = mm.allocManagedArray<double>(num_allocs);
       _status = mm.allocManagedArray<SNLSStatus_t>(_npts);
@@ -139,14 +139,14 @@ class SNLSTrDlDenseG_Batch
 
       // These are boolean working arrays used in the solve routine
       // _rjSuccess is the only one accessible for external uses
-      // 1d arrays [_int_batch_size]
+      // 1d arrays [_initial_batch_size]
       // _rjSuccess, use_nr, reject_prev
-      wrkb_data = mm.allocManagedArray<bool>(3 * _int_batch_size);
+      wrkb_data = mm.allocManagedArray<bool>(3 * _initial_batch_size);
       _rjSuccess.set_data(SNLS_RSETUP(wrkb_data, es, 0));
 
       int offset = 0;
       _offset_work = _npts * (2 + CRJ::nDimSys)
-                   + _int_batch_size * (CRJ::nDimSys + CRJ::nDimSys * CRJ::nDimSys);
+                   + _initial_batch_size * (CRJ::nDimSys + CRJ::nDimSys * CRJ::nDimSys);
       _x.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _npts * CRJ::nDimSys;
       _res.set_data(SNLS_RSETUP(wrk_data, es, offset));
@@ -155,7 +155,7 @@ class SNLSTrDlDenseG_Batch
       offset += _npts;
 
       _residual.set_data(SNLS_RSETUP(wrk_data, es, offset));
-      offset += _int_batch_size * CRJ::nDimSys;
+      offset += _initial_batch_size * CRJ::nDimSys;
       _Jacobian.set_data(SNLS_RSETUP(wrk_data, es, offset));
 
       SNLS_FORALL(i, 0, _npts, {
@@ -282,7 +282,7 @@ class SNLSTrDlDenseG_Batch
             _fevals[i] = 0;
          });
 
-         const int numblks = (_npts + _int_batch_size - 1)/ _int_batch_size;
+         const int numblks = (_npts + _initial_batch_size - 1)/ _initial_batch_size;
 
          int offset = 0;
 
@@ -290,48 +290,48 @@ class SNLSTrDlDenseG_Batch
          // We make use of the working arrays created initially to reuse
          // memory if multiple solves are called during the life of this object
          const auto es = snls::Device::GetCHAIES();
-         rview1b use_nr(SNLS_RSETUP(wrkb_data, es, _int_batch_size), _int_batch_size);
-         rview1b reject_prev(SNLS_RSETUP(wrkb_data, es, 2 * _int_batch_size), _int_batch_size);
+         rview1b use_nr(SNLS_RSETUP(wrkb_data, es, _initial_batch_size), _initial_batch_size);
+         rview1b reject_prev(SNLS_RSETUP(wrkb_data, es, 2 * _initial_batch_size), _initial_batch_size);
 
          int woffset = _offset_work;
-         const int off2d = _int_batch_size * _nDim;
-         const int off1d = _int_batch_size;
+         const int off2d = _initial_batch_size * _nDim;
+         const int off1d = _initial_batch_size;
 
          // 11 * batch_size + 5 * (batch_size * ndim) + 1 * batch_size * ndim*ndim
          // internal memory usage for solver...
          // if ndim = 8 and batch_size = 500k then this is roughly 460MBs
          // We're probably close to 500 MBs total then for the solver at size
          // if batch_size and npts are equal
-         rview1d res_0(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d res_0(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d nr2norm(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d nr2norm(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d alpha(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d alpha(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d norm_s_sd_opt(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d norm_s_sd_opt(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d norm_grad(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d norm_grad(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d norm_grad_inv(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d norm_grad_inv(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d qa(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d qa(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d qb(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d qb(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d Jg2(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d Jg2(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d res_cauchy(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d res_cauchy(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d pred_resid(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size);
+         rview1d pred_resid(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
 
-         rview2d nrStep(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d nrStep(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size, _nDim);
          woffset += off2d;
-         rview2d grad(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d grad(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size, _nDim);
          woffset += off2d;
-         rview2d delx(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d delx(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size, _nDim);
          woffset += off2d;
-         rview2d solx(SNLS_RSETUP(wrk_data, es, woffset), _int_batch_size, _nDim);
+         rview2d solx(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size, _nDim);
          // offset += off2d;
 
          int m_fevals = 0;
@@ -345,8 +345,8 @@ class SNLSTrDlDenseG_Batch
             _nIters = 0 ;
             // Checks to see if we're the last bulk and if not use the initial batch size
             // if we are we need to either use initial batch size or the npts%initial_batch_size
-            const int fin_batch = (_npts % _int_batch_size == 0) ? _int_batch_size : _npts % _int_batch_size;
-            const int batch_size = (iblk != numblks - 1) ? _int_batch_size : fin_batch;
+            const int fin_batch = (_npts % _initial_batch_size == 0) ? _initial_batch_size : _npts % _initial_batch_size;
+            const int batch_size = (iblk != numblks - 1) ? _initial_batch_size : fin_batch;
 
             // Reinitialize all of our data back to these values
             SNLS_FORALL_T(i, 512, 0, batch_size, {
@@ -660,12 +660,12 @@ class SNLSTrDlDenseG_Batch
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
             auto mm = snls::memoryManager::getInstance();
-            chai::ManagedArray<double> cJ_FD = mm.allocManagedArray<double>(_int_batch_size * _nXnDim);
+            chai::ManagedArray<double> cJ_FD = mm.allocManagedArray<double>(_initial_batch_size * _nXnDim);
             // Need to copy the Jacobian data over to a local variable.
             // Since, I'm not aware of a way to just copy a portion of underlying
             // chai::managedArray over to host/device
-            chai::ManagedArray<double> cJ = mm.allocManagedArray<double>(_int_batch_size * _nXnDim);
-            SNLS_FORALL(i, 0,  _int_batch_size, {
+            chai::ManagedArray<double> cJ = mm.allocManagedArray<double>(_initial_batch_size * _nXnDim);
+            SNLS_FORALL(i, 0,  _initial_batch_size, {
                for ( int iX = 0; iX < _nDim ; ++iX ) {
                   for ( int jX = 0; jX < _nDim ; ++jX ) {
                      cJ[i * _nXnDim + iX * _nDim + jX] = J(i, iX, jX);
@@ -675,12 +675,12 @@ class SNLSTrDlDenseG_Batch
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
             rview3d J_dummy(nullptr, 0, 0, 0);
-            chai::ManagedArray<double> cr_pert = mm.allocManagedArray<double>(_int_batch_size * _nDim);
+            chai::ManagedArray<double> cr_pert = mm.allocManagedArray<double>(_initial_batch_size * _nDim);
             chai::ManagedArray<double> cx_pert = mm.allocManagedArray<double>(_npts * _nDim);
             const auto es = snls::Device::GetCHAIES();
-            rview2d r_pert(SNLS_RSETUP(cr_pert, es, 0), _int_batch_size, _nDim);
+            rview2d r_pert(SNLS_RSETUP(cr_pert, es, 0), _initial_batch_size, _nDim);
             rview2d x_pert(SNLS_RSETUP(cx_pert, es, 0), _npts, _nDim);
-            rview3d J_FD(SNLS_RSETUP(cJ_FD, es, 0), _int_batch_size, _nDim, _nDim);
+            rview3d J_FD(SNLS_RSETUP(cJ_FD, es, 0), _initial_batch_size, _nDim, _nDim);
 
             const double pert_val     = 1.0e-7 ;
             const double pert_val_inv = 1.0/pert_val;
@@ -1002,7 +1002,7 @@ class SNLSTrDlDenseG_Batch
       int    _maxIter ;
       double _tolerance ;
       int    _outputLevel ;
-      uint   _int_batch_size ;
+      uint   _initial_batch_size ;
       uint   _npts ;
 
       std::ostream* _os ;
