@@ -33,7 +33,7 @@ extern "C" {
 // row-major storage
 #define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
 
-
+namespace snls {
 
 /** Helper templates to ensure compliant CRJ implementations */
 template<typename CRJ, typename = void>

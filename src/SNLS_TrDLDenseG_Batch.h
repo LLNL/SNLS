@@ -666,6 +666,17 @@ class SNLSTrDlDenseG_Batch
             // assume system is scaled such that perturbation size can be standard
             auto mm = snls::memoryManager::getInstance();
             chai::ManagedArray<double> cJ_FD = mm.allocManagedArray<double>(_int_batch_size * _nXnDim);
+            // Need to copy the Jacobian data over to a local variable.
+            // Since, I'm not aware of a way to just copy a portion of underlying
+            // chai::managedArray over to host/device
+            chai::ManagedArray<double> cJ = mm.allocManagedArray<double>(_int_batch_size * _nXnDim);
+            SNLS_FORALL(i, 0,  _int_batch_size, {
+               for ( int iX = 0; iX < _nDim ; ++iX ) {
+                  for ( int jX = 0; jX < _nDim ; ++jX ) {
+                     cJ[i * _nXnDim + iX * _nDim + jX] = J(i, iX, jX);
+                  }
+               }
+            });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
             rview3d J_dummy(nullptr, 0, 0, 0);
@@ -699,25 +710,20 @@ class SNLSTrDlDenseG_Batch
             }
 
             // Terribly inefficient here if running on the GPU...
-            // fix me this is wrong currently...
-            // pointer to J_data is not in the correct location
-            wrk_data.data(chai::ExecutionSpace::CPU);
-            cJ_FD.data(chai::ExecutionSpace::CPU);
-            const double* J_data = &J.data[0];
-            const double* J_FD_data = &J_FD.data[chai::ExecutionSpace::CPU];
+            const double* J_FD_data = &cJ_FD.data(chai::ExecutionSpace::CPU);
+            const double* J_data = &cJ.data(chai::ExecutionSpace::CPU);
             for (int iBatch = 0; iBatch < batch_size; iBatch++) {
                const int moff = SNLS_MOFF(iBatch, _nXnDim);
                *_os << "Batch item # " << iBatch << std::endl;
                *_os << "J_an = " << std::endl ; printMatJ( &J_data[moff],    *_os );
                *_os << "J_fd = " << std::endl ; printMatJ( &J_FD_data[moff], *_os );
             }
-            // Put all of the working array data back on the GPU
-            wrk_data.data(es);
 
             // Clean-up the memory these objects use.
             cx_pert.free();
             cr_pert.free();
             cJ_FD.free();
+            cJ.free();
 
             // put things back the way they were ;
             this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
@@ -852,9 +858,8 @@ class SNLSTrDlDenseG_Batch
          bool red_add = false;
          const int end = offset + batch_size;
          SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
-#ifdef HAVE_RAJA
          switch(Device::GetBackend()) {
-#ifdef RAJA_ENABLE_CUDA
+   #ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::CUDA): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
                RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
@@ -902,7 +907,6 @@ class SNLSTrDlDenseG_Batch
                break;
             }
          } // End of switch
-      #endif
          return red_add;
       } // end of status_exitable
 
@@ -914,7 +918,6 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = batch_size;
-#ifdef HAVE_RAJA
          switch(Device::GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::CUDA): {
@@ -949,7 +952,6 @@ class SNLSTrDlDenseG_Batch
                break;
             }
          } // End of switch
-#endif
          return red_add;
       } // end of status_exitable
 
