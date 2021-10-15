@@ -21,7 +21,7 @@ set(SNLS_SOURCES
 set(SNLS_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
-                       DEPENDS_ON raja umpire chai openmp cuda_runtime cuda)
+                       DEPENDS_ON chai raja umpire camp openmp cuda_runtime cuda)
 
 message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 
@@ -32,11 +32,6 @@ message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 #------------------------------------------------------------------------------
 # Includes
 #------------------------------------------------------------------------------
-set(SNLS_INCLUDES ${HEADER_INCLUDE_DIR}
-                  ${CMAKE_SOURCE_DIR}/src)
-if (DEFINED MSLIB_SOURCE_DIR)
-    list(APPEND SNLS_INCLUDES ${MSLIB_SOURCE_DIR}/ms)
-endif (DEFINED MSLIB_SOURCE_DIR)
 
 #------------------------------------------------------------------------------
 # Build Targets
@@ -45,7 +40,6 @@ blt_add_library(NAME        snls
                 OUTPUT_NAME snls
                 DEFINES     ${SNLS_DEFINES}
                 DEPENDS_ON  ${SNLS_DEPENDS}
-                INCLUDES    ${SNLS_INCLUDES}
                 HEADERS     ${SNLS_HEADERS}
                 SOURCES     ${SNLS_SOURCES}
                 SHARED      FALSE)
@@ -53,8 +47,36 @@ blt_add_library(NAME        snls
 # Install files
 #------------------------------------------------------------------------------
 
-set(SNLS_INSTALLED_HEADERS ${SNLS_HEADERS})
+install(FILES ${SNLS_HEADERS} DESTINATION include/)
 
-install(FILES ${SNLS_INSTALLED_HEADERS} DESTINATION include)
+target_include_directories(
+  snls
+  PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
-install(TARGETS snls DESTINATION lib)
+configure_file(
+  ${PROJECT_SOURCE_DIR}/src/SNLS-config.cmake.in
+  ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config.cmake)
+
+install(
+  FILES ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config.cmake
+  DESTINATION share/snls/cmake/)
+
+install(
+  FILES ${PROJECT_BINARY_DIR}/include/SNLS_config.h
+  DESTINATION include)
+
+install(
+  FILES ${SNLS_HEADERS}
+  DESTINATION include)
+
+install(
+  TARGETS snls
+  EXPORT snls-targets
+  RUNTIME DESTINATION lib
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib)
+
+install(EXPORT snls-targets DESTINATION share/snls/cmake/)

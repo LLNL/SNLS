@@ -22,7 +22,7 @@ set (CHAI_FOUND ${chai_FOUND} CACHE STRING "")
 
 set(CHAI_LIBRARIES chai)
 
-set(UMPIRE_DEPENDS camp umpire raja)
+set(CHAI_DEPENDS raja umpire camp)
 blt_list_append(TO CHAI_DEPENDS ELEMENTS mpi IF ENABLE_MPI)
 blt_list_append(TO CHAI_DEPENDS ELEMENTS cuda IF ENABLE_CUDA)
 blt_list_append(TO CHAI_DEPENDS ELEMENTS hip IF ENABLE_HIP)
