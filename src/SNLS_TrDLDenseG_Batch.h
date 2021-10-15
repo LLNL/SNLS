@@ -85,17 +85,6 @@ struct has_ndim <
 
 // trust region type solver, dogleg approximation
 // for dense general Jacobian matrix
-//
-// CRJ should :
-// 	have member function
-// 		     __snls_hdev__ computeRJ( double* const r, double* const J, const double* const x, 
-//                                     bool* const rJSuccess, const int offset, const int nbatch ) ;
-// 		computeRJ function returns true for successful evaluation
-// 		TODO ... J becomes a RAJA::View ?
-//	have trait nDimSys
-//
-// TODO ...*** specialize to N=1 case, nad N=2 also?
-//
 template< class CRJ >
 class SNLSTrDlDenseG_Batch 
 {
@@ -107,14 +96,14 @@ class SNLSTrDlDenseG_Batch
    public:
    /// constructor which requires the number of points to be set
    /// or else it defaults to just using 1 for batch solves
-   SNLSTrDlDenseG_Batch(CRJ &crj, uint npts = 1, uint dflt_int_batch = 50000) :
+   SNLSTrDlDenseG_Batch(CRJ &crj, uint npts = 1, uint dflt_intial_batch = 50000) :
                _crj(crj),
                _mfevals(0), _nIters(0), _nJFact(0),
                _deltaControl(nullptr),
                _outputLevel(0),
                _os(nullptr),
                _npts(npts),
-               _int_batch_size(dflt_int_batch),
+               _intial_batch_size(dflt_intial_batch),
                _x(nullptr, npts, CRJ::nDimSys),
                _res(nullptr, npts),
                _delta(nullptr, npts),
@@ -190,22 +179,28 @@ class SNLSTrDlDenseG_Batch
    public:
       CRJ &_crj ;
       static const int _nDim = CRJ::nDimSys ;
-      // Not clear how we want to handle these in a batch job sense of things at least for 
-      // NFEvals, RhoLast, Delta, and Res... Do we return the largest one or do we just
-      // change this to return a const pointer to the array these values are located at?
+      /// The size of the PDE system being solved for
       int     getNDim   () const { return(_nDim   ); };
+      /// Returns the maximum of function evaluations across all the PDE solves
       int     getMaxNFEvals() const { return(_mfevals ); };
+      /// Returns the function evaluation array for each point
       const chai::ManagedArray<int> getNFEvals() const { return _fevals; };
+      /// Returns the size of the delta step used as part of the dogleg solve of the
+      /// PDE
       const rview1d& getDelta() const { return _delta; };
+      /// Returns the L2 norm of the residual vector of the PDE being solved for
       const rview1d& getRes() const { return _res; };
       /// The working array for the residual vector
       /// Useful if one wants to do a computeRJ call outside of the solve func
+      /// It has dimensions of (_intial_batch_size, _nDim) and follows c array striding
       rview2d& getResidualVec() { return _residual; }
       /// The working array for the jacobian matrix
       /// Useful if one wants to do a computeRJ call outside of the solve func
+      /// It has dimensions of (_intial_batch_size, _nDim, _nDim) and follows c array striding
       rview3d& getJacobianMat() { return _Jacobian; }
       /// The working array for the rjSuccess vector
       /// Useful if one wants to do a computeRJ call outside of the solve func
+      /// It has dimensions of (_intial_batch_size) and follows c array striding
       rview1b& getRJSuccessVec() { return _rjSuccess; }
 
       /// setX can be used to set the initial guess for all of the points used in the batch job

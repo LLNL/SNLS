@@ -62,6 +62,11 @@ public:
    // of the batch size provided to the solver earlier.
    // x is of the same size as the number of points of systems your solving for
    // status is also of the same size as x and it tells us which points are still unconverged
+   // Residual has dimensions (batch_size, nDimSys)
+   // Jacobian has dimentions (batch_size, nDimSys, nDimSys) -> (npts, nrows, ncols) aka we follow c array ordering
+   // x has the dimensions of (total_num_pts, nDimSys)
+   // rJSuccess has dimensions of (batch_size)
+   // success has dimensions of (total_num_pts)
    __snls_host__ void computeRJ(snls::rview2d &r,
                                 snls::rview3d &J,
                                 const snls::rview2d &x,
@@ -92,6 +97,8 @@ public:
 #endif
          // Here we're just checking to see if the Jacobian has any size
          // at all. If it does then we'll compute the Jacobian.
+         // One could have additional checks to ensure its size and
+         // what you expect it to be match up.
          bool doComputeJ = (J.layout.size() > 0) ;
          if ( doComputeJ ) {
             for ( int ii=0; ii< nDim; ++ii ) {
