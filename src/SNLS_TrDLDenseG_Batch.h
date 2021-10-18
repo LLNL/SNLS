@@ -179,16 +179,16 @@ class SNLSTrDlDenseG_Batch
    public:
       CRJ &_crj ;
       static const int _nDim = CRJ::nDimSys ;
-      /// The size of the PDE system being solved for
+      /// The size of the nonlinear system of equations being solved for
       int     getNDim   () const { return(_nDim   ); };
-      /// Returns the maximum of function evaluations across all the PDE solves
+      /// Returns the maximum of function evaluations across all the nonlinear system solves
       int     getMaxNFEvals() const { return(_mfevals ); };
       /// Returns the function evaluation array for each point
       const chai::ManagedArray<int> getNFEvals() const { return _fevals; };
       /// Returns the size of the delta step used as part of the dogleg solve of the
       /// PDE
       const rview1d& getDelta() const { return _delta; };
-      /// Returns the L2 norm of the residual vector of the PDE being solved for
+      /// Returns the L2 norm of the residual vector of the nonlinear systems being solved for
       const rview1d& getRes() const { return _res; };
       /// The working array for the residual vector
       /// Useful if one wants to do a computeRJ call outside of the solve func
@@ -665,12 +665,22 @@ class SNLSTrDlDenseG_Batch
             // Since, I'm not aware of a way to just copy a portion of underlying
             // chai::managedArray over to host/device
             chai::ManagedArray<double> cJ = mm.allocManagedArray<double>(_initial_batch_size * _nXnDim);
-            SNLS_FORALL(i, 0,  _initial_batch_size, {
-               for ( int iX = 0; iX < _nDim ; ++iX ) {
-                  for ( int jX = 0; jX < _nDim ; ++jX ) {
-                     cJ[i * _nXnDim + iX * _nDim + jX] = J(i, iX, jX);
-                  }
-               }
+            const int tot_npts = _initial_batch_size * _nXnDim;
+            SNLS_FORALL(i, 0, tot_npts, {
+               // If we want to completely avoid inner loops
+               // we have to do the following to get the correct
+               // indexing into J.
+               // Although, we do incur the cost of a few divisions this
+               // way. Nonetheless, this sort of way of doing things can
+               // really boost performance on the GPU if our compute kernels
+               // are friendly towards this sort of thing.
+               // const int ipt = i / _nXnDim;
+               // const int imod = (i % _nXnDim);
+               // const int iX  = imod / _nDim;
+               // const int jX  = imod % _nDim;
+               // cJ[i] = J(ipt, iX, jX);
+               // Alternatively, we can just use the underlying data here.
+               cJ[i] = J.data[i]
             });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
