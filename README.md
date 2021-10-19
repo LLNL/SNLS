@@ -21,6 +21,7 @@ Examples of work that has made use of SNLS or substantially equivalent algorithm
 
 Solvers currently in the library:
   * `SNLSTrDlDenseG` Dogleg approximation to the trust-region sub-problem for multi-dimensional nonlinear systems of equations. This method reduces to a Newton-Raphson approach near the solution. These methods are sometimes described as "restricted step" approaches instead of trust-region approaches. See, for example, [Practical Methods of Optimization](https://doi.org/10.1002/9781118723203). As compared to general trust-region approaches in scalar minimization, the approach here for solving non-linear systems amounts to assuming that the Hessian matrix can be approximated using information from the Jacobian of the system.
+  * `SNLSTrDlDenseG_Batch` a batch version of `SNLSTrDlDenseG` that is only available if the library is compiled with the `-DUSE_BATCH_SOLVERS=On` cmake option. It makes use of the RAJA Performance Suite to abstract away the complexity of memory management and execution strategies of forall loops. The `test/SNLS_batch_testdriver.cc` provides an example of how this solver, the memory manager, and forall abstraction layer can be used to solve a modified Broyden Tridiagonal Problem.
   * `NewtonBB` Simple 1D Newton solver with a fallback to bisection. If the zero of the function can be bounded then this solver can return a result even if the function is badly behaved. 
 
 BUILDING
@@ -46,7 +47,7 @@ The develop branch is the main development branch for snls. Changes to develop a
 AUTHORS
 ======
 
-The principal devleoper of SNLS is Nathan Barton, nrbarton@llnl.gov. Brett Wayne has also made contributions. 
+The principal devleoper of SNLS is Nathan Barton, nrbarton@llnl.gov. Brett Wayne and Robert Carson have also made contributions.
 
 CITATION
 ======
