@@ -362,12 +362,6 @@ class SNLSTrDlDenseG_Batch
                qb(i) = 0.0;
 
                _delta(i + offset) = _deltaControl->getDeltaInit();
-
-               // // Setting solx to initial x value
-               // for (int j = 0; j < _nDim; j++)
-               // {
-               //    solx(i, j) = _x(offset + i, j);
-               // }
             });
 
             this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size); // at _x
@@ -381,10 +375,7 @@ class SNLSTrDlDenseG_Batch
                   _res(i + offset) = this->normvec(&_residual.data[i * _nDim]) ;
                   res_0(i) = _res(i + offset);
             });
-            // #ifdef __cuda_host_only__
-            //          if (_os) { *_os << "res = " << _res << std::endl ; }
-            // #endif
-            //
+
             while ( _nIters < _maxIter ) {
                //
                _nIters += 1 ;
@@ -396,12 +387,10 @@ class SNLSTrDlDenseG_Batch
                // compute kernels. However, it is more performant to
                // fuse all of them into one kernel.
                //
-               // The # of threads here was set to 224 based on a number of trials
-               // with the ExaCMech code to find optimal threading choices for a
-               // 8x8 system. Significantly smaller systems will likely find
-               // a larger # of threads more efficient, and a larger system will
-               // likewise find a smaller # of threads more efficient.
-               SNLS_FORALL_T(i, 224, 0, batch_size, 
+               // This compute kernel is the most sensitive to the number of threads
+               // So, the number of threads might have to be varied to achieve
+               // optimal performance for a given nonlinear system.
+               SNLS_FORALL_T(i, 256, 0, batch_size,
                { // start of cauchy point calculations
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
@@ -450,14 +439,6 @@ class SNLSTrDlDenseG_Batch
                      // or would have to be reworked for PLU=J
 
                      {
-
-                        // inline the use of p instead of computing it
-                        //
-                        // double p[_nDim] ;
-                        // for (int iX = 0; iX < _nDim; ++iX) {
-                        //    p[iX] = nrStep[iX] + alpha*grad[iX] ; // nrStep - alpha*ngrad
-                        // }
-
                         {
                            double gam0 = 0e0 ;
                            double norm2_p = 0.0 ;
@@ -471,9 +452,7 @@ class SNLSTrDlDenseG_Batch
                            qb(i) = 2.0 * gam0 * norm_s_sd_opt(i);
 
                            qa(i) = norm2_p ;
-                           
                         }
-                           
                      }
 
                   } // !reject_prev
@@ -501,28 +480,22 @@ class SNLSTrDlDenseG_Batch
                   else { // use_nr
 
                      // step along dogleg path
-                  
                      if ( norm_s_sd_opt(i) >= _delta(i + offset) ) {
-
                         // use step along steapest descent direction
-
                         {
                            double factor = -_delta(i + offset) * norm_grad_inv(i);
                            for (int iX = 0; iX < _nDim; ++iX) {
                               delx(i, iX) = factor * grad(i, iX);
                            }
                         }
-
                         {
                            double val = -(_delta(i + offset) * norm_grad(i)) 
                                       + 0.5 * _delta(i + offset) * _delta(i + offset) * Jg2(i)
                                       * (norm_grad_inv(i) * norm_grad_inv(i));
                            pred_resid(i) = sqrt(fmax(2.0 * val + res_0(i) * res_0(i), 0.0)) ;
                         }
-               
                      }
                      else{
-
                         // qc and beta depend on delta
                         //
                         double qc = norm_s_sd_opt(i) * norm_s_sd_opt(i) - _delta(i + offset) * _delta(i + offset);
@@ -546,14 +519,11 @@ class SNLSTrDlDenseG_Batch
                            pred_resid(i) = omb * res_cauchy(i);
                         }
                      } // if norm_s_sd_opt >= delta
-
                   } // use_nr
                   // end of calculating delta x size
                   this->update( &delx.data[i * _nDim], i, offset ) ;
                   reject_prev(i) = false ;
                }); // end of batch compute kernel 1
-                  //
-                  
                // start of batch compute kernel 2
                // This calculates the new residual and jacobian given the updated x value
                this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size) ; // at _x
@@ -562,10 +532,8 @@ class SNLSTrDlDenseG_Batch
                // reject the previous solution if the computeRJ up above failed,
                // and updates the res0 if the solution is still unconverged.
                // start of compute kernel 3
-               // A total of 256 threads was chosen here as it was found to give good performance
-               // in the earlier mentioned ExaCMech test problem
-               SNLS_FORALL_T(i, 256, 0, batch_size, 
-               {  
+               SNLS_FORALL_T(i, 256, 0, batch_size,
+               {
                   // Update the delta kernel
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
@@ -582,7 +550,6 @@ class SNLSTrDlDenseG_Batch
                   }
                   else {
                      _res(i + offset) = this->normvec(&_residual.data[i * _nDim]);
-
                      // allow to exit now, may have forced one iteration anyway, in which
                      // case the delta update can do funny things if the residual was
                      // already very small 
@@ -591,7 +558,6 @@ class SNLSTrDlDenseG_Batch
                         _fevals[i + offset] = _mfevals;
                         return; // equivalent to a continue in a while loop
                      }
-
                      {
                         bool deltaSuccess = _deltaControl->updateDelta(_os,
                                                                      _delta(i + offset), _res(i + offset), res_0(i), pred_resid(i),
@@ -612,13 +578,11 @@ class SNLSTrDlDenseG_Batch
                   // update our res_0 for the next iteration
                   res_0(i) = _res(i + offset);
                }); // end of batch compute kernel 3
-
                // If this is true then that means all of the batched items
                // either failed or converged, and so we can exit and start the new batched data
                if(status_exit<true, SNLS_GPU_THREADS>(offset, batch_size)) {
                   break;
                }
-               
             } // _nIters < _maxIter
 
             if(m_fevals < _mfevals) m_fevals = _mfevals;
@@ -634,10 +598,7 @@ class SNLSTrDlDenseG_Batch
          _nIters = m_nIters;
 
          bool converged = status_exit<false, SNLS_GPU_THREADS>(0, _npts);
-
-         // fix me have this return a boolean
          return converged ;
-      
       }
 
       /// Computes the residual, jacobian, and whether or not 
@@ -653,7 +614,6 @@ class SNLSTrDlDenseG_Batch
          
          _mfevals++ ;
          this->_crj.computeRJ(r, J, _x, rJSuccess, _status, offset, batch_size);
-         
 #ifdef SNLS_DEBUG
          // This is not efficient at all but it'll work for debugging cases
          if ( _outputLevel > 2 && _os != nullptr ) {
@@ -733,24 +693,18 @@ class SNLSTrDlDenseG_Batch
             // put things back the way they were ;
             this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
          } // _os != nullptr
-#endif         
-         
+#endif
       }
-      
    private :
-   
      __snls_hdev__ inline void  computeNewtonStep (double* const       J,
                                       const double* const r,
                                       double* const       newton  ) {
-         
          _nJFact++ ;
-         
 #if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
 // This version of the Newton solver uses the LAPACK solver DGETRF() and DGETRS()
 // 
 // Note that we can replace this with a custom function if there are performance 
 // specializations (say for a known fixed system size)
-   
          // row-major storage
          const char trans = 'T';
 
@@ -764,7 +718,6 @@ class SNLSTrDlDenseG_Batch
 
          if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from dgetrf"); }
 
-         // std::copy( r, r + _nDim, newton );
          for (int iX = 0; iX < _nDim; ++iX) {
             newton[iX] = - r[iX] ; 
          }
@@ -784,22 +737,20 @@ class SNLSTrDlDenseG_Batch
             if (err<0) {
                SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
             }
-            //
             for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
-
          }
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
-      
+
       __snls_hdev__ inline void  computeSysMult(const double* const J, 
                                   const double* const v,
                                   double* const       p,
                                   bool                transpose ) {
-         
+
          // row-major storage
          bool sysByV = not transpose ;
-   
+
          if ( sysByV ) {
             int ipX = 0 ;
             for (int pX = 0; pX < _nDim; ++pX) {
@@ -823,7 +774,7 @@ class SNLSTrDlDenseG_Batch
             }
          }
       }
-      // fix me this needs to be udated to be a compute kernel overall batches
+      // Update x using a provided delta x
       __snls_hdev__ inline void  update(const double* const delX, const int ielem, const int offset ) {
          const int toffset = ielem + offset;
          //delX is already offset
@@ -831,7 +782,7 @@ class SNLSTrDlDenseG_Batch
             _x(toffset, iX) = _x(toffset, iX) + delX[iX] ;
          }
       }
-      // fix me this needs to be provided an offset value
+      // Reject the updated x using a provided delta x
       __snls_hdev__ inline void  reject(const double* const delX, const int ielem, const int offset ) {
          const int toffset = ielem + offset;
          // delX is already offset
@@ -839,11 +790,11 @@ class SNLSTrDlDenseG_Batch
             _x(toffset, iX) = _x(toffset, iX) - delX[iX] ;
          }
       }
-      
+
       __snls_hdev__ inline double normvec(const double* const v) {
          return sqrt( this->normvecSq(v) ) ;
       }
-      
+
       __snls_hdev__ inline double normvecSq(const double* const v) {
          double a = 0e0;
          for (int iX = 0; iX < _nDim; ++iX) {
@@ -976,7 +927,7 @@ class SNLSTrDlDenseG_Batch
          }
          oss << std::endl ;
       }
-      
+
       void  printMatJ (const double* const A, std::ostream & oss ) {
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
