@@ -30,7 +30,7 @@
 #----------------------------------------------------------------------------
 
 set (SNLS_INSTALL_PREFIX @CMAKE_INSTALL_PREFIX@)
-set (SNLS_INCLUDE_DIRS @CMAKE_INSTALL_PREFIX@/include)
+set (SNLS_INCLUDE_DIRS @CMAKE_INSTALL_PREFIX@/include/snls)
 set (SNLS_LIB_DIR @CMAKE_INSTALL_PREFIX@/lib)
 set (SNLS_CMAKE_DIR @CMAKE_INSTALL_PREFIX@/share/snls/cmake)
 
