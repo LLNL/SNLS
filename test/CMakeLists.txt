@@ -4,6 +4,15 @@ blt_add_executable(NAME       snlstest
                    DEPENDS_ON gtest snls)
 blt_add_test(NAME    snlstest
              COMMAND snlstest)
+
+blt_add_executable(NAME       snlsNLS
+                   SOURCES    SNLS_testdriver_powell.cc
+                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                   DEPENDS_ON gtest snls)
+
+blt_add_test(NAME    snlsNLS
+             COMMAND snlsNLS)
+
 set(SNLS_TEST_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_TEST_DEPENDS

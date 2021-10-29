@@ -5,6 +5,7 @@
 
 using namespace std;
 
+#include "SNLS_config.h"
 #include "SNLS_NLSPowell.h"
 
 #ifndef LAMBDA_BROYDEN 

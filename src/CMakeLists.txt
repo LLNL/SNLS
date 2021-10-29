@@ -9,7 +9,10 @@ set(SNLS_HEADERS
     SNLS_TrDLDenseG_Batch.h
     SNLS_NewtonBB.h
     SNLS_device_forall.h
-    SNLS_memory_manager.h)
+    SNLS_memory_manager.h
+    SNLS_NLSPowell.h
+    SNLS_qr_solve.h
+    SNLS_linalg.h)
 
 set(SNLS_SOURCES
     SNLS_device_forall.cxx

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SNLS_config.h"
 #include "SNLS_base.h"
 #include "SNLS_qr_solve.h"
 #include "SNLS_linalg.h"
