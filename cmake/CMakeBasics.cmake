@@ -7,8 +7,8 @@ set(SNLS_VERSION_MAJOR 0)
 set(SNLS_VERSION_MINOR 3)
 set(SNLS_VERSION_PATCH \"0\")
 
-set(HEADER_INCLUDE_DIR
-    ${PROJECT_BINARY_DIR}/include
+set(SNLS_HEADER_INCLUDE_DIR
+    ${PROJECT_BINARY_DIR}/include/snls
     CACHE PATH
     "Directory where all generated headers will go in the build tree")
 
@@ -38,7 +38,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 endif()
 
 configure_file( src/SNLS_config.h.in
-                ${HEADER_INCLUDE_DIR}/SNLS_config.h )
+                ${SNLS_HEADER_INCLUDE_DIR}/SNLS_config.h )
 
 ################################
 # Third party library setup

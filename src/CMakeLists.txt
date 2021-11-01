@@ -1,5 +1,5 @@
 set(SNLS_HEADERS
-    ${HEADER_INCLUDE_DIR}/SNLS_config.h
+    ${SNLS_HEADER_INCLUDE_DIR}/SNLS_config.h
     SNLS_base.h
     SNLS_cuda_portability.h
     SNLS_port.h
@@ -47,13 +47,13 @@ blt_add_library(NAME        snls
 # Install files
 #------------------------------------------------------------------------------
 
-install(FILES ${SNLS_HEADERS} DESTINATION include/)
+install(FILES ${SNLS_HEADERS} DESTINATION include/snls/)
 
 target_include_directories(
   snls
   PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+  $<BUILD_INTERFACE:${SNLS_HEADER_INCLUDE_DIR}>
   $<INSTALL_INTERFACE:include>)
 
 configure_file(
@@ -65,12 +65,12 @@ install(
   DESTINATION share/snls/cmake/)
 
 install(
-  FILES ${PROJECT_BINARY_DIR}/include/SNLS_config.h
-  DESTINATION include)
+  FILES ${SNLS_HEADER_INCLUDE_DIR}/SNLS_config.h
+  DESTINATION include/snls/)
 
 install(
   FILES ${SNLS_HEADERS}
-  DESTINATION include)
+  DESTINATION include/snls/)
 
 install(
   TARGETS snls
