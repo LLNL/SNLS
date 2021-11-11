@@ -4,6 +4,7 @@
 #define SNLS_TRDLDG_H
 
 #include "SNLS_base.h"
+#include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
 
@@ -29,9 +30,6 @@ extern "C" {
 #endif
 
 //////////////////////////////////////////////////////////////////////
-
-// row-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
 
 namespace snls {
 
@@ -188,7 +186,7 @@ class SNLSTrDlDenseG
                return _status ;
             }
          }
-         _res = this->normvec(residual) ;
+         _res = snls::linalg::norm<_nDim>(residual);
          double res_0 = _res ;
 #ifdef __cuda_host_only__
          if (_os) { *_os << "res = " << _res << std::endl ; }
@@ -216,8 +214,7 @@ class SNLSTrDlDenseG
                //
                // have a newly accepted solution point
                // compute information for step determination
-
-               this->computeSysMult( Jacobian, residual, grad, true );
+               snls::linalg::matTVecMult<_nDim, _nDim>(Jacobian, residual, grad);
                // used to keep :
                //	ngrad[iX] = -grad[iX] ;
                // 	nsd[iX]   = ngrad[iX] * norm_grad_inv ; 
@@ -225,12 +222,12 @@ class SNLSTrDlDenseG
                // find Cauchy point
                //
                {
-                  double norm2_grad = this->normvecSq( grad ) ;
+                  double norm2_grad = snls::linalg::dotProd<_nDim>(grad, grad);
                   norm_grad = sqrt( norm2_grad ) ;
                   {
-                     double ntemp[_nDim] ; 
-                     this->computeSysMult( Jacobian, grad, ntemp, false ) ; // was -grad in previous implementation, but sign does not matter
-                     Jg2 = this->normvecSq( ntemp ) ;
+                     double ntemp[_nDim] ;
+                     snls::linalg::matVecMult<_nDim, _nDim>(Jacobian, grad, ntemp);
+                     Jg2 = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                   }
                   
                   alpha = 1e0 ;
@@ -251,7 +248,7 @@ class SNLSTrDlDenseG
                }
 
                this->computeNewtonStep( Jacobian, residual, nrStep ) ;
-               nr2norm = this->normvec( nrStep ) ;
+               nr2norm = snls::linalg::norm<_nDim>(nrStep);
                //
                // as currently implemented, J is not factored in-place and computeSysMult no loner works ;
                // or would have to be reworked for PLU=J
@@ -384,7 +381,7 @@ class SNLSTrDlDenseG
                      reject_prev = true ;
                   }
                   else {
-                     _res = this->normvec(residual) ;
+                     _res = snls::linalg::norm<_nDim>(residual);
 #ifdef __cuda_host_only__
                      if ( _os != nullptr ) {
                         *_os << "res = " << _res << std::endl ;
@@ -472,7 +469,7 @@ class SNLSTrDlDenseG
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
                }
                for ( int iR = 0; iR < _nDim ; iR++ ) {
-                  J_FD[SNLSTRDLDG_J_INDX(iR,iX,_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
+                  J_FD[SNLS_NN_INDX(iR,iX,_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
                }
             }
             
@@ -544,38 +541,6 @@ class SNLSTrDlDenseG
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
       
-      __snls_hdev__ inline void  computeSysMult(const double* const J, 
-                                                const double* const v,
-                                                double* const       p,
-                                                bool                transpose ) {
-         
-         // row-major storage
-         bool sysByV = not transpose ;
-   
-         if ( sysByV ) {
-            int ipX = 0 ;
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-               for (int kX = 0; kX < _nDim; ++kX) {
-                  p[pX] += J[kX+ipX] * v[kX] ;
-               }
-               ipX += _nDim ; // ipX = pX*_nDim ;
-            }
-         }
-         else {
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-            }
-            int ikX = 0 ;
-            for (int kX = 0; kX < _nDim; ++kX) {
-               for (int pX = 0; pX < _nDim; ++pX) {
-                  p[pX] += J[ikX+pX] * v[kX] ;
-               }
-               ikX += _nDim ; // ikW = kX*_nDim ;
-            }
-         }
-      }
-      
       __snls_hdev__ inline void  update(const double* const delX ) {
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX] = _x[iX] + delX[iX] ;
@@ -586,18 +551,6 @@ class SNLSTrDlDenseG
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX] = _x[iX] - delX[iX] ;
          }
-      }
-      
-      __snls_hdev__ inline double normvec(const double* const v) {
-         return sqrt( this->normvecSq(v) ) ;
-      }
-      
-      __snls_hdev__ inline double normvecSq(const double* const v) {
-         double a = 0e0;
-         for (int iX = 0; iX < _nDim; ++iX) {
-            a += v[iX]*v[iX] ;
-         }
-         return a ;
       }
       
    public:
@@ -616,7 +569,7 @@ class SNLSTrDlDenseG
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             for ( int jX=0; jX<_nDim; ++jX) {
-               oss << std::setw(21) << std::setprecision(11) << A[SNLSTRDLDG_J_INDX(iX,jX,_nDim)] << " " ;
+               oss << std::setw(21) << std::setprecision(11) << A[SNLS_NN_INDX(iX,jX,_nDim)] << " " ;
             }
             oss << std::endl ;
          } 

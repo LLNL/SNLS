@@ -82,21 +82,21 @@ public:
 
          if ( doComputeJ ) {
             // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
-            J[SNLSTRDLDG_J_INDX(0,0,nDim)] = 3 - 4*x[0];
-            J[SNLSTRDLDG_J_INDX(0,1,nDim)] = -2;
+            J[SNLS_NN_INDX(0,0,nDim)] = 3 - 4*x[0];
+            J[SNLS_NN_INDX(0,1,nDim)] = -2;
 
             // F(i) = (3-2*x[i])*x[i] - x[i-1] - 2*x[i+1] + 1;
             for (int i=1; i<nDim-1; i++) {
-               J[SNLSTRDLDG_J_INDX(i,i-1,nDim)] = -1;
-               J[SNLSTRDLDG_J_INDX(i,i,nDim)]   = 3 - 4*x[i];
-               J[SNLSTRDLDG_J_INDX(i,i+1,nDim)] = -2;
+               J[SNLS_NN_INDX(i,i-1,nDim)] = -1;
+               J[SNLS_NN_INDX(i,i,nDim)]   = 3 - 4*x[i];
+               J[SNLS_NN_INDX(i,i+1,nDim)] = -2;
             }
 
             // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
             fn = (3-2*x[nDim-1])*x[nDim-1] - x[nDim-2] + 1;
             double dfndxn = 3-4*x[nDim-1];
-            J[SNLSTRDLDG_J_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
-            J[SNLSTRDLDG_J_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
+            J[SNLS_NN_INDX(nDim-1,nDim-1,nDim)] = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
+            J[SNLS_NN_INDX(nDim-1,nDim-2,nDim)] = (1-_lambda)*(-1) + _lambda*(-2*fn);
          }
 
          return true ;

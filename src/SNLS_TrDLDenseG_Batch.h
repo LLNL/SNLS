@@ -5,6 +5,7 @@
 
 #include "SNLS_base.h"
 #if defined(SNLS_RAJA_PERF_SUITE)
+#include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
 #include "SNLS_device_forall.h"
@@ -34,8 +35,6 @@ extern "C" {
 #endif
 
 //////////////////////////////////////////////////////////////////////
-// row-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
 /// This macro provides a simple way to set-up raja views given a chai
 /// array (wdata), the chai execution space (es), and the offset into
 /// that chai array for the raja view
@@ -372,7 +371,7 @@ class SNLSTrDlDenseG_Batch
                }
                // this breaks out of the internal lambda and is essentially a loop continue
                if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  _res(i + offset) = this->normvec(&_residual.data[i * _nDim]) ;
+                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.data[i * _nDim]);
                   res_0(i) = _res(i + offset);
             });
 
@@ -399,7 +398,7 @@ class SNLSTrDlDenseG_Batch
                      // have a newly accepted solution point
                      // compute information for step determination
                      // fix me: this won't work currently
-                     this->computeSysMult( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim], true );
+                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim]);
                      // used to keep :
                      //	ngrad[iX] = -grad[iX] ;
                      // 	nsd[iX]   = ngrad[iX] * norm_grad_inv ; 
@@ -407,12 +406,12 @@ class SNLSTrDlDenseG_Batch
                      // find Cauchy point
                      //
                      {
-                        double norm2_grad = this->normvecSq( &grad.data[i * _nDim] ) ;
+                        double norm2_grad = snls::linalg::dotProd<_nDim>(&grad.data[i * _nDim], &grad.data[i * _nDim]);
                         norm_grad(i) = sqrt( norm2_grad ) ;
                         {
-                           double ntemp[_nDim] ; 
-                           this->computeSysMult( &_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], &ntemp[0], false ) ; // was -grad in previous implementation, but sign does not matter
-                           Jg2(i) = this->normvecSq( &ntemp[0] ) ;
+                           double ntemp[_nDim] ;
+                           snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
+                           Jg2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                         }
                         
                         alpha(i) = 1e0 ;
@@ -433,7 +432,7 @@ class SNLSTrDlDenseG_Batch
                      }
 
                      this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
-                     nr2norm(i) = this->normvec( &nrStep.data[i * _nDim] ) ;
+                     nr2norm(i) = snls::linalg::norm<_nDim>( &nrStep.data[i * _nDim] );
                      //
                      // as currently implemented, J is not factored in-place and computeSysMult no loner works ;
                      // or would have to be reworked for PLU=J
@@ -549,7 +548,7 @@ class SNLSTrDlDenseG_Batch
                      reject_prev(i) = true ;
                   }
                   else {
-                     _res(i + offset) = this->normvec(&_residual.data[i * _nDim]);
+                     _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.data[i * _nDim]);
                      // allow to exit now, may have forced one iteration anyway, in which
                      // case the delta update can do funny things if the residual was
                      // already very small 
@@ -742,38 +741,6 @@ class SNLSTrDlDenseG_Batch
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
-
-      __snls_hdev__ inline void  computeSysMult(const double* const J, 
-                                  const double* const v,
-                                  double* const       p,
-                                  bool                transpose ) {
-
-         // row-major storage
-         bool sysByV = not transpose ;
-
-         if ( sysByV ) {
-            int ipX = 0 ;
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-               for (int kX = 0; kX < _nDim; ++kX) {
-                  p[pX] += J[kX+ipX] * v[kX] ;
-               }
-               ipX += _nDim ; // ipX = pX*_nDim ;
-            }
-         }
-         else {
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-            }
-            int ikX = 0 ;
-            for (int kX = 0; kX < _nDim; ++kX) {
-               for (int pX = 0; pX < _nDim; ++pX) {
-                  p[pX] += J[ikX+pX] * v[kX] ;
-               }
-               ikX += _nDim ; // ikW = kX*_nDim ;
-            }
-         }
-      }
       // Update x using a provided delta x
       __snls_hdev__ inline void  update(const double* const delX, const int ielem, const int offset ) {
          const int toffset = ielem + offset;
@@ -789,18 +756,6 @@ class SNLSTrDlDenseG_Batch
          for (int iX = 0; iX < _nDim; ++iX) {
             _x(toffset, iX) = _x(toffset, iX) - delX[iX] ;
          }
-      }
-
-      __snls_hdev__ inline double normvec(const double* const v) {
-         return sqrt( this->normvecSq(v) ) ;
-      }
-
-      __snls_hdev__ inline double normvecSq(const double* const v) {
-         double a = 0e0;
-         for (int iX = 0; iX < _nDim; ++iX) {
-            a += v[iX]*v[iX] ;
-         }
-         return a ;
       }
       
    public:
@@ -932,7 +887,7 @@ class SNLSTrDlDenseG_Batch
          oss << std::setprecision(14) ;
          for ( int iX=0; iX<_nDim; ++iX) {
             for ( int jX=0; jX<_nDim; ++jX) {
-               oss << std::setw(21) << std::setprecision(11) << A[SNLSTRDLDG_J_INDX(iX,jX,_nDim)] << " " ;
+               oss << std::setw(21) << std::setprecision(11) << A[SNLS_NN_INDX(iX,jX,_nDim)] << " " ;
             }
             oss << std::endl ;
          } 
