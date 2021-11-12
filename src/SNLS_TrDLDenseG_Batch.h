@@ -373,7 +373,7 @@ class SNLSTrDlDenseG_Batch
                      {
                         double ntemp[_nDim] ;
                         snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
-                        Jg2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
+                        Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                      }
                      this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
                      nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.data[i * _nDim] );
@@ -381,7 +381,7 @@ class SNLSTrDlDenseG_Batch
                }); // end of batch compute kernel 1
                // Computes the batch version of the dogleg code and updates the solution variable x
                snls::batch::dogleg<_nDim>(offset, batch_size, _status, _delta, res_0, nr_norm, Jg_2, grad, nrStep,
-                                          delx, _x, pred_resid, use_nr, _os);
+                                          delx, _x, pred_resid, use_nr);
                // This calculates the new residual and jacobian given the updated x value
                this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size) ; // at _x
 

@@ -157,6 +157,7 @@ inline void matTVecMult(const double* const M,
 /// p has dimensions ndim
 /// ndim <= mdim
 template<int ndim, int mdim>
+__snls_hdev__
 inline void matUTriVecMult(const double* const M,
                            const double* const a,
                            double* const p)

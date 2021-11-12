@@ -11,6 +11,7 @@
 #endif
 
 #if defined(SNLS_RAJA_PERF_SUITE)
+#include "SNLS_linalg.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"
 #include "SNLS_device_forall.h"
@@ -23,11 +24,11 @@ namespace batch {
 // So this function computes the delta x and then updates the solution variable for a batch of data
 // The user is responsible for providing a potentially updated gradient, Jg_2, nrStep terms.
 template<int nDim>
-__snls_hdev__
+__snls_host__
 inline
 void dogleg(const int offset,
             const int batch_size,
-            const chai::managedArray<bool> &status,
+            const chai::ManagedArray<SNLSStatus_t> &status,
             const rview1d &delta,
             const rview1d &res_0,
             const rview1d &nr_norm,
@@ -37,12 +38,7 @@ void dogleg(const int offset,
             rview2d &delx,
             rview2d &x,
             rview1d &pred_resid,
-            rview1b &use_nr,
-            #ifdef __cuda_host_only__
-            std::ostream* _os
-            #else
-            char* _os // do not use
-            #endif
+            rview1b &use_nr
             ) 
 {
    SNLS_FORALL_T(i, 256, 0, batch_size,
@@ -60,12 +56,6 @@ void dogleg(const int offset,
             delx(i, iX) = nrStep(i, iX);
          }
          pred_resid(i) = 0e0 ;
-
-   #ifdef __cuda_host_only__
-         if ( _os != nullptr ) {
-            *_os << "trying newton step" << std::endl ;
-         }
-   #endif
       }
       // Find Cauchy point
       else {
@@ -94,15 +84,8 @@ void dogleg(const int offset,
 
             {
                const double val = -(delta(i + offset) * norm_grad) + 0.5 * delta(i + offset) * delta(i + offset) * Jg_2(i) * (norm_grad_inv * norm_grad_inv);
-               pred_resid = sqrt(fmax(2.0 * val + res_0(i) * res_0(i), 0.0));
+               pred_resid(i) = sqrt(fmax(2.0 * val + res_0(i) * res_0(i), 0.0));
             }
-
-   #ifdef __cuda_host_only__
-            if ( _os != nullptr ) {
-               *_os << "trying step along first leg" << std::endl ;
-            }
-   #endif
-
          }
          else{
 
@@ -143,12 +126,6 @@ void dogleg(const int offset,
                const double res_cauchy = (Jg_2(i) > 0.0) ? (sqrt(fmax(res_0(i) * res_0(i) - alpha * norm2_grad, 0.0))) : res_0(i);
                pred_resid(i) = omb * res_cauchy;
             }
-
-   #ifdef __cuda_host_only__
-            if ( _os != nullptr ) {
-               *_os << "trying step along second leg" << std::endl ;
-            }
-   #endif
          } // if norm_s_sd_opt >= delta
       } // use_nr
 
