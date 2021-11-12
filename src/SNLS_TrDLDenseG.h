@@ -195,238 +195,198 @@ class SNLSTrDlDenseG
          bool reject_prev = false ;
          //
          // data for sorting out the step
-         double nr2norm = 0.0 ;
-         double alpha = 0.0 ;
-         double norm_s_sd_opt = 0.0 ;
-         double norm_grad = 0.0 ;
-         double norm_grad_inv = 0.0 ;
-         double qa = 0.0, qb = 0.0 ;
-         double Jg2 = 0.0 ;
-         double res_cauchy = 0.0 ;
-         double nrStep[_nDim] ;
-         double grad[_nDim] ;
+         double nrStep[_nDim];
+         double grad[_nDim];
+         double delx[_nDim];
+         double Jg_2;
          //
          while ( _nIters < _maxIter ) {
             //
             _nIters += 1 ;
 
-            if ( !reject_prev ) {
-               //
-               // have a newly accepted solution point
-               // compute information for step determination
+            // This is done outside this step so that these operations can be done with varying solve
+            // techniques such as LU/QR or etc...
+            if(!reject_prev) {
+               // So the LU solve does things in step which causes issues...
+               // So, we need to pull this out and perform this operation first...
                snls::linalg::matTVecMult<_nDim, _nDim>(Jacobian, residual, grad);
-               // used to keep :
-               //	ngrad[iX] = -grad[iX] ;
-               // 	nsd[iX]   = ngrad[iX] * norm_grad_inv ; 
-               
-               // find Cauchy point
-               //
                {
-                  double norm2_grad = snls::linalg::dotProd<_nDim>(grad, grad);
-                  norm_grad = sqrt( norm2_grad ) ;
-                  {
-                     double ntemp[_nDim] ;
-                     snls::linalg::matVecMult<_nDim, _nDim>(Jacobian, grad, ntemp);
-                     Jg2 = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
-                  }
-                  
-                  alpha = 1e0 ;
-                  res_cauchy = res_0 ;
-                  if ( Jg2 > 0e0 ) { 
-                     alpha = norm2_grad / Jg2 ;
-                     res_cauchy = sqrt(fmax(res_0*res_0 - alpha*norm2_grad,0.0)) ;
-                  }
-
-                  // optimal step along steapest descent is alpha*ngrad
-                  norm_s_sd_opt = alpha*norm_grad ;
-                  
-                  norm_grad_inv = 1e0 ;
-                  if ( norm_grad > 0e0 ) {
-                     norm_grad_inv = 1e0 / norm_grad ;
-                  }
-                  
+                  double ntemp[_nDim] ;
+                  snls::linalg::matVecMult<_nDim, _nDim>(Jacobian, grad, ntemp);
+                  Jg_2 = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                }
-
-               this->computeNewtonStep( Jacobian, residual, nrStep ) ;
-               nr2norm = snls::linalg::norm<_nDim>(nrStep);
-               //
-               // as currently implemented, J is not factored in-place and computeSysMult no loner works ;
-               // or would have to be reworked for PLU=J
-
-               {
-
-                  // inline the use of p instead of computing it
-                  //
-                  // double p[_nDim] ;
-                  // for (int iX = 0; iX < _nDim; ++iX) {
-                  //    p[iX] = nrStep[iX] + alpha*grad[iX] ; // nrStep - alpha*ngrad
-                  // }
-
-                  {
-                     double gam0 = 0e0 ;
-                     double norm2_p = 0.0 ;
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        double p_iX = nrStep[iX] + alpha*grad[iX] ;
-                        norm2_p += p_iX*p_iX ;
-                        gam0 += p_iX * grad[iX] ;
-                     }
-                     gam0 = -gam0 * norm_grad_inv ;
-
-                     qb = 2.0 * gam0 * norm_s_sd_opt ;
-
-                     qa = norm2_p ;
-                     
-                  }
-                     
-               }
-
-            } // !reject_prev
-
-            // compute the step given _delta
+               this->computeNewtonStep( Jacobian, residual, nrStep );
+            }
             //
-            {
-               double delx[_nDim] ;
-               double pred_resid ;
-               bool use_nr = false ;
-               //
-               if ( nr2norm <= _delta ) {
-                  // use Newton step
-                  use_nr = true ;
+            double pred_resid;
+            bool use_nr = false;
 
-                  for (int iX = 0; iX < _nDim; ++iX) {
-                     delx[iX] = nrStep[iX] ;
-                  }
-                  pred_resid = 0e0 ;
+            // If step was rejected nrStep will be the same value and so we can just recalculate it here
+            const double nr_norm = snls::linalg::norm<_nDim>(nrStep);
 
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "trying newton step" << std::endl ;
-                  }
-#endif
+            // No need to do any other calculations if this condition is true
+            if ( nr_norm <= _delta ) {
+               // use Newton step
+               use_nr = true ;
+
+               for (int iX = 0; iX < _nDim; ++iX) {
+                  delx[iX] = nrStep[iX] ;
                }
-               else { // use_nr
+               pred_resid = 0e0 ;
 
-                  // step along dogleg path
-               
-                  if ( norm_s_sd_opt >= _delta ) {
+         #ifdef __cuda_host_only__
+               if ( _os != nullptr ) {
+                  *_os << "trying newton step" << std::endl ;
+               }
+         #endif
+            }
+            // Find Cauchy point
+            else {
+               // If we didn't reject things this is the only thing that needs to be updated
+               // everything else we should have the info to recompute
+               // The nice thing about recomputing is that we can actually define the variables as const
+               // to help the compiler out.
 
-                     // use step along steapest descent direction
+               const double norm2_grad = snls::linalg::dotProd<_nDim>(grad, grad);
+               const double norm_grad = sqrt( norm2_grad );
 
-                     {
-                        double factor = -_delta * norm_grad_inv ;
-                        for (int iX = 0; iX < _nDim; ++iX) {
-                           delx[iX] = factor * grad[iX] ;
-                        }
+               const double alpha = (Jg_2 > 0.0) ? (norm2_grad / Jg_2) : 1.0;
+               const double norm_grad_inv = (norm_grad > 0.0) ? (1.0 / norm_grad) : 1.0;
+               const double norm_s_sd_opt = alpha * norm_grad;
+
+               // step along the dogleg path
+               if ( norm_s_sd_opt >= _delta ) {
+
+                  // use step along steapest descent direction
+                  {
+                     const double factor = -_delta * norm_grad_inv;
+                     for (int iX = 0; iX < _nDim; ++iX) {
+                        delx[iX] = factor * grad[iX] ;
                      }
-
-                     {
-                        double val = -(_delta*norm_grad) + 0.5*_delta*_delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
-                        pred_resid = sqrt(fmax(2.0*val + res_0*res_0,0.0)) ;
-                     }
-            
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "trying step along first leg" << std::endl ;
-                     }
-#endif
-            
                   }
-                  else{
 
+                  {
+                     const double val = -(_delta * norm_grad) + 0.5 * _delta * _delta * Jg_2 * (norm_grad_inv * norm_grad_inv);
+                     pred_resid = sqrt(fmax(2.0 * val + res_0 * res_0, 0.0));
+                  }
+
+         #ifdef __cuda_host_only__
+                  if ( _os != nullptr ) {
+                     *_os << "trying step along first leg" << std::endl ;
+                  }
+         #endif
+
+               }
+               else{
+
+                  double beta;
+                  // Scoping this set of calculations
+                  {
+                     double qb = 0.0;
+                     double qa = 0.0;
+                     for (int iX = 0; iX < _nDim; ++iX) {
+                        double p_iX = nrStep[iX] + alpha * grad[iX];
+                        qa += p_iX * p_iX;
+                        qb += p_iX * grad[iX];
+                     }
+                     // Previously qb = (-p^t g / ||g||) * alpha * ||g|| * 2.0
+                     // However, we can see that this simplifies a bit and also with the beta term
+                     // down below we there's a common factor of 2.0 that we can eliminate from everything
+                     qb *= alpha;
                      // qc and beta depend on delta
                      //
-                     double qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
-                     //
-                     double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
-#ifdef SNLS_DEBUG
-                     if ( beta > 1.0 || beta < 0.0 ) {
-                        SNLS_FAIL(__func__, "beta not in [0,1]") ;
+                     const double qc = norm_s_sd_opt * norm_s_sd_opt - _delta * _delta;
+                     beta = (qb + sqrt(qb * qb - qa * qc)) / qa;
+                  }
+         #ifdef SNLS_DEBUG
+                  if ( beta > 1.0 || beta < 0.0 ) {
+                     SNLS_FAIL(__func__, "beta not in [0,1]") ;
+                  }
+         #endif
+                  beta = fmax(0.0, fmin(1.0, beta)) ; // to deal with any roundoff
+
+                  // delx[iX] = alpha*ngrad[iX] + beta*p[iX] = beta*nrStep[iX] - (1.0-beta)*alpha*grad[iX]
+                  //
+                  {
+                     const double omb  = 1.0 - beta;
+                     const double omba = omb * alpha;
+                     for (int iX = 0; iX < _nDim; ++iX) {
+                        delx[iX] = beta * nrStep[iX] - omba * grad[iX];
                      }
+                     const double res_cauchy = (Jg_2 > 0.0) ? (sqrt(fmax(res_0 * res_0 - alpha * norm2_grad, 0.0))) : res_0;
+                     pred_resid = omb * res_cauchy;
+                  }
+
+         #ifdef __cuda_host_only__
+                  if ( _os != nullptr ) {
+                     *_os << "trying step along second leg" << std::endl ;
+                  }
+         #endif
+               } // if norm_s_sd_opt >= delta
+            } // use_nr
+
+            this->update( delx );
+            reject_prev = false;
+
+            //
+            {
+               bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
+               if ( !(rjSuccess) ) {
+                  // got an error doing the evaluation
+                  // try to cut back step size and go again
+                  bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr_norm, use_nr ) ;
+                  if ( ! deltaSuccess ) {
+                     _status = deltaFailure ;
+                     break ; // while ( _nIters < _maxIter )
+                  }
+                  reject_prev = true ;
+               }
+               else {
+                  _res = snls::linalg::norm<_nDim>(residual);
+#ifdef __cuda_host_only__
+                  if ( _os != nullptr ) {
+                     *_os << "res = " << _res << std::endl ;
+                  }
 #endif
-                     beta = fmax(0.0,fmin(1.0,beta)) ; // to deal with and roundoff
 
-                     // delx[iX] = alpha*ngrad[iX] + beta*p[iX] = beta*nrStep[iX] - (1.0-beta)*alpha*grad[iX]
-                     //
-                     {
-                        double omb  = 1.0-beta ;
-                        double omba = omb*alpha ;
-                        for (int iX = 0; iX < _nDim; ++iX) {
-                           delx[iX] = beta * nrStep[iX] - omba*grad[iX] ;
-                        }
-                        pred_resid = omb * res_cauchy ;
-                     }
+                  // allow to exit now, may have forced one iteration anyway, in which
+                  // case the delta update can do funny things if the residual was
+                  // already very small
 
+                  if ( _res < _tolerance ) {
 #ifdef __cuda_host_only__
                      if ( _os != nullptr ) {
-                        *_os << "trying step along second leg" << std::endl ;
+                        *_os << "converged" << std::endl ;
                      }
 #endif
-                  } // if norm_s_sd_opt >= delta
+                     _status = converged ;
+                     break ; // while ( _nIters < _maxIter )
+                  }
 
-               } // use_nr
-               
-               this->update( delx ) ;
-               reject_prev = false ;
-               //
-               {
-                  bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
-                  if ( !(rjSuccess) ) {
-                     // got an error doing the evaluation
-                     // try to cut back step size and go again
-                     bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr2norm, use_nr ) ;
+                  {
+                     bool deltaSuccess = _deltaControl->updateDelta(_os,
+                                                                     _delta, _res, res_0, pred_resid,
+                                                                     reject_prev, use_nr, nr_norm, _rhoLast) ;
                      if ( ! deltaSuccess ) {
                         _status = deltaFailure ;
                         break ; // while ( _nIters < _maxIter ) 
                      }
-                     reject_prev = true ;
                   }
-                  else {
-                     _res = snls::linalg::norm<_nDim>(residual);
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "res = " << _res << std::endl ;
-                     }
-#endif
 
-                     // allow to exit now, may have forced one iteration anyway, in which
-                     // case the delta update can do funny things if the residual was
-                     // already very small 
-
-                     if ( _res < _tolerance ) {
-#ifdef __cuda_host_only__
-                        if ( _os != nullptr ) {
-                           *_os << "converged" << std::endl ;
-                        }
-#endif
-                        _status = converged ;
-                        break ; // while ( _nIters < _maxIter ) 
-                     }
-
-                     {
-                        bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                       _delta, _res, res_0, pred_resid,
-                                                                       reject_prev, use_nr, nr2norm, _rhoLast) ;
-                        if ( ! deltaSuccess ) {
-                           _status = deltaFailure ;
-                           break ; // while ( _nIters < _maxIter ) 
-                        }
-                     }
-
-                  }
-               }
-
-               if ( reject_prev ) { 
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "rejecting solution" << std::endl ;
-                  }
-#endif
-                  _res = res_0 ;
-                  this->reject( delx ) ;
                }
             }
+
+            if ( reject_prev ) {
+#ifdef __cuda_host_only__
+               if ( _os != nullptr ) {
+                  *_os << "rejecting solution" << std::endl ;
+               }
+#endif
+               _res = res_0 ;
+               this->reject( delx ) ;
+            }
             //
-            res_0 = _res ;
+            res_0 = _res;
             
          } // _nIters < _maxIter
          
