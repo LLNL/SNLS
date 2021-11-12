@@ -12,7 +12,8 @@ set(SNLS_HEADERS
     SNLS_memory_manager.h
     SNLS_NLSPowell.h
     SNLS_qr_solve.h
-    SNLS_linalg.h)
+    SNLS_linalg.h
+    SNLS_Dogleg.h)
 
 set(SNLS_SOURCES
     SNLS_device_forall.cxx
