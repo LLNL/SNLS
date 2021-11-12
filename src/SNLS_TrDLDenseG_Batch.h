@@ -9,7 +9,7 @@
 #include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
-#include "SNLS_Dogleg.h"
+#include "SNLS_Dogleg_Batch.h"
 
 #include "SNLS_device_forall.h"
 #include "SNLS_memory_manager.h"
