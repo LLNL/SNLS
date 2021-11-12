@@ -227,9 +227,7 @@ class SNLSTrDlDenseG
 
             // computes the updated delta x, predicated residual error, and whether or not NR method was used.
             snls::dogleg<_nDim>(_delta, res_0, nr_norm, Jg_2, grad, nrStep,
-                                delx, pred_resid, use_nr, _os);
-
-            this->update( delx );
+                                delx, _x, pred_resid, use_nr, _os);
             reject_prev = false;
 
             //
@@ -403,12 +401,6 @@ class SNLSTrDlDenseG
          }
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
-      }
-      
-      __snls_hdev__ inline void  update(const double* const delX ) {
-         for (int iX = 0; iX < _nDim; ++iX) {
-            _x[iX] = _x[iX] + delX[iX] ;
-         }
       }
       
       __snls_hdev__ inline void  reject(const double* const delX ) {
