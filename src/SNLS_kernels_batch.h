@@ -140,7 +140,7 @@ void dogleg(const int offset,
 // For certain solvers we might want to eventually have a version of this that makes use of rhoLast
 // as it can be used to determine if the solver is converging slow or not
 template<int nDim>
-__snls_hdev__
+__snls_host__
 inline
 void updateDelta(const int offset,
                  const int batch_size,
@@ -188,7 +188,7 @@ void updateDelta(const int offset,
          // allow to exit now, may have forced one iteration anyway, in which
          // case the delta update can do funny things if the residual was
          // already very small 
-         if ( res(i + offset) < _tolerance ) {
+         if ( res(i + offset) < tolerance ) {
             status[i + offset] = converged ;
             fevals[i + offset] = mfevals;
             return; // equivalent to a continue in a while loop

@@ -383,9 +383,9 @@ class SNLSTrDlDenseG_Batch
 
                // updates delta based on a trust region
                // if the solution is rejected than x is also returned to its previous value
-               snls::batch::updateDelta<_nDim>(offset, batch_size, mfevals, _deltaControl,
-                                               _residual, pred_resid, nr_norm, use_nr, rjSuccess, _tolerance,
-                                               delx, _x, res_0, _res, _delta, reject_prev, fevals, _status);
+               snls::batch::updateDelta<_nDim>(offset, batch_size, _mfevals, _deltaControl,
+                                               _residual, pred_resid, nr_norm, use_nr, _rjSuccess, _tolerance,
+                                               delx, _x, res_0, _res, _delta, reject_prev, _fevals, _status);
 
                // If this is true then that means all of the batched items
                // either failed or converged, and so we can exit and start the new batched data
