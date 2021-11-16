@@ -13,8 +13,8 @@ set(SNLS_HEADERS
     SNLS_NLSPowell.h
     SNLS_qr_solve.h
     SNLS_linalg.h
-    SNLS_Dogleg.h
-    SNLS_Dogleg_Batch.h)
+    SNLS_kernels.h
+    SNLS_kernels_batch.h)
 
 set(SNLS_SOURCES
     SNLS_device_forall.cxx

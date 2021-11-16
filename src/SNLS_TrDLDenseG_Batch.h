@@ -9,7 +9,7 @@
 #include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
-#include "SNLS_Dogleg_Batch.h"
+#include "SNLS_kernels_batch.h"
 
 #include "SNLS_device_forall.h"
 #include "SNLS_memory_manager.h"
@@ -365,10 +365,6 @@ class SNLSTrDlDenseG_Batch
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev(i) ) {
-                     //
-                     // have a newly accepted solution point
-                     // compute information for step determination
-                     // fix me: this won't work currently
                      snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim]);
                      {
                         double ntemp[_nDim] ;
@@ -385,57 +381,12 @@ class SNLSTrDlDenseG_Batch
                // This calculates the new residual and jacobian given the updated x value
                this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size) ; // at _x
 
-               // The below set of fused kernels compute the updated delta for the step size,
-               // reject the previous solution if the computeRJ up above failed,
-               // and updates the res0 if the solution is still unconverged.
-               // start of compute kernel 3
-               SNLS_FORALL_T(i, 256, 0, batch_size,
-               {
-                  // Update the delta kernel
-                  // this breaks out of the internal lambda and is essentially a loop continue
-                  if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  reject_prev(i) = false;
-                  if ( !(_rjSuccess(i)) ) {
-                     // got an error doing the evaluation
-                     // try to cut back step size and go again
-                     bool deltaSuccess = _deltaControl->decrDelta(_os, _delta(i + offset), nr_norm(i), use_nr(i) ) ;
-                     if ( ! deltaSuccess ) {
-                        _status[i + offset] = deltaFailure ;
-                        _fevals[i + offset] = _mfevals;
-                        return; // equivalent to a continue in a while loop
-                     }
-                     reject_prev(i) = true ;
-                  }
-                  else {
-                     _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.data[i * _nDim]);
-                     // allow to exit now, may have forced one iteration anyway, in which
-                     // case the delta update can do funny things if the residual was
-                     // already very small 
-                     if ( _res(i + offset) < _tolerance ) {
-                        _status[i + offset] = converged ;
-                        _fevals[i + offset] = _mfevals;
-                        return; // equivalent to a continue in a while loop
-                     }
-                     {
-                        bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                     _delta(i + offset), _res(i + offset), res_0(i), pred_resid(i),
-                                                                     reject_prev(i), use_nr(i), nr_norm(i)) ;
-                        if ( ! deltaSuccess ) {
-                           _status[i + offset] = deltaFailure ;
-                           _fevals[i + offset] = _mfevals;
-                           return; // equivalent to a continue in a while loop
-                        }
-                     }
-                  }
-                   // end of updating the delta
-                  // rejects the previous solution if things failed earlier
-                  if ( reject_prev(i) ) { 
-                     _res(i + offset) = res_0(i);
-                     this->reject( &delx.data[i * _nDim], i, offset ) ;
-                  }
-                  // update our res_0 for the next iteration
-                  res_0(i) = _res(i + offset);
-               }); // end of batch compute kernel 3
+               // updates delta based on a trust region
+               // if the solution is rejected than x is also returned to its previous value
+               snls::batch::updateDelta<_nDim>(offset, batch_size, mfevals, _deltaControl,
+                                               _residual, pred_resid, nr_norm, use_nr, rjSuccess, _tolerance,
+                                               delx, _x, res_0, _res, _delta, reject_prev, fevals, _status);
+
                // If this is true then that means all of the batched items
                // either failed or converged, and so we can exit and start the new batched data
                if(status_exit<true, SNLS_GPU_THREADS>(offset, batch_size)) {

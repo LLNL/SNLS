@@ -7,7 +7,7 @@
 #include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
-#include "SNLS_Dogleg.h"
+#include "SNLS_kernels.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -208,8 +208,8 @@ class SNLSTrDlDenseG
             // This is done outside this step so that these operations can be done with varying solve
             // techniques such as LU/QR or etc...
             if(!reject_prev) {
-               // So the LU solve does things in step which causes issues...
-               // So, we need to pull this out and perform this operation first...
+               // So the LU solve does things in-place which causes issues when calculating the grad term...
+               // So, we need to pull this out and perform this operation first
                snls::linalg::matTVecMult<_nDim, _nDim>(Jacobian, residual, grad);
                {
                   double ntemp[_nDim] ;
@@ -233,49 +233,12 @@ class SNLSTrDlDenseG
             //
             {
                bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
-               if ( !(rjSuccess) ) {
-                  // got an error doing the evaluation
-                  // try to cut back step size and go again
-                  bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr_norm, use_nr ) ;
-                  if ( ! deltaSuccess ) {
-                     _status = deltaFailure ;
-                     break ; // while ( _nIters < _maxIter )
-                  }
-                  reject_prev = true ;
-               }
-               else {
-                  _res = snls::linalg::norm<_nDim>(residual);
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "res = " << _res << std::endl ;
-                  }
-#endif
-
-                  // allow to exit now, may have forced one iteration anyway, in which
-                  // case the delta update can do funny things if the residual was
-                  // already very small
-
-                  if ( _res < _tolerance ) {
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "converged" << std::endl ;
-                     }
-#endif
-                     _status = converged ;
-                     break ; // while ( _nIters < _maxIter )
-                  }
-
-                  {
-                     bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                     _delta, _res, res_0, pred_resid,
-                                                                     reject_prev, use_nr, nr_norm, _rhoLast) ;
-                     if ( ! deltaSuccess ) {
-                        _status = deltaFailure ;
-                        break ; // while ( _nIters < _maxIter ) 
-                     }
-                  }
-
-               }
+               // Could also potentially include the reject previous portion in here as well
+               // if we want to keep this similar to the batch version of things
+               snls::updateDelta<_nDim>(_deltaControl, residual, res_0, pred_resid, nr_norm, _tolerance, use_nr, rjSuccess,
+                                        _delta, _res, _rhoLast, reject_prev, _status, _os);
+               // This new check is required due to moving all the delta update stuff into its own function to share features between codes
+               if(_status != SNLSStatus_t::unConverged) { break; }
             }
 
             if ( reject_prev ) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SNLS_base.h"
+#include "SNLS_TrDelta.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -138,4 +139,73 @@ void dogleg(const double delta,
       x[iX] += delx[iX];
    }
 }// end non-batch dogleg
+
+template<int nDim>
+__snls_hdev__
+inline
+void updateDelta(const TrDeltaControl* const deltaControl,
+                 const double* const residual,
+                 const double res_0,
+                 const double pred_resid,
+                 const double nr_norm,
+                 const double tolerance,
+                 const bool use_nr,
+                 const bool rjSuccess,
+                 double& delta,
+                 double& res,
+                 double& rhoLast,
+                 bool& reject_prev,
+                 SNLSStatus_t& status,
+#ifdef __cuda_host_only__
+                 std::ostream* os
+#else
+                 char* os // do not use
+#endif
+                 ) 
+{
+
+   if ( !(rjSuccess) ) {
+      // got an error doing the evaluation
+      // try to cut back step size and go again
+      bool deltaSuccess = deltaControl->decrDelta(os, delta, nr_norm, use_nr );
+      if ( ! deltaSuccess ) {
+         status = deltaFailure ;
+         return; // while ( _nIters < _maxIter )
+      }
+      reject_prev = true;
+   }
+   else {
+      res = snls::linalg::norm<nDim>(residual);
+#ifdef __cuda_host_only__
+      if ( os != nullptr ) {
+         *os << "res = " << res << std::endl ;
+      }
+#endif
+
+      // allow to exit now, may have forced one iteration anyway, in which
+      // case the delta update can do funny things if the residual was
+      // already very small
+
+      if ( res < tolerance ) {
+#ifdef __cuda_host_only__
+         if ( os != nullptr ) {
+            *os << "converged" << std::endl ;
+         }
+#endif
+         status = converged ;
+         return; // while ( _nIters < _maxIter )
+      }
+
+      {
+         bool deltaSuccess = deltaControl->updateDelta(os,
+                                                      delta, res, res_0, pred_resid,
+                                                      reject_prev, use_nr, nr_norm, rhoLast) ;
+         if ( ! deltaSuccess ) {
+            status = deltaFailure ;
+            return; // while ( _nIters < _maxIter ) 
+         }
+      }
+   }
+} // end update delta
+
 } // end snls namespace

@@ -16,6 +16,7 @@
 #include "chai/ManagedArray.hpp"
 #include "SNLS_device_forall.h"
 #include "SNLS_memory_manager.h"
+#include "SNLS_TrDelta.h"
 
 
 namespace snls {
@@ -135,6 +136,88 @@ void dogleg(const int offset,
       }
    });
 } // end batch dogleg
+
+// For certain solvers we might want to eventually have a version of this that makes use of rhoLast
+// as it can be used to determine if the solver is converging slow or not
+template<int nDim>
+__snls_hdev__
+inline
+void updateDelta(const int offset,
+                 const int batch_size,
+                 const int mfevals,
+                 const TrDeltaControl* const deltaControl,
+                 const rview2d &residual,
+                 const rview1d &pred_resid,
+                 const rview1d &nr_norm,
+                 const rview1b &use_nr,
+                 const rview1b &rjSuccess,
+                 const double tolerance,
+                 rview2d &delx,
+                 rview2d &x,
+                 rview1d res_0,
+                 rview1d res,
+                 rview1d delta,
+                 rview1b reject_prev,
+                 chai::ManagedArray<int> fevals,
+                 chai::ManagedArray<SNLSStatus_t> &status
+                 ) 
+{
+   // The below set of fused kernels compute the updated delta for the step size,
+   // reject the previous solution if the computeRJ up above failed,
+   // and updates the res0 if the solution is still unconverged.
+   // start of compute kernel 3
+   SNLS_FORALL_T(i, 256, 0, batch_size,
+   {
+      // Update the delta kernel
+      // this breaks out of the internal lambda and is essentially a loop continue
+      if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
+      reject_prev(i) = false;
+      if ( !(rjSuccess(i)) ) {
+         // got an error doing the evaluation
+         // try to cut back step size and go again
+         bool deltaSuccess = deltaControl->decrDelta(nullptr, delta(i + offset), nr_norm(i), use_nr(i) ) ;
+         if ( ! deltaSuccess ) {
+            status[i + offset] = deltaFailure;
+            fevals[i + offset] = mfevals;
+            return; // equivalent to a continue in a while loop
+         }
+         reject_prev(i) = true;
+      }
+      else {
+         res(i + offset) = snls::linalg::norm<nDim>(&residual.data[i * nDim]);
+         // allow to exit now, may have forced one iteration anyway, in which
+         // case the delta update can do funny things if the residual was
+         // already very small 
+         if ( res(i + offset) < _tolerance ) {
+            status[i + offset] = converged ;
+            fevals[i + offset] = mfevals;
+            return; // equivalent to a continue in a while loop
+         }
+         {
+            bool deltaSuccess = deltaControl->updateDelta(nullptr,
+                                                         delta(i + offset), res(i + offset), res_0(i), pred_resid(i),
+                                                         reject_prev(i), use_nr(i), nr_norm(i)) ;
+            if ( ! deltaSuccess ) {
+               status[i + offset] = deltaFailure;
+               fevals[i + offset] = mfevals;
+               return; // equivalent to a continue in a while loop
+            }
+         }
+      }
+         // end of updating the delta
+      // rejects the previous solution if things failed earlier
+      if ( reject_prev(i) ) { 
+         res(i + offset) = res_0(i);
+         for(int iX = 0; iX < nDim; iX++) {
+            x(i + offset, iX) -= delx(i, iX);
+         }
+      }
+      // update our res_0 for the next iteration
+      res_0(i) = res(i + offset);
+   }); // end of batch compute kernel 3
+
+} // end batch update delta
+
 } // end batch namespace
 #endif
 } // end snls namespace
