@@ -46,47 +46,15 @@ extern "C" {
 namespace snls {
 namespace batch{
 
-/** Helper templates to ensure compliant CRJ implementations */
-template<typename CRJ, typename = void>
-struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct has_valid_computeRJ <
-   CRJ,typename std::enable_if<
-       std::is_void<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<rview2d&>(), std::declval<rview3d&>(), std::declval<const rview2d&>(), 
-                    std::declval<rview1b&>(), std::declval<const chai::ManagedArray<SNLSStatus_t>&>(),
-                    std::declval<const int>(), std::declval<const int>())) 
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
-
-template<typename CRJ, typename = void>
-struct has_ndim : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct has_ndim <
-   CRJ,typename std::enable_if<
-       std::is_same<
-           decltype(CRJ::nDimSys),
-           const int  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
-
 // trust region type solver, dogleg approximation
 // for dense general Jacobian matrix
 template< class CRJ >
 class SNLSTrDlDenseG_Batch 
 {
    public:
-      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( rview2d &r, rview3d &J, const rview2d &x,"
-                                                      " rview1b &rJSuccess, const chai::ManagedArray<SNLSStatus_t> &status, const int offset, const int nbatch )");
-      static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
+      static_assert(snls::batch::has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( rview2d &r, rview3d &J, const rview2d &x,"
+                                                                  " rview1b &rJSuccess, const chai::ManagedArray<SNLSStatus_t> &status, const int offset, const int nbatch )");
+      static_assert(snls::batch::has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
    public:
    /// constructor which requires the number of points to be set

@@ -13,6 +13,37 @@
 
 namespace snls {
 
+/** Helper templates to ensure compliant CRJ implementations */
+template<typename CRJ, typename = void>
+struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_valid_computeRJ <
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CRJ>().computeRJ(std::declval<double* const>(), std::declval<double* const>(),std::declval<const double *>())),
+           bool  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
+template<typename CRJ, typename = void>
+struct has_ndim : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_ndim <
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(CRJ::nDimSys),
+           const int  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
 template<int nDim>
 __snls_hdev__
 inline

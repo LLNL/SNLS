@@ -15,40 +15,11 @@
 
 namespace snls {
 
-/** Helper templates to ensure compliant CRJ implementations */
-template<typename CRJ, typename = void>
-struct nls_has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct nls_has_valid_computeRJ <
-   CRJ,typename std::enable_if<
-       std::is_same<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<double* const>(), std::declval<double* const>(),std::declval<const double *>())),
-           bool  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
-
-template<typename CRJ, typename = void>
-struct nls_has_ndim : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct nls_has_ndim <
-   CRJ,typename std::enable_if<
-       std::is_same<
-           decltype(CRJ::nDimSys),
-           const int  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
-
-// Hybrid Jacobian method from MINPACK which is a modified Powell method
-// that makes use of the dogleg method and a rank-1 update of the jacobian
-// using QR factorizations for a dense general Jacobian matrix
+// A hybrid trust region type solver, dogleg approximation
+// for dense general Jacobian matrix that makes use of a rank-1 update of the jacobian
+// using QR factorization
+// Method is inspired by SNLS current trust region dogleg solver, Powell's original hybrid method for
+// nonlinear equations, and MINPACK's modified version of it.
 //
 // CRJ should :
 // 	have member function
@@ -57,15 +28,15 @@ struct nls_has_ndim <
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
 //
-template< class CRJ, bool scaleDiag = false >
-class SNLSHybrdDenseG 
+template< class CRJ>
+class SNLSHybrdTrDLDenseG 
 {
     public:
-    static_assert(nls_has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSHybrdDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x )");
-    static_assert(nls_has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
+    static_assert(snls::has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSHybrdTrDLDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x )");
+    static_assert(snls::has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
     // constructor
-    __snls_hdev__ SNLSHybrdDenseG(CRJ &crj) :
+    __snls_hdev__ SNLSHybrdTrDLDenseG(CRJ &crj) :
                 m_crj(crj),
                 m_fevals(0), m_nIters(0), m_jevals(0), 
                 m_maxfev(1000), m_outputLevel(0),
@@ -75,7 +46,7 @@ class SNLSHybrdDenseG
                 {
                 };
     // destructor
-    __snls_hdev__ ~SNLSHybrdDenseG()
+    __snls_hdev__ ~SNLSHybrdTrDLDenseG()
     {
 #ifdef __cuda_host_only__
         if ( m_outputLevel > 1 && m_os != nullptr ) {
@@ -120,20 +91,18 @@ class SNLSHybrdDenseG
     __snls_hdev__ 
     inline
     void setupSolver(int maxIter,
-                     double x_tolerance,
-                     double f_tolerance,
-                     double factor = 100.0,
+                     double tolerance,
+                     TrDeltaControl * deltaControl,
                      int outputLevel = 0) 
     {
         m_status = unConverged;
         m_fevals = 0;
-        m_jevals = 0;
-        m_factor = factor;
+        m_jevals = 0
 
         m_maxIter = maxIter;
         m_maxfev = maxIter;
-        m_x_tolerance = x_tolerance;
-        m_f_tolerance = f_tolerance;
+        m_tolerance = tolerance;
+        m_deltaControl = deltaControl;
 
         this->setOutputlevel( outputLevel );
 
@@ -173,20 +142,13 @@ class SNLSHybrdDenseG
         double work_arr2[m_nDim];
         double work_arr3[m_nDim];
         double qtf[m_nDim];
-        // Only use diag if we need it
-        double diag[m_nDim];
-
-        if (!scaleDiag) {
-            for (int i = 0; i < m_nDim; i++) {
-                diag[i] = 1.0;
-            }
-        }
-
+        // Do initial solver checks
         m_status = solveInit(residual);
         if (m_status != unConverged) {
             return m_status;
         }
 
+        // Run our solver until it converges or fails
         while (m_status == unConverged && m_nIters < m_maxIter && m_fevals < m_maxIter) {
             solveStep(residual, Jacobian, Qmat, diag, qtf, work_arr1, work_arr2, work_arr3);
         }
@@ -239,211 +201,99 @@ class SNLSHybrdDenseG
                            double* const Q,
                            double* const diag,
                            double* const qtf,
-                           double* const work_arr1,
-                           double* const work_arr2,
-                           double* const work_arr3)
+                           double* const grad,
+                           double* const nrStep,
+                           double* const delx)
     {
         const double epsmch = snls::dbl_epsmch;
         bool jeval = true;
-        
-        // at m_x
-        // We currently don't check on the success of this...
-        // and we should at this back in at some point
-        // However in the mean time, this is to quite the compiler
-        // bool rjSuccess = 
-        this->computeRJ(residual, Jacobian);
-        // Need to think about what to do if this fails as things
-        // are handled differently from the TrDL solver.
-        // if ( !(rjSuccess) ) {
-        //     m_status = initEvalFailure;
-        //     return m_status;
-        // }
+
+        bool rjSuccess = this->computeRJ(residual, Jacobian);
+        // If this fails our solver is in trouble and needs to die.
+        if ( !(rjSuccess) ) {
+            m_status = evalFailure;
+            return m_status;
+        }
         m_jevals += 1;
 
-
-        snls::linalg::normColumn<m_nDim, m_nDim>(Jacobian, work_arr2);
-
-        if(m_nIters == 1) {
-            if (scaleDiag) {
-                for (int i = 0; i < m_nDim; i++) {
-                    if (work_arr2[i] != 0.0) {
-                        diag[i] = work_arr2[i];
-                    } else {
-                        diag[i] = 1.0;
-                    }
-                }
-            }
-
-            m_xnorm = snls::linalg::norm<m_nDim>(m_x);
-            m_delta = m_factor * m_xnorm;
-            if (m_delta == 0.0) {
-                m_delta = m_factor; 
-            }
-        }
-
-        if (scaleDiag) {
-            for (int i = 0; i < m_nDim; i++) {
-                diag[i] = (diag[i] > work_arr2[i]) ? diag[i] : work_arr2[i];
-            }
-        }
-
         // Jacobian is our R matrix and Q
+        // could re-use nrstep, grad, and delx given if we're already here than we need to reset our solver
+        // so these arrays can be used as scratch arrays.
         snls::houseHolderQR<m_nDim, m_nDim>(Jacobian, Q, work_arr1, work_arr2, work_arr3);
-
+        // Nothing crazy here as qtf = Q^T * residual
         snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, qtf);
 
-        // std::cout << "R" << std::endl;
-        // snls::linalg::printMat<m_nDim>(Jacobian);
-        // std::cout << "Q" << std::endl;
-        // snls::linalg::printMat<m_nDim>(Q);
-        // std::cout << "qtf" << std::endl;
-        // snls::linalg::printVec<m_nDim>(qtf);
-        // std::cout << "diag" << std::endl;
-        // snls::linalg::printVec<m_nDim>(diag);
-
-        for (int i = 0; i < m_nDim; i++) {
-            work_arr1[i] = m_x[i];
-        }
+        // we're essentially starting over here so we can reset these values
+        bool reject_prev = false;
+        double Jg_2 = 0.0;
+        double res_0 = m_res;
 
         for (;;) {
-            // Determine the direction p
-            this->dogleg(work_arr1, Jacobian, diag, qtf, m_delta);
-            // Store the direction of p and x + p
-            double pnorm = 0.0;
-            for (int i = 0; i < m_nDim; i++) {
-                work_arr1[i] *= -1.0; 
-                // If our solution isn't satisfactory later on we'll
-                // reject the solution and calculate the new value of things
-                m_x[i] += work_arr1[i];
-                pnorm += (diag[i] * work_arr1[i]) * (diag[i] * work_arr1[i]);
+
+            // This is done outside this step so that these operations can be done with varying solve
+            // techniques such as LU/QR or etc...
+            if(!reject_prev) {
+               // So the LU solve does things in-place which causes issues when calculating the grad term...
+               // So, we need to pull this out and perform this operation first
+               // R^T * Q^T * f
+               // Need a version of the below that can do the transpose...
+               // work_arr1 = grad
+               snls::linalg::matUTriTVecMult<m_nDim, m_nDim>(Jacobian, qtf, grad);
+               {
+                  double ntemp[m_nDim];
+                  snls::linalg::matUTriVecMult<m_nDim, m_nDim>(Jacobian, grad, ntemp);
+                  Jg_2 = snls::linalg::dotProd<m_nDim>(ntemp, ntemp);
+               }
+               // R x = Q^T f solve
+               this->computeNewtonStep( Jacobian, qtf, nrStep);
             }
-            pnorm = sqrt(pnorm);
+            //
+            double pred_resid;
+            bool use_nr = false;
 
-            // std::cout << "work_arr1" << std::endl;
-            // snls::linalg::printVec<m_nDim>(work_arr1);
-            // std::cout << "m_x" << std::endl;
-            // snls::linalg::printVec<m_nDim>(m_x);
+            // If step was rejected nrStep will be the same value and so we can just recalculate it here
+            const double nr_norm = snls::linalg::norm<_nDim>(nrStep);
 
+            // computes the updated delta x, predicated residual error, and whether or not NR method was used.
+            snls::dogleg<_nDim>(m_delta, res_0, nr_norm, Jg_2, grad, nrStep,
+                                delx, m_x, pred_resid, use_nr, m_os);
+            reject_prev = false;
 
-            // On the first iteration adjust the initial step bound
-            if (m_nIters == 1) {
-                m_delta = fmin(m_delta, pnorm);
-            }
+            //
+            bool rjSuccess = this->computeRJ(residual, nullptr) ; // at _x
+            // Could also potentially include the reject previous portion in here as well
+            // if we want to keep this similar to the batch version of things
+            snls::updateDelta<_nDim>(m_deltaControl, residual, res_0, pred_resid, nr_norm, m_tolerance, use_nr, rjSuccess,
+                                    m_delta, m_res, m_rhoLast, reject_prev, m_status, m_os);
+            // This new check is required due to moving all the delta update stuff into its own function to share features between codes
+            if(_status != SNLSStatus_t::unConverged) { return; }
 
-            // Evaluate the function at x + p and calculate its norm
-            // Previously iterations kept x and residual seperated by
-            // making use of working arrays...
-            // This is a waste of memory as we can just use residual and x arrays.
-            // Also, we currently don't check on the success of this...
-            // and we should at this back in at some point
-            // However in the mean time, this is to quite the compiler
-            // bool rjSuccess = 
-            this->computeRJ(residual, nullptr);
-            // Need to think about what to do if this fails as things
-            // are handled differently from the TrDL solver.
-            // if ( !(rjSuccess) ) {
-            //     m_status = initEvalFailure;
-            //     return m_status;
-            // }
-            m_fevals += 1;
-
-            const double res1 = snls::linalg::norm<m_nDim>(residual);
-
-            // Compute the scaled actual reduction
-            double actual_reduction = -1.0;
-            // Compute 2nd power
-            if (res1 < m_res) {
-                const double tmp = res1 / m_res;
-                actual_reduction = 1.0 - (tmp * tmp); 
+            if ( reject_prev ) {
+#ifdef __cuda_host_only__
+               if ( m_os != nullptr ) {
+                  *m_os << "rejecting solution" << std::endl ;
+               }
+#endif
+               m_res = res_0 ;
+               this->reject( delx ) ;
             }
 
-            // Compute the predicted reduction
-            snls::linalg::matUTriVecMult<m_nDim, m_nDim>(Jacobian, work_arr1, work_arr3);
-            double sum = 0.0;
-            for (int i = 0; i < m_nDim; i++) {
-                // work_arr3 = R \Delta x + Q^T F
-                // where F here is our residual vector
-                work_arr3[i] += qtf[i];
-                sum += (work_arr3[i] * work_arr3[i]);
-            }
-            sum = sqrt(sum);
+            // Look at a relative reduction in residual to see if convergence is slow
+            const double actual_reduction = 1.0 - m_res / res_0;
 
-            double predicted_reduction = 0.0;
-
-            // Compute 2nd power
-            if (sum < m_res) {
-                sum = sum / m_res;
-                predicted_reduction = 1.0 - sum * sum;
-            }
-
-            // Compute the ratio of the actual to the predicted reduction
-            const double ratio = (predicted_reduction > 0.0) ? (actual_reduction / predicted_reduction) : 0.0;
-
-            // Update the step bound
-            if (ratio < 0.1) {
-                m_ncsuc = 0;
-                m_ncfail += 1;
-                m_delta *= 0.5;
-            }
-            else {
-                m_ncfail = 0;
-                m_ncsuc += 1;
-                if (ratio > 0.5 || m_ncsuc > 1) {
-                    m_delta = fmax(m_delta, 2.0 * pnorm);
-                }
-                if (fabs(ratio - 1.0) <= 0.1) {
-                    m_delta = 2.0 * pnorm;
-                }
-            }
-
-            // Test for successful iteration
-            if (ratio >= 1e-4) {
-                // Successful iteration
-                // Update norms
-                double sum = 0.0;
-                for (int i = 0; i < m_nDim; i++) {
-                    sum += (diag[i] * m_x[i]) * (diag[i] * m_x[i]);
-                }
-                m_xnorm = sqrt(sum);
-                m_res = res1;
-                m_nIters += 1;
-            }
-            else {
-                // Iteration failed
-                // revert x back to old values
-                for (int i = 0; i < m_nDim; i++) {
-                    m_x[i] -= work_arr1[i];
-                }
+            // Delta has been updated from a bounds already
+            // Check to see if we need to recalculate jacobian
+            m_ncfail = (m_rhoLast < 0.1) ? (m_ncfail + 1) : 0;
+            if (m_ncfail == 2) {
+                // leave inner loop and go for the next outer loop iteration
+                return m_status;
             }
 
             // Determine the progress of the iteration
             m_nslow1 = (actual_reduction >= 0.001) ? 0 : (m_nslow1 + 1);
-            if (jeval) {
-                m_nslow2 += 1;
-            }
-            if (actual_reduction >= 0.1) {
-                m_nslow2 = 0;
-            }
-            // Test for convergence
-            if ((m_delta <= (m_x_tolerance * m_xnorm)) || (m_res < m_f_tolerance)) {
-                m_status = converged;
-#ifdef __cuda_host_only__
-                if ( m_os != nullptr ) {
-                    *m_os << "converged" << std::endl ;
-                }
-#endif
-                return m_status;
-            }
+            m_nslow2 = (jeval && (actual_reduction < 0.1)) ? (m_nslow2 + 1) : 0;
 
             // Tests for termination and stringent tolerances
-            if (m_fevals >= m_maxfev) {
-                m_status = unConvergedMaxIter;
-                return m_status;
-            }
-            if (0.1 * fmax(0.1 * m_delta, pnorm) <= epsmch * m_xnorm) {
-                m_status = deltaFailure;
-                return m_status;
-            }
             if (m_nslow2 == 5) {
                 m_status = slowJacobian;
                 return m_status;
@@ -452,150 +302,54 @@ class SNLSHybrdDenseG
                 m_status = slowConvergence;
                 return m_status;
             }
-
-            // Criterion for recalculating jacobian
-            if (m_ncfail == 2) {
-                // leave inner loop and go for the next outer loop iteration
-                return m_status;
-            }
-
-            // calculate the rank one modification to the jacobian
-            // and update qtf if necessary
+            // Only calculate this if solution wasn't rejected
+            if( !reject_prev ) 
             {
-                const double ipnorm = 1.0 / pnorm;
+                // Here we can use delx, nrStep, and grad as working arrays as we're just going
+                // to rewrite them in a second...
+                // nrStep = (R * delx + Q^T * f_i)
+                snls::linalg::matUTriVecMult<m_nDim, m_nDim>(Jacobian, delx, nrStep);
+                double sum = 0.0;
                 for (int i = 0; i < m_nDim; i++) {
-                    work_arr1[i] = diag[i] * diag[i] * work_arr1[i] * ipnorm;
+                    // work_arr3 = R \Delta x + Q^T F
+                    // where F here is our residual vector
+                    nrStep[i] += qtf[i];
                 }
-                snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, work_arr2);
-                if (ratio >= 1e-4) {
+                // calculate the rank one modification to the jacobian
+                // and update qtf if necessary
+                {
+                    // delx = delx / ||delx||_L2
+                    const double idxnorm = 1.0 / snls::linalg::norm<m_nDim>(delx);
                     for (int i = 0; i < m_nDim; i++) {
-                        qtf[i] = work_arr2[i];
+                        delx[i] = delx[i] * idxnorm;
+                    }
+                    snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, grad);
+                    if (ratio >= 1e-4) {
+                        for (int i = 0; i < m_nDim; i++) {
+                            qtf[i] = grad[i];
+                        }
+                    }
+                    // grad = (Q^T * f_{i+1} - Q^T * f_i - R * delx)
+                    for (int i = 0; i < m_nDim; i++) {
+                        grad[i] = (grad[i] - nrStep[i]) * idxnorm;
                     }
                 }
-                for (int i = 0; i < m_nDim; i++) {
-                    work_arr2[i] = (work_arr2[i] - work_arr3[i]) * ipnorm;
-                }
-            }
 
-            // compute the qr factorization of the updated jacobian
-            bool singular = false;
-            this->rank1_updt(Jacobian, Q, qtf, work_arr3, singular, work_arr1, work_arr2);
-            if (singular) {
-                m_status = algFailure;
-                return m_status;
+                // compute the qr factorization of the updated jacobian
+                bool singular = false;
+                this->rank1_update(Jacobian, Q, qtf, nrStep, singular, delx, grad);
+                if (singular) {
+                    m_status = algFailure;
+                    return m_status;
+                }
+            // 
             }
+            res_0 = m_res;
+            m_fevals += 1;
             jeval = false;
         } // End of while loop
         // Return the unconverged result
         return m_status;
-    }
-
-    // Based on Eigen NonlinearSolver dogleg code
-    // which is based on the old MINPACK version of things
-    __snls_hdev__
-    inline
-    void dogleg(double* const x,
-                const double* const qrfac,
-                const double* const diag, 
-                const double* const qtb, 
-                const double delta)
-    {
-        const double epsmch = snls::dbl_epsmch;
-        double work_arr1[m_nDim] = { 0.0 };
-        double work_arr2[m_nDim] = { 0.0 };
-        const double ndim1 = m_nDim - 1;
-        // Calculating the gauss-newton direction
-        for (int i = ndim1; i > -1; i-- ) {
-            double temp = qrfac[SNLS_NN_INDX(i, i, m_nDim)];
-            if (temp == 0.0) {
-                double max = 0.0;
-                for (int j = 0; j < i+1; j++) {
-                    if (qrfac[SNLS_NN_INDX(j, i, m_nDim)] > max) {
-                        max = qrfac[SNLS_NN_INDX(j, i, m_nDim)];
-                    }
-                }
-                temp = (max == 0.0) ? epsmch : max * epsmch;
-            }
-            double sum = 0.0;
-            for (int j = i + 1; j < m_nDim; j++) {
-                sum += qrfac[SNLS_NN_INDX(i, j, m_nDim)] * x[j];
-            }
-            x[i] = (qtb[i] - sum) / temp;
-        }
-
-        // Check to see if the gauss-newton direction is acceptable
-        // Scale x by diag and then take L2 norm
-        double sum = 0.0;
-        for (int i = 0; i < m_nDim; i++) {
-            sum += (diag[i] * x[i]) * (diag[i] * x[i]);
-        }
-        const double qnorm = sqrt(sum);
-
-        if (qnorm <= delta) {
-            return;
-        }
-        
-        // The gauss-newton direction is not acceptable
-        // so calculate the scaled gradient direction
-        for (int i = 0; i < m_nDim; i++) {
-            for (int j = i; j < m_nDim; j++) {
-                work_arr2[j] += qrfac[SNLS_NN_INDX(i, j, m_nDim)] * qtb[i]; 
-            }
-            work_arr2[i] /= diag[i];
-        }
-
-        // Norm of the scaled gradient and check for special case in 
-        // which the scaled gradient is zero.  
-        const double gnorm = snls::linalg::norm<m_nDim>(work_arr2);
-        double sgnorm = 0.0;
-        double alpha = delta / qnorm;
-        
-        if (gnorm != 0.0) {
-            // Find the point along the scaled gradient
-            // from which the quadratic is minimized.
-            for (int i = 0; i < m_nDim; i++) {
-                work_arr2[i] /= (diag[i] * gnorm);
-            }
-
-            for (int i = 0; i < m_nDim; i++) {
-                double sum = 0.0;
-                for (int j = i; j < m_nDim; j++) {
-                    sum += qrfac[SNLS_NN_INDX(i, j, m_nDim)] * work_arr2[j];
-                }
-                work_arr1[i] = sum;
-            }
-
-            const double itemp = 1.0 / snls::linalg::norm<m_nDim>(work_arr1);
-            sgnorm = gnorm * itemp * itemp;
-            alpha = 0.0;
-            // Test whether the scaled gradient direction is acceptable
-            if (sgnorm < delta) {
-                // The scaled gradient direction is not acceptable
-                // Now , calculate the point along the dogleg
-                // at which the quadratic is minimized.
-
-                const double bnorm = snls::linalg::norm<m_nDim>(qtb);
-                const double iqnorm = 1.0 / qnorm;
-                const double idelta = 1.0 / delta;
-                double temp = (bnorm / gnorm) * (bnorm * iqnorm) * (sgnorm * idelta);
-                // Computing 2nd power
-                const double d1 = (sgnorm * idelta);
-                const double d2 = temp - delta * iqnorm;
-                const double d3 = delta * iqnorm;
-                const double d4 = sgnorm * idelta;
-
-                temp = temp - delta * iqnorm * (d1 * d1) + sqrt(d2 * d2 + (1.0 - d3 * d3) * (1.0 - d4 * d4));
-                alpha = delta * iqnorm * (1.0 - d1 * d1) / temp;
-            }
-        }
-
-        // Form appropriate convex combination of the gauss-newton 
-        // direction and the scaled gradient direction.
-        const double temp = (1.0 - alpha) * fmin(sgnorm, delta);
-        for (int i = 0; i < m_nDim; i++) {
-            x[i] = temp * work_arr2[i] + alpha * x[i];
-        }
-        return;
     }
 
     // So, the original algorithms kept the rank1_updt and the updates to Q and QtF separate. We're
@@ -603,37 +357,37 @@ class SNLSHybrdDenseG
     // rotation between steps.
     __snls_hdev__
     inline
-    void rank1_updt(double* const smat, 
-                    double* const qmat, 
-                    double* const qtf, 
-                    double* const w, 
-                    bool& sing, 
-                    const double* const u, 
-                    const double* const v) 
+    void rank1_update(double* const rmat, 
+                     double* const qmat, 
+                     double* const qtf, 
+                     double* const resid_vec, // (R * \Delta x + Q^T * f_i)
+                     bool& sing, 
+                     const double* const delx_normalized, // delta x / || delta_x||_L2
+                     const double* const del_resid_vec)  // (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x)
     {
         const int ndim1 = m_nDim - 1;
         double givens[2];
-        double vn = v[ndim1];
+        double del_resid_vec_n = del_resid_vec[ndim1];
         
-        // Move the nontrivial part of the last column of s into w
-        w[ndim1] = smat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)];
+        // Move the nontrivial part of the last column of R into (R * delx + Q^T * f_i)
+        resid_vec[ndim1] = rmat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)];
 
-        // Rotate the vector v into a multiple of the n-th unit vector in
-        // such a way that a spike is introduced into w
+        // Rotate the vector (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x) into a multiple of the n-th unit vector in
+        // such a way that a spike is introduced into (R * \Delta x + Q^T * f_i)
         for (int i = ndim1 - 1; i > -1; i--) {
-            w[i] = 0;
-            if (v[i] != 0.0) {
+            resid_vec[i] = 0;
+            if (del_resid_vec[i] != 0.0) {
                 // Determine a givens rotation which eliminates the information
                 // necessary to recover the givens rotation
-                makeGivens(givens, -vn, v[i]);
+                makeGivens(givens, -del_resid_vec_n, del_resid_vec[i]);
                 
-                vn = givens[1] * v[i] + givens[0] * vn;
+                del_resid_vec_n = givens[1] * del_resid_vec[i] + givens[0] * del_resid_vec_n;
 
                 // Apply the transformation to s and extend the spike in w
                 for (int j = i; j < m_nDim; j++) {
-                    const double temp = givens[0] * smat[SNLS_NN_INDX(i, j, m_nDim)] - givens[1] * w[j];
-                    w[j] = givens[1] * smat[SNLS_NN_INDX(i, j, m_nDim)] + givens[0] * w[j];
-                    smat[SNLS_NN_INDX(i, j, m_nDim)] = temp;
+                    const double temp = givens[0] * rmat[SNLS_NN_INDX(i, j, m_nDim)] - givens[1] * resid_vec[j];
+                    resid_vec[j] = givens[1] * rmat[SNLS_NN_INDX(i, j, m_nDim)] + givens[0] * resid_vec[j];
+                    rmat[SNLS_NN_INDX(i, j, m_nDim)] = temp;
                 }
             }
             else {
@@ -657,20 +411,20 @@ class SNLSHybrdDenseG
 
         // Add the spike from the rank1 update to w
         for (int i = 0; i < m_nDim; i++) {
-            w[i] += vn * u[i];
+            resid_vec[i] += del_resid_vec_n * delx_normalized[i];
         }
 
         // Eliminate the spike
         sing = false;
         for (int i = 0; i < ndim1; i++) {
-            if (w[i] != 0.0) {
+            if (resid_vec[i] != 0.0) {
                 // Determine a givens rotation which eliminates the i-th element of the spike
-                makeGivens(givens, -smat[SNLS_NN_INDX(i, i, m_nDim)], w[i]);
+                makeGivens(givens, -rmat[SNLS_NN_INDX(i, i, m_nDim)], resid_vec[i]);
                 // Apply the transformation to s and reduce the spike in w
                 for (int j = i; j < m_nDim; j++) {
-                    const double temp = givens[0] * smat[SNLS_NN_INDX(i, j, m_nDim)] + givens[1] * w[j];
-                    w[j] = -givens[1] * smat[SNLS_NN_INDX(i, j, m_nDim)] + givens[0] * w[j];
-                    smat[SNLS_NN_INDX(i, j, m_nDim)] = temp;
+                    const double temp = givens[0] * rmat[SNLS_NN_INDX(i, j, m_nDim)] + givens[1] * resid_vec[j];
+                    resid_vec[j] = -givens[1] * rmat[SNLS_NN_INDX(i, j, m_nDim)] + givens[0] * resid_vec[j];
+                    rmat[SNLS_NN_INDX(i, j, m_nDim)] = temp;
                 }
             }
             else {
@@ -678,7 +432,7 @@ class SNLSHybrdDenseG
                 givens[1] = 0.0;
             }
             // Test for zero diagonal in output
-            if (smat[SNLS_NN_INDX(i, i, m_nDim)] == 0.0) {
+            if (rmat[SNLS_NN_INDX(i, i, m_nDim)] == 0.0) {
                 sing = true;
             }
 
@@ -697,7 +451,7 @@ class SNLSHybrdDenseG
         }
 
         // Move w back into the last column of the output s
-        smat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)] = w[ndim1];
+        rmat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)] = resid_vec[ndim1];
     }
 
     // Class member variables
@@ -708,13 +462,13 @@ class SNLSHybrdDenseG
 
     private:
     static const int m_nXnDim = m_nDim * m_nDim;
+    TrDeltaControl* m_deltaControl;
     int m_fevals, m_nIters, m_jevals;
     int m_maxfev,  m_outputLevel, m_maxIter;
     int m_ncsuc, m_ncfail, m_nslow1, m_nslow2;
-    double m_delta, m_factor;
-    double m_x_tolerance, m_f_tolerance;
+    double m_delta, m_rhoLast;
+    double m_tolerance;
     double m_res;
-    double m_xnorm;
     bool m_complete = false;
 
 #ifdef __cuda_host_only__

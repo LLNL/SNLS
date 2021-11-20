@@ -22,6 +22,38 @@
 namespace snls {
 namespace batch {
 
+/** Helper templates to ensure compliant CRJ implementations */
+template<typename CRJ, typename = void>
+struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_valid_computeRJ <
+   CRJ,typename std::enable_if<
+       std::is_void<
+           decltype(std::declval<CRJ>().computeRJ(std::declval<rview2d&>(), std::declval<rview3d&>(), std::declval<const rview2d&>(), 
+                    std::declval<rview1b&>(), std::declval<const chai::ManagedArray<SNLSStatus_t>&>(),
+                    std::declval<const int>(), std::declval<const int>())) 
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
+template<typename CRJ, typename = void>
+struct has_ndim : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_ndim <
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(CRJ::nDimSys),
+           const int  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
 // So this function computes the delta x and then updates the solution variable for a batch of data
 // The user is responsible for providing a potentially updated gradient, Jg_2, nrStep terms.
 template<int nDim>
