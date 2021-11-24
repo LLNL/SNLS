@@ -6,7 +6,7 @@
 using namespace std;
 
 #include "SNLS_config.h"
-#include "SNLS_NLSPowell.h"
+#include "SNLS_HybrdTrDLDenseG.h"
 #include "SNLS_TrDelta.h"
 #include "SNLS_kernels.h"
 

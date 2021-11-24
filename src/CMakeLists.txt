@@ -5,12 +5,12 @@ set(SNLS_HEADERS
     SNLS_port.h
     SNLS_lup_solve.h
     SNLS_TrDelta.h
+    SNLS_HybrdTrDLDenseG.h
     SNLS_TrDLDenseG.h
     SNLS_TrDLDenseG_Batch.h
     SNLS_NewtonBB.h
     SNLS_device_forall.h
     SNLS_memory_manager.h
-    SNLS_NLSPowell.h
     SNLS_qr_solve.h
     SNLS_linalg.h
     SNLS_kernels.h
