@@ -340,22 +340,23 @@ inline void rotMatrix(const double* const mat,
 
 template<int n>
 inline void
-printVec(const double* const y) {
+printVec(const double* const y,
+        std::ostream & oss = std::cout) {
     for (int iX = 0; iX<n; ++iX) {
-        std::cout << std::setw(21) << std::setprecision(14) << y[iX] << " ";
+        oss << std::setw(21) << std::setprecision(14) << y[iX] << " ";
     }
-
-    std::cout << std::endl;
+    oss << std::endl;
 }
 
 template<int n>
 inline void
-printMat(const double* const A) {
+printMat(const double* const A,
+        std::ostream & oss = std::cout) {
     for (int iX = 0; iX<n; ++iX) {
         for (int jX = 0; jX<n; ++jX) {
-            std::cout << std::setw(21) << std::setprecision(14) << A[SNLS_NN_INDX(iX, jX, n)] << " ";
+            oss << std::setw(21) << std::setprecision(14) << A[SNLS_NN_INDX(iX, jX, n)] << " ";
         }
-        std::cout << std::endl;
+        oss << std::endl;
     }
 }
 

@@ -22,6 +22,10 @@ namespace snls {
 // using QR factorization
 // Method is inspired by SNLS current trust region dogleg solver, Powell's original hybrid method for
 // nonlinear equations, and MINPACK's modified version of it.
+// Powell's original hybrid method can be found at:
+// M. J. D. Powell, "A hybrid method for nonlinear equations", in Numerical methods for nonlinear algebraic equations, 
+// Philip Rabinowitz, editor, chapter 6, pages 87-114, Gordon and Breach Science Publishers, New York, 1970.
+// MINPACK's user guide is found at https://doi.org/10.2172/6997568
 //
 // CRJ should :
 // 	have member function
@@ -30,6 +34,8 @@ namespace snls {
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
 //
+// Might want to look into having this templated on a class that controls the delta as well as the trust region can be a bit aggressive in how it determines such things
+// and which can lead to solvers to fail.
 template< class CRJ>
 class SNLSHybrdTrDLDenseG 
 {
@@ -163,8 +169,50 @@ class SNLSHybrdTrDLDenseG
     inline bool computeRJ(double* const r,
                           double* const J ) 
     {
+        m_fevals += ((J == nullptr) ? 1 : 0);
+        m_jevals += ((J == nullptr) ? 0 : 1);
         bool retval = this->m_crj.computeRJ(r, J, m_x);
-        // Add the finite difference portion of things back in here at a later point        
+#ifdef SNLS_DEBUG
+#ifdef __cuda_host_only__
+         if ( m_outputLevel > 2 && m_os != nullptr ) {
+            // do finite differencing
+            // assume system is scaled such that perturbation size can be standard
+
+            double r_base[m_nDim]; 
+            for ( int jX = 0; jX < m_nDim ; ++jX ) {
+               r_base[jX] = r[jX] ;
+            }
+            
+            const double pert_val     = 1.0e-7 ;
+            const double pert_val_inv = 1.0/pert_val ;
+            
+            double J_FD[m_nXnDim] ;
+            
+            for ( int iX = 0; iX < m_nDim ; ++iX ) {
+               double r_pert[m_nDim];
+               double x_pert[m_nDim];
+               for ( int jX = 0; jX < m_nDim ; ++jX ) {
+                  x_pert[jX] = m_x[jX] ;
+               }
+               x_pert[iX] = x_pert[iX] + pert_val ;
+               bool retvalThis = this->m_crj.computeRJ( r_pert, nullptr, x_pert ) ;
+               if ( !retvalThis ) {
+                  SNLS_FAIL(__func__, "Problem while finite-differencing");
+               }
+               for ( int iR = 0; iR < m_nDim ; iR++ ) {
+                  J_FD[SNLS_NN_INDX(iR,iX,m_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
+               }
+            }
+            
+            *m_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( J,    *m_os ) ;
+            *m_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( J_FD, *m_os ) ;
+
+            // put things back the way they were ;
+            retval = this->m_crj.computeRJ(r, J, m_x);
+            
+         } // _os != nullptr
+#endif
+#endif        
         return retval;  
     }
 
@@ -174,9 +222,9 @@ class SNLSHybrdTrDLDenseG
     inline
     SNLSStatus_t solveInit(double* const residual)
     {
-        m_jevals = 0;
-        m_fevals = 1; 
         m_status = snls::unConverged;
+        m_fevals = 0;
+        m_jevals = 0;
         // at m_x
         bool rjSuccess = this->computeRJ(residual, nullptr);
         if ( !(rjSuccess) ) {
@@ -186,6 +234,11 @@ class SNLSHybrdTrDLDenseG
         
         
         m_res = snls::linalg::norm<m_nDim>(residual);
+
+#ifdef __cuda_host_only__
+         if (m_os) { *m_os << "res = " << m_res << std::endl ; }
+#endif
+
         m_delta = m_deltaControl->getDeltaInit();
         
         // initialize iteration counter and monitors
@@ -211,17 +264,10 @@ class SNLSHybrdTrDLDenseG
 
         bool rjSuccess = this->computeRJ(residual, Jacobian);
         // If this fails our solver is in trouble and needs to die.
-#ifdef SNLS_DEBUG
-        std::cout << "Residual updated calculation: " << std::endl; 
-        snls::linalg::printVec<m_nDim>(residual);
-        std::cout << "Jacobian updated calculation: " << std::endl; 
-        snls::linalg::printMat<m_nDim>(Jacobian);
-#endif
         if ( !(rjSuccess) ) {
             m_status = evalFailure;
             return m_status;
         }
-        m_jevals += 1;
 
         // Jacobian is our R matrix and Q
         // could re-use nrstep, grad, and delx given if we're already here than we need to reset our solver
@@ -229,15 +275,6 @@ class SNLSHybrdTrDLDenseG
         snls::houseHolderQR<m_nDim, m_nDim>(Jacobian, Q, grad, nrStep, delx);
         // Nothing crazy here as qtf = Q^T * residual
         snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, qtf);
-
-#ifdef SNLS_DEBUG
-        std::cout << "Initial Q calculation: " << std::endl; 
-        snls::linalg::printMat<m_nDim>(Q);
-        std::cout << "Intial R calculation: " << std::endl; 
-        snls::linalg::printMat<m_nDim>(Jacobian);
-        std::cout << "Initial Q^T f calculation" << std::endl;
-        snls::linalg::printVec<m_nDim>(qtf);
-#endif
 
         // we're essentially starting over here so we can reset these values
         bool reject_prev = false;
@@ -252,11 +289,6 @@ class SNLSHybrdTrDLDenseG
                 // So the LU solve does things in-place which causes issues when calculating the grad term...
                 // So, we need to pull this out and perform this operation first
                 // R^T * Q^T * f
-                // Need a version of the below that can do the transpose...
-                // work_arr1 = grad
-                // const int ndim1 = m_nDim - 1;
-                // const double tmp = Jacobian[SNLS_NN_INDX(ndim1, ndim1, m_nDim)];
-                // Jacobian[SNLS_NN_INDX(ndim1, ndim1, m_nDim)] = 1.0;
                 snls::linalg::matUTriTVecMult<m_nDim, m_nDim>(Jacobian, qtf, grad);
                 {
                     double ntemp[m_nDim];
@@ -273,13 +305,6 @@ class SNLSHybrdTrDLDenseG
                     m_status = algFailure;
                     return m_status;
                 }
-                // Jacobian[SNLS_NN_INDX(ndim1, ndim1, m_nDim)] = tmp;
-#ifdef SNLS_DEBUG
-                std::cout << "Gradient calculation and Jg2: " << Jg_2 <<std::endl; 
-                snls::linalg::printVec<m_nDim>(grad);
-                std::cout << "NR Step calculation: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(nrStep);
-#endif
             }
             //
             double pred_resid;
@@ -294,23 +319,10 @@ class SNLSHybrdTrDLDenseG
             reject_prev = false;
             //
             bool rjSuccess = this->computeRJ(residual, nullptr) ; // at _x
-#ifdef SNLS_DEBUG
-                std::cout << "Predicted residual " << pred_resid << " use_nr " << use_nr << std::endl;
-                std::cout << "Delta x: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(delx);
-                std::cout << "Updated x: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(m_x);
-                std::cout << "Updated residual: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(residual);
-#endif
             // Could also potentially include the reject previous portion in here as well
             // if we want to keep this similar to the batch version of things
             snls::updateDelta<m_nDim>(m_deltaControl, residual, res_0, pred_resid, nr_norm, m_tolerance, use_nr, rjSuccess,
                                      m_delta, m_res, m_rhoLast, reject_prev, m_status, m_os);
-#ifdef SNLS_DEBUG
-                std::cout << "Updated delta " << m_delta << " m_res " << m_res << " m_rhoLast " << m_rhoLast <<std::endl;
-                std::cout << "Reject previous " << reject_prev << std::endl;
-#endif
             // This new check is required due to moving all the delta update stuff into its own function to share features between codes
             if(m_status != SNLSStatus_t::unConverged) { return m_status; }
 
@@ -326,9 +338,6 @@ class SNLSHybrdTrDLDenseG
 
             // Look at a relative reduction in residual to see if convergence is slow
             const double actual_reduction = 1.0 - m_res / res_0;
-#ifdef SNLS_DEBUG
-                std::cout << "actual reduction " << actual_reduction <<std::endl;
-#endif
             // Delta has been updated from a bounds already
             // Check to see if we need to recalculate jacobian
             m_ncfail = (m_rhoLast < 0.1) ? (m_ncfail + 1) : 0;
@@ -378,15 +387,6 @@ class SNLSHybrdTrDLDenseG
                     for (int i = 0; i < m_nDim; i++) {
                         grad[i] = (grad[i] - nrStep[i]) * idxnorm;
                     }
-#ifdef SNLS_DEBUG
-                std::cout << "Inverse delta x " << idxnorm << std::endl;
-                std::cout << "Delta x / delxnorm: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(delx);
-                std::cout << "Error Residual vector: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(nrStep);
-                std::cout << "Updated Error Residual vector: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(grad);
-#endif
                 }
 
                 // compute the qr factorization of the updated jacobian
@@ -396,18 +396,9 @@ class SNLSHybrdTrDLDenseG
                     m_status = algFailure;
                     return m_status;
                 }
-#ifdef SNLS_DEBUG
-                std::cout << "Updated Q: " << std::endl; 
-                snls::linalg::printMat<m_nDim>(Q);
-                std::cout << "Updated R: " << std::endl; 
-                snls::linalg::printMat<m_nDim>(Jacobian);
-                std::cout << "Updated Q^T f: " << std::endl; 
-                snls::linalg::printVec<m_nDim>(qtf);
-#endif
             // 
             }
             res_0 = m_res;
-            m_fevals += 1;
             jeval = false;
         } // End of while loop
         // Return the unconverged result
@@ -458,25 +449,33 @@ class SNLSHybrdTrDLDenseG
         return true;
     }
 
-    // So, the original algorithms kept the rank1_updt and the updates to Q and QtF separate. We're
-    // going to combine them into one step to completely eliminate the need to save off the givens
-    // rotation between steps.
+    // This performs a Broyden Rank-1 style update for Q, R and Q^T f
+    // This version has origins in this paper:
+    // Gill, Philip E., et al. "Methods for modifying matrix factorizations." Mathematics of computation 28.126 (1974): 505-535.
+    // However, you can generally find it described in more approachable manners else where on the internet
+    // 
+    // The Broyden update method is described in:
+    // Broyden, Charles G. "A class of methods for solving nonlinear simultaneous equations." Mathematics of computation 19.92 (1965): 577-593.
+    // Additional resources that might  be of interest are:
+    // Chapter 8 of https://doi.org/10.1137/1.9781611971200.ch8
+    // or the pseudo-algorithms / code for how to update things in
+    // Appendix A of https://doi.org/10.1137/1.9781611971200.appa
+
     __snls_hdev__
     inline
     void rank1_update(const double* const delx_normalized, // delta x / || delta_x||_L2
-                      const double* const del_resid_vec,
+                      const double* const del_resid_vec, // (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x)
                       double* const rmat, 
                       double* const qmat, 
                       double* const qtf, 
                       double* const resid_vec, // (R * \Delta x + Q^T * f_i)
                       bool& sing
-                     )  // (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x)
+                     )  
     {
         const int ndim1 = m_nDim - 1;
         double givens[2];
         double del_resid_vec_n = del_resid_vec[ndim1];
         
-        // Move the nontrivial part of the last column of R into (R * delx + Q^T * f_i)
         resid_vec[ndim1] = rmat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)];
 
         // Rotate the vector (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x) into a multiple of the n-th unit vector in
@@ -490,7 +489,7 @@ class SNLSHybrdTrDLDenseG
                 
                 del_resid_vec_n = givens[1] * del_resid_vec[i] + givens[0] * del_resid_vec_n;
 
-                // Apply the transformation to s and extend the spike in w
+                // Apply the transformation to R and extend the spike in (R * \Delta x + Q^T * f_i)
                 for (int j = i; j < m_nDim; j++) {
                     const double temp = givens[0] * rmat[SNLS_NN_INDX(i, j, m_nDim)] - givens[1] * resid_vec[j];
                     resid_vec[j] = givens[1] * rmat[SNLS_NN_INDX(i, j, m_nDim)] + givens[0] * resid_vec[j];
@@ -501,7 +500,7 @@ class SNLSHybrdTrDLDenseG
                 givens[0] = 1.0;
                 givens[1] = 0.0; 
             }
-            // 1st updates of Q and qtf
+            // 1st updates of Q and Q^T f
             for (int j = 0; j < m_nDim; j++) {
                 const double temp = givens[0] * qmat[SNLS_NN_INDX(j, i, m_nDim)] - givens[1] * qmat[SNLS_NN_INDX(j, ndim1, m_nDim)];
                 qmat[SNLS_NN_INDX(j, ndim1, m_nDim)] = givens[1] * qmat[SNLS_NN_INDX(j, i, m_nDim)] + givens[0] * qmat[SNLS_NN_INDX(j, ndim1, m_nDim)];
@@ -516,7 +515,7 @@ class SNLSHybrdTrDLDenseG
 
         }
 
-        // Add the spike from the rank1 update to w
+        // Add the spike from the Rank-1 update to (R * \Delta x + Q^T * f_i)
         for (int i = 0; i < m_nDim; i++) {
             resid_vec[i] += del_resid_vec_n * delx_normalized[i];
         }
@@ -527,7 +526,7 @@ class SNLSHybrdTrDLDenseG
             if (resid_vec[i] != 0.0) {
                 // Determine a givens rotation which eliminates the i-th element of the spike
                 makeGivens(givens, -rmat[SNLS_NN_INDX(i, i, m_nDim)], resid_vec[i]);
-                // Apply the transformation to s and reduce the spike in w
+                // Apply the transformation to R and reduce the spike in (R * \Delta x + Q^T * f_i)
                 for (int j = i; j < m_nDim; j++) {
                     const double temp = givens[0] * rmat[SNLS_NN_INDX(i, j, m_nDim)] + givens[1] * resid_vec[j];
                     resid_vec[j] = -givens[1] * rmat[SNLS_NN_INDX(i, j, m_nDim)] + givens[0] * resid_vec[j];
@@ -543,7 +542,7 @@ class SNLSHybrdTrDLDenseG
                 sing = true;
             }
 
-            // 2nd update of Q and qtf
+            // 2nd update of Q and Q^T F
             for (int j = 0; j < m_nDim; j++) {
                 const double temp = givens[0] * qmat[SNLS_NN_INDX(j, i, m_nDim)] + givens[1] * qmat[SNLS_NN_INDX(j, ndim1, m_nDim)];
                 qmat[SNLS_NN_INDX(j, ndim1, m_nDim)] = -givens[1] * qmat[SNLS_NN_INDX(j, i, m_nDim)] + givens[0] * qmat[SNLS_NN_INDX(j, ndim1, m_nDim)];
@@ -557,7 +556,7 @@ class SNLSHybrdTrDLDenseG
             } 
         }
 
-        // Move w back into the last column of the output s
+        // Move (R * \Delta x + Q^T * f_i) back into the last column of the output R
         rmat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)] = resid_vec[ndim1];
     }
 

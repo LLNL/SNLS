@@ -19,8 +19,11 @@
 #include <exception>
 #include <stdexcept>
 #define SNLS_FAIL(loc,str) throw std::runtime_error(std::string("at ") + std::string(loc) + std::string(" failure : ") + std::string(str)) ;
+#define SNLS_WARN(loc, str) printf("WARNING : SNLS warning in %s : %s\n", loc, str);
 #else
 #define SNLS_FAIL(loc,str) printf("ERROR : SNLS failure in %s : %s\n",loc,str) ;
+#define SNLS_WARN(loc, str) printf("WARNING : SNLS warning in %s : %s\n", loc, str);
+
 #endif
 
 #endif
