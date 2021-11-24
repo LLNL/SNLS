@@ -7,6 +7,8 @@ using namespace std;
 
 #include "SNLS_config.h"
 #include "SNLS_NLSPowell.h"
+#include "SNLS_TrDelta.h"
+#include "SNLS_kernels.h"
 
 #ifndef LAMBDA_BROYDEN 
 #define LAMBDA_BROYDEN 0.9999
@@ -184,8 +186,10 @@ TEST(snls, chebyquad_a) // int main(int , char ** )
    const int nDim = ChebyQuad<3>::nDimSys;
 
    ChebyQuad<3> chebyquad; // LAMBDA_BROYDEN 
-   snls::SNLSHybrdDenseG<ChebyQuad<3>, true> solver(chebyquad);
-   solver.setupSolver(NL_MAXITER, NL_TOLER, NL_TOLER, 100.0, 1);
+   snls::SNLSHybrdTrDLDenseG<ChebyQuad<3>> solver(chebyquad);
+   snls::TrDeltaControl deltaControl;
+   deltaControl._deltaInit = 1e0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
   
    double h = 1.0 / (((double) nDim) + 1.0);
    for (int j = 0; j < nDim; j++){
@@ -217,8 +221,10 @@ TEST(snls, chebyquad_b) // int main(int , char ** )
    const int nDim = ChebyQuad<5>::nDimSys;
 
    ChebyQuad<5> chebyquad; // LAMBDA_BROYDEN 
-   snls::SNLSHybrdDenseG<ChebyQuad<5>, true> solver(chebyquad);
-   solver.setupSolver(NL_MAXITER, NL_TOLER, NL_TOLER, 100.0, 1);
+   snls::SNLSHybrdTrDLDenseG<ChebyQuad<5>> solver(chebyquad);
+   snls::TrDeltaControl deltaControl;
+   deltaControl._deltaInit = 1e0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
   
    double h = 1.0 / (((double) nDim) + 1.0);
    for (int j = 0; j < nDim; j++){
@@ -250,8 +256,10 @@ TEST(snls,broyden_a) // int main(int , char ** )
    const int nDim = Broyden::nDimSys ;
 
    Broyden broyden(0.9999) ; // LAMBDA_BROYDEN 
-   snls::SNLSHybrdDenseG<Broyden, false> solver(broyden);
-   solver.setupSolver(NL_MAXITER, NL_TOLER, NL_TOLER, 100.0, 1);
+   snls::SNLSHybrdTrDLDenseG<Broyden> solver(broyden);
+   snls::TrDeltaControl deltaControl;
+   deltaControl._deltaInit = 1e0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
 
    for (int iX = 0; iX < nDim; ++iX) {
       solver.m_x[iX] = 0e0 ;
@@ -284,8 +292,10 @@ TEST(snls,broyden_b) // int main(int , char ** )
    const int nDim = Broyden::nDimSys ;
 
    Broyden broyden(0.99999999) ; // LAMBDA_BROYDEN 
-   snls::SNLSHybrdDenseG<Broyden, false> solver(broyden);
-   solver.setupSolver(NL_MAXITER, NL_TOLER, NL_TOLER, 100.0, 1);
+   snls::SNLSHybrdTrDLDenseG<Broyden> solver(broyden);
+   snls::TrDeltaControl deltaControl;
+   deltaControl._deltaInit = 1e0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
 
    for (int iX = 0; iX < nDim; ++iX) {
       solver.m_x[iX] = 0e0 ;
@@ -318,8 +328,10 @@ TEST(snls,broyden_c) // int main(int , char ** )
    const int nDim = Broyden::nDimSys ;
 
    Broyden broyden(0.99) ; // LAMBDA_BROYDEN 
-   snls::SNLSHybrdDenseG<Broyden, false> solver(broyden);
-   solver.setupSolver(NL_MAXITER, NL_TOLER, NL_TOLER, 100.0, 1);
+   snls::SNLSHybrdTrDLDenseG<Broyden> solver(broyden);
+   snls::TrDeltaControl deltaControl;
+   deltaControl._deltaInit = 1e0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
 
    for (int iX = 0; iX < nDim; ++iX) {
       solver.m_x[iX] = 0e0 ;

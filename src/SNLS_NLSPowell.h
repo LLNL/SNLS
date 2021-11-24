@@ -4,6 +4,8 @@
 #include "SNLS_base.h"
 #include "SNLS_qr_solve.h"
 #include "SNLS_linalg.h"
+#include "SNLS_TrDelta.h"
+#include "SNLS_kernels.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -97,7 +99,7 @@ class SNLSHybrdTrDLDenseG
     {
         m_status = unConverged;
         m_fevals = 0;
-        m_jevals = 0
+        m_jevals = 0;
 
         m_maxIter = maxIter;
         m_maxfev = maxIter;
@@ -150,7 +152,7 @@ class SNLSHybrdTrDLDenseG
 
         // Run our solver until it converges or fails
         while (m_status == unConverged && m_nIters < m_maxIter && m_fevals < m_maxIter) {
-            solveStep(residual, Jacobian, Qmat, diag, qtf, work_arr1, work_arr2, work_arr3);
+            solveStep(residual, Jacobian, Qmat, qtf, work_arr1, work_arr2, work_arr3);
         }
 
         return m_status;
@@ -199,13 +201,11 @@ class SNLSHybrdTrDLDenseG
     SNLSStatus_t solveStep(double* const residual,
                            double* const Jacobian,
                            double* const Q,
-                           double* const diag,
                            double* const qtf,
                            double* const grad,
                            double* const nrStep,
                            double* const delx)
     {
-        const double epsmch = snls::dbl_epsmch;
         bool jeval = true;
 
         bool rjSuccess = this->computeRJ(residual, Jacobian);
@@ -219,7 +219,7 @@ class SNLSHybrdTrDLDenseG
         // Jacobian is our R matrix and Q
         // could re-use nrstep, grad, and delx given if we're already here than we need to reset our solver
         // so these arrays can be used as scratch arrays.
-        snls::houseHolderQR<m_nDim, m_nDim>(Jacobian, Q, work_arr1, work_arr2, work_arr3);
+        snls::houseHolderQR<m_nDim, m_nDim>(Jacobian, Q, grad, nrStep, delx);
         // Nothing crazy here as qtf = Q^T * residual
         snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, qtf);
 
@@ -245,17 +245,25 @@ class SNLSHybrdTrDLDenseG
                   Jg_2 = snls::linalg::dotProd<m_nDim>(ntemp, ntemp);
                }
                // R x = Q^T f solve
-               this->computeNewtonStep( Jacobian, qtf, nrStep);
+               // If R is signular we fail out of the solve with an error on the CPU
+               // On the GPU, the fail just prints out and  doesn't abort anything so
+               // we return this signal notifying us of the failure which can then be passed
+               // onto the other libraries / application codes using SNLS.
+               const bool singular = this->computeNewtonStep( Jacobian, qtf, nrStep);
+               if (singular) {
+                    m_status = algFailure;
+                    return m_status;
+                }
             }
             //
             double pred_resid;
             bool use_nr = false;
 
             // If step was rejected nrStep will be the same value and so we can just recalculate it here
-            const double nr_norm = snls::linalg::norm<_nDim>(nrStep);
+            const double nr_norm = snls::linalg::norm<m_nDim>(nrStep);
 
             // computes the updated delta x, predicated residual error, and whether or not NR method was used.
-            snls::dogleg<_nDim>(m_delta, res_0, nr_norm, Jg_2, grad, nrStep,
+            snls::dogleg<m_nDim>(m_delta, res_0, nr_norm, Jg_2, grad, nrStep,
                                 delx, m_x, pred_resid, use_nr, m_os);
             reject_prev = false;
 
@@ -263,10 +271,10 @@ class SNLSHybrdTrDLDenseG
             bool rjSuccess = this->computeRJ(residual, nullptr) ; // at _x
             // Could also potentially include the reject previous portion in here as well
             // if we want to keep this similar to the batch version of things
-            snls::updateDelta<_nDim>(m_deltaControl, residual, res_0, pred_resid, nr_norm, m_tolerance, use_nr, rjSuccess,
-                                    m_delta, m_res, m_rhoLast, reject_prev, m_status, m_os);
+            snls::updateDelta<m_nDim>(m_deltaControl, residual, res_0, pred_resid, nr_norm, m_tolerance, use_nr, rjSuccess,
+                                     m_delta, m_res, m_rhoLast, reject_prev, m_status, m_os);
             // This new check is required due to moving all the delta update stuff into its own function to share features between codes
-            if(_status != SNLSStatus_t::unConverged) { return; }
+            if(m_status != SNLSStatus_t::unConverged) { return m_status; }
 
             if ( reject_prev ) {
 #ifdef __cuda_host_only__
@@ -275,7 +283,7 @@ class SNLSHybrdTrDLDenseG
                }
 #endif
                m_res = res_0 ;
-               this->reject( delx ) ;
+               this->reject( delx );
             }
 
             // Look at a relative reduction in residual to see if convergence is slow
@@ -309,7 +317,6 @@ class SNLSHybrdTrDLDenseG
                 // to rewrite them in a second...
                 // nrStep = (R * delx + Q^T * f_i)
                 snls::linalg::matUTriVecMult<m_nDim, m_nDim>(Jacobian, delx, nrStep);
-                double sum = 0.0;
                 for (int i = 0; i < m_nDim; i++) {
                     // work_arr3 = R \Delta x + Q^T F
                     // where F here is our residual vector
@@ -324,10 +331,8 @@ class SNLSHybrdTrDLDenseG
                         delx[i] = delx[i] * idxnorm;
                     }
                     snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, grad);
-                    if (ratio >= 1e-4) {
-                        for (int i = 0; i < m_nDim; i++) {
-                            qtf[i] = grad[i];
-                        }
+                    for (int i = 0; i < m_nDim; i++) {
+                        qtf[i] = grad[i];
                     }
                     // grad = (Q^T * f_{i+1} - Q^T * f_i - R * delx)
                     for (int i = 0; i < m_nDim; i++) {
@@ -337,7 +342,7 @@ class SNLSHybrdTrDLDenseG
 
                 // compute the qr factorization of the updated jacobian
                 bool singular = false;
-                this->rank1_update(Jacobian, Q, qtf, nrStep, singular, delx, grad);
+                this->rank1_update(delx, grad, Jacobian, Q, qtf, nrStep, singular);
                 if (singular) {
                     m_status = algFailure;
                     return m_status;
@@ -352,18 +357,60 @@ class SNLSHybrdTrDLDenseG
         return m_status;
     }
 
+    // This just does the solve of
+    // R x = Q^T f
+    // where we're solving for x
+    // Since R is upper diagonal this  is a trivial process.
+    __snls_hdev__
+    inline
+    bool computeNewtonStep(const double* const rmat,
+                           const double* const func,
+                           double* const x,
+                           const double tol = 1e-50)
+    {
+        const double ndim1 = m_nDim - 1;
+        for (int i = ndim1; i > -1; i-- ) {
+            double temp = rmat[SNLS_NN_INDX(i, i, m_nDim)];
+            // If R has a tiny diagonal diagonal 
+            if (temp < tol) {
+                // We could try something like the above to make sure this function always
+                // succeeds, but just results in a large value in the solution vector
+                // double max = 0.0;
+                // for (int j = 0; j < i+1; j++) {
+                //     if (rmat[SNLS_NN_INDX(j, i, m_nDim)] > max) {
+                //         max = rmat[SNLS_NN_INDX(j, i, m_nDim)];
+                //     }
+                // }
+                // temp = (max == 0.0) ? epsmch : max * snls::dbl_epsmch;
+                // If R is signular we fail out of the solve with an error on the CPU
+               // On the GPU, the fail just prints out and  doesn't abort anything so
+               // we return this signal notifying us of the failure which can then be passed
+               // onto the other libraries / application codes using SNLS.
+                SNLS_FAIL(__func__, "Diagonal term in R matrix was too small");
+                return false;
+            }
+            double sum = 0.0;
+            for (int j = i + 1; j < m_nDim; j++) {
+                sum += rmat[SNLS_NN_INDX(i, j, m_nDim)] * x[j];
+            }
+            x[i] = (func[i] - sum) / temp;
+        }
+        return true;
+    }
+
     // So, the original algorithms kept the rank1_updt and the updates to Q and QtF separate. We're
     // going to combine them into one step to completely eliminate the need to save off the givens
     // rotation between steps.
     __snls_hdev__
     inline
-    void rank1_update(double* const rmat, 
-                     double* const qmat, 
-                     double* const qtf, 
-                     double* const resid_vec, // (R * \Delta x + Q^T * f_i)
-                     bool& sing, 
-                     const double* const delx_normalized, // delta x / || delta_x||_L2
-                     const double* const del_resid_vec)  // (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x)
+    void rank1_update(const double* const delx_normalized, // delta x / || delta_x||_L2
+                      const double* const del_resid_vec,
+                      double* const rmat, 
+                      double* const qmat, 
+                      double* const qtf, 
+                      double* const resid_vec, // (R * \Delta x + Q^T * f_i)
+                      bool& sing
+                     )  // (Q^T * f_{i+1} - Q^T * f_i - R * \Delta x)
     {
         const int ndim1 = m_nDim - 1;
         double givens[2];
@@ -452,6 +499,15 @@ class SNLSHybrdTrDLDenseG
 
         // Move w back into the last column of the output s
         rmat[SNLS_NN_INDX(ndim1, ndim1, m_nDim)] = resid_vec[ndim1];
+    }
+
+    __snls_hdev__
+    inline
+    void reject( const double* const delx )
+    {
+        for (int i = 0; i < m_nDim; i++) {
+            m_x[i] -= delx[i];
+        }
     }
 
     // Class member variables

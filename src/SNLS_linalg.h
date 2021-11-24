@@ -171,6 +171,29 @@ inline void matUTriVecMult(const double* const M,
     }
 }
 
+/// Upper triangle matrix transpose vector product
+/// M is an upper triangle matrix 
+/// (values below the diagonal are assummed zero)
+/// M has dimensions ndim x mdim
+/// a has dimensions mdim
+/// p has dimensions ndim
+/// ndim <= mdim
+template<int ndim, int mdim>
+__snls_hdev__
+inline void matUTriTVecMult(const double* const M,
+                           const double* const a,
+                           double* const p)
+{
+    // 
+    for (int iN = 0; iN < ndim; ++iN) {
+        p[iN] = 0.0;
+        // M_ji * a_j = p_i
+        // Only go down to diagonal
+        for (int jM = 0; jM <= iN; ++jM) {
+            p[iN] += M[jM * mdim + iN] * a[jM];
+        }
+    }
+}
 
 /// Matrix-matrix multiplication
 /// mat1 has dimensions ldim x ndim
