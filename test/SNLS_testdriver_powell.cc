@@ -189,6 +189,7 @@ TEST(snls, chebyquad_a) // int main(int , char ** )
    snls::SNLSHybrdTrDLDenseG<ChebyQuad<3>> solver(chebyquad);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
+   deltaControl._xiDecDelta = 0.5;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
   
    double h = 1.0 / (((double) nDim) + 1.0);
@@ -224,6 +225,7 @@ TEST(snls, chebyquad_b) // int main(int , char ** )
    snls::SNLSHybrdTrDLDenseG<ChebyQuad<5>> solver(chebyquad);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
+   deltaControl._xiDecDelta = 0.5;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
   
    double h = 1.0 / (((double) nDim) + 1.0);
@@ -259,6 +261,7 @@ TEST(snls,broyden_a) // int main(int , char ** )
    snls::SNLSHybrdTrDLDenseG<Broyden> solver(broyden);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
+   deltaControl._xiDecDelta = 0.5;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
 
    for (int iX = 0; iX < nDim; ++iX) {
@@ -295,6 +298,7 @@ TEST(snls,broyden_b) // int main(int , char ** )
    snls::SNLSHybrdTrDLDenseG<Broyden> solver(broyden);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
+   deltaControl._xiDecDelta = 0.5;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
 
    for (int iX = 0; iX < nDim; ++iX) {
@@ -331,6 +335,7 @@ TEST(snls,broyden_c) // int main(int , char ** )
    snls::SNLSHybrdTrDLDenseG<Broyden> solver(broyden);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
+   deltaControl._xiDecDelta = 0.5;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 1);
 
    for (int iX = 0; iX < nDim; ++iX) {

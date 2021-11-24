@@ -36,7 +36,7 @@ void houseHolderVec(double& beta,
         beta = 0.0;
     }
     else if( sigma == 0.0 && x[0] < 0.0) {
-        beta = -2.0;
+        beta = 0.0;
     }
     else {
         const double mu = sqrt(x[0] * x[0] + sigma);
