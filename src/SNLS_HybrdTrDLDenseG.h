@@ -34,8 +34,8 @@ namespace snls {
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
 //
-// Might want to look into having this templated on a class that controls the delta as well as the trust region can be a bit aggressive in how it determines such things
-// and which can lead to solvers to fail.
+// Might want to look into having this templated on a class that controls the delta as well as the trust region can at times decrease the step control a bit
+// too fast which can lead the solver to fail.
 template< class CRJ>
 class SNLSHybrdTrDLDenseG 
 {
@@ -169,7 +169,7 @@ class SNLSHybrdTrDLDenseG
     inline bool computeRJ(double* const r,
                           double* const J ) 
     {
-        m_fevals += ((J == nullptr) ? 1 : 0);
+        m_fevals += 1;
         m_jevals += ((J == nullptr) ? 0 : 1);
         bool retval = this->m_crj.computeRJ(r, J, m_x);
 #ifdef SNLS_DEBUG
@@ -272,13 +272,14 @@ class SNLSHybrdTrDLDenseG
         // Jacobian is our R matrix and Q
         // could re-use nrstep, grad, and delx given if we're already here than we need to reset our solver
         // so these arrays can be used as scratch arrays.
-        snls::houseHolderQR<m_nDim, m_nDim>(Jacobian, Q, grad, nrStep, delx);
+        snls::householderQR<m_nDim, m_nDim>(Jacobian, Q, grad, nrStep, delx);
         // Nothing crazy here as qtf = Q^T * residual
         snls::linalg::matTVecMult<m_nDim, m_nDim>(Q, residual, qtf);
 
         // we're essentially starting over here so we can reset these values
         bool reject_prev = false;
         double Jg_2 = 0.0;
+        // m_res is set initially in solveInit and later on in snls::updateDelta, so it's always set
         double res_0 = m_res;
 
         for (;;) {
@@ -310,7 +311,7 @@ class SNLSHybrdTrDLDenseG
             double pred_resid;
             bool use_nr = false;
 
-            // If step was rejected nrStep will be the same value and so we can just recalculate it here
+            // If the step was rejected nrStep will be the same value as previously, and so we can just recalculate nr_norm here.
             const double nr_norm = snls::linalg::norm<m_nDim>(nrStep);
 
             // computes the updated delta x, predicated residual error, and whether or not NR method was used.
@@ -319,11 +320,8 @@ class SNLSHybrdTrDLDenseG
             reject_prev = false;
             //
             bool rjSuccess = this->computeRJ(residual, nullptr) ; // at _x
-            // Could also potentially include the reject previous portion in here as well
-            // if we want to keep this similar to the batch version of things
             snls::updateDelta<m_nDim>(m_deltaControl, residual, res_0, pred_resid, nr_norm, m_tolerance, use_nr, rjSuccess,
                                      m_delta, m_res, m_rhoLast, reject_prev, m_status, m_os);
-            // This new check is required due to moving all the delta update stuff into its own function to share features between codes
             if(m_status != SNLSStatus_t::unConverged) { return m_status; }
 
             if ( reject_prev ) {
@@ -421,7 +419,7 @@ class SNLSHybrdTrDLDenseG
             double temp = rmat[SNLS_NN_INDX(i, i, m_nDim)];
             // If R has a tiny diagonal diagonal 
             if (fabs(temp) < tol) {
-                // We could try something like the above to make sure this function always
+                // We could try something like the coding below to make sure this function always
                 // succeeds, but just results in a large value in the solution vector
                 // double max = 0.0;
                 // for (int j = 0; j < i+1; j++) {
@@ -452,7 +450,7 @@ class SNLSHybrdTrDLDenseG
     // This performs a Broyden Rank-1 style update for Q, R and Q^T f
     // This version has origins in this paper:
     // Gill, Philip E., et al. "Methods for modifying matrix factorizations." Mathematics of computation 28.126 (1974): 505-535.
-    // However, you can generally find it described in more approachable manners else where on the internet
+    // However, you can generally find it described in more approachable manners elsewhere on the internet
     // 
     // The Broyden update method is described in:
     // Broyden, Charles G. "A class of methods for solving nonlinear simultaneous equations." Mathematics of computation 19.92 (1965): 577-593.

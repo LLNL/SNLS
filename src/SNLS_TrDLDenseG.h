@@ -44,7 +44,7 @@ namespace snls {
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
 //
-// TODO ...*** specialize to N=1 case, nad N=2 also?
+// TODO ...*** specialize to N=1 case, and N=2 also?
 //
 template< class CRJ >
 class SNLSTrDlDenseG 
@@ -169,6 +169,7 @@ class SNLSTrDlDenseG
          double grad[_nDim];
          double delx[_nDim];
          double Jg_2;
+
          //
          while ( _nIters < _maxIter ) {
             //
@@ -186,12 +187,13 @@ class SNLSTrDlDenseG
                   Jg_2 = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                }
                this->computeNewtonStep( Jacobian, residual, nrStep );
+
             }
             //
             double pred_resid;
             bool use_nr = false;
 
-            // If step was rejected nrStep will be the same value and so we can just recalculate it here
+            // If the step was rejected nrStep will be the same value as previously, and so we can just recalculate nr_norm here.
             const double nr_norm = snls::linalg::norm<_nDim>(nrStep);
 
             // computes the updated delta x, predicated residual error, and whether or not NR method was used.
@@ -202,11 +204,8 @@ class SNLSTrDlDenseG
             //
             {
                bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
-               // Could also potentially include the reject previous portion in here as well
-               // if we want to keep this similar to the batch version of things
                snls::updateDelta<_nDim>(_deltaControl, residual, res_0, pred_resid, nr_norm, _tolerance, use_nr, rjSuccess,
                                         _delta, _res, _rhoLast, reject_prev, _status, _os);
-               // This new check is required due to moving all the delta update stuff into its own function to share features between codes
                if(_status != SNLSStatus_t::unConverged) { break; }
             }
 
@@ -267,8 +266,8 @@ class SNLSTrDlDenseG
                }
             }
             
-            *_os << "J_an = " << std::endl ; printMatJ( J,    *_os ) ;
-            *_os << "J_fd = " << std::endl ; printMatJ( J_FD, *_os ) ;
+            *_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( J,    *_os ) ;
+            *_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( J_FD, *_os ) ;
 
             // put things back the way they were ;
             retval = this->_crj.computeRJ(r, J, _x);
@@ -340,30 +339,6 @@ class SNLSTrDlDenseG
             _x[iX] = _x[iX] - delX[iX] ;
          }
       }
-      
-   public:
-   
-#ifdef SNLS_DEBUG
-#ifdef __cuda_host_only__
-      __snls_hdev__ void  printVecX         (const double* const y, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            oss << y[iX] << " " ;
-         }
-         oss << std::endl ;
-      }
-      
-      __snls_hdev__ void  printMatJ         (const double* const A, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            for ( int jX=0; jX<_nDim; ++jX) {
-               oss << std::setw(21) << std::setprecision(11) << A[SNLS_NN_INDX(iX,jX,_nDim)] << " " ;
-            }
-            oss << std::endl ;
-         } 
-      }
-#endif
-#endif
 
    public:
       double _x[_nDim] ;

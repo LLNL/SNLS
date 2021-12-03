@@ -15,6 +15,7 @@ namespace snls {
 
 const double dbl_epsmch = 2.220446049250313e-16;
 
+/// All matrices are assummed to be ordered in row-major order
 namespace linalg {
 
 /// Dot product of two vectors
@@ -43,7 +44,6 @@ inline double norm(const double* const vec)
 
 /// Takes the norm of the columns of a matrix
 /// where the matrix has dimensions nxm
-/// This assumes that matrix is ordered in row-major order
 /// The values are stored in norm_vec which is of length m
 template<int ndim, int mdim>
 __snls_hdev__
@@ -78,7 +78,7 @@ inline void normColumn(const double* const matrix,
 /// mat has dimensions ndim x mdim
 template <int ndim, int mdim>
 __snls_hdev__
-inline void outerprod(const double* const vec1,
+inline void outerProd(const double* const vec1,
                       const double* const vec2,
                       double* const mat)
 {
@@ -143,8 +143,11 @@ inline void matTVecMult(const double* const M,
 {
     for (int iM = 0; iM < mdim; ++iM) {
         p[iM] = 0.0;
-        for (int jN = 0; jN < ndim; ++jN) {
-            p[iM] += M[jN * ndim + iM] * a[jN];
+    }
+
+    for (int iN = 0; iN < ndim; ++iN) {
+        for (int jM = 0; jM < mdim; ++jM) {
+            p[jM] += M[iN * ndim + jM] * a[iN];
         }
     }
 }

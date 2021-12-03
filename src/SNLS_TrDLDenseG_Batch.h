@@ -42,6 +42,12 @@ extern "C" {
 /// array (wdata), the chai execution space (es), and the offset into
 /// that chai array for the raja view
 #define SNLS_RSETUP(wdata, es, offset) &(wdata.data(es))[offset]
+// Macros related to the number of local and global single and vector
+// data for either double or bool data
+#define SNLS_BATCH_LOCAL_SPS 4
+#define SNLS_BATCH_GLOBAL_SPS 4
+#define SNLS_BATCH_LOCAL_VPS 4
+#define SNLS_BATCH_BOOL_PTS 3
 
 namespace snls {
 namespace batch{
@@ -93,8 +99,8 @@ class SNLSTrDlDenseG_Batch
       // nrStep, grad, delx, _residual
       // 3d arrays [_initial_batch_size, CRJ::nDimSys, CRJ::nDimSys]
       // _Jacobian
-      const int num_allocs = _initial_batch_size * (4 + (4 * CRJ::nDimSys) + CRJ::nDimSys * CRJ::nDimSys) +
-                             _npts * (2 + CRJ::nDimSys);
+      const int num_allocs = _initial_batch_size * (SNLS_BATCH_LOCAL_SPS + (SNLS_BATCH_LOCAL_VPS * CRJ::nDimSys) + CRJ::nDimSys * CRJ::nDimSys) +
+                             _npts * (SNLS_BATCH_GLOBAL_SPS + CRJ::nDimSys);
       wrk_data = mm.allocManagedArray<double>(num_allocs);
       _status = mm.allocManagedArray<SNLSStatus_t>(_npts);
       _fevals = mm.allocManagedArray<int>(_npts);
@@ -103,11 +109,11 @@ class SNLSTrDlDenseG_Batch
       // _rjSuccess is the only one accessible for external uses
       // 1d arrays [_initial_batch_size]
       // _rjSuccess, use_nr, reject_prev
-      wrkb_data = mm.allocManagedArray<bool>(3 * _initial_batch_size);
+      wrkb_data = mm.allocManagedArray<bool>(SNLS_BATCH_BOOL_PTS * _initial_batch_size);
       _rjSuccess.set_data(SNLS_RSETUP(wrkb_data, es, 0));
 
       int offset = 0;
-      _offset_work = _npts * (2 + CRJ::nDimSys)
+      _offset_work = _npts * (SNLS_BATCH_GLOBAL_SPS + CRJ::nDimSys)
                    + _initial_batch_size * (CRJ::nDimSys + CRJ::nDimSys * CRJ::nDimSys);
       _x.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _npts * CRJ::nDimSys;
@@ -204,14 +210,10 @@ class SNLSTrDlDenseG_Batch
       /**
        * Must call setupSolver before calling solve
        */
-      void   setupSolver(int maxIter,
+      void setupSolver(int maxIter,
                          double tolerance,
                          TrDeltaControl * deltaControl,
                          int outputLevel=0) {
-         SNLS_FORALL(i, 0, _npts, {
-            _status[i] = SNLSStatus_t::unConverged ;
-            _fevals[i] = 0;
-         });
 
          _maxIter = maxIter ;
          _tolerance = tolerance ;
@@ -259,11 +261,6 @@ class SNLSTrDlDenseG_Batch
          const int off2d = _initial_batch_size * _nDim;
          const int off1d = _initial_batch_size;
 
-         // 11 * batch_size + 5 * (batch_size * ndim) + 1 * batch_size * ndim*ndim
-         // internal memory usage for solver...
-         // if ndim = 8 and batch_size = 500k then this is roughly 460MBs
-         // We're probably close to 500 MBs total then for the solver at size
-         // if batch_size and npts are equal
          rview1d res_0(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
          rview1d nr_norm(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
@@ -289,7 +286,7 @@ class SNLSTrDlDenseG_Batch
             _mfevals = 0 ;
             _nJFact = 0 ;
             _nIters = 0 ;
-            // Checks to see if we're the last bulk and if not use the initial batch size
+            // Checks to see if we're the last block and if not use the initial batch size
             // if we are we need to either use initial batch size or the npts%initial_batch_size
             const int fin_batch = (_npts % _initial_batch_size == 0) ? _initial_batch_size : _npts % _initial_batch_size;
             const int batch_size = (iblk != numblks - 1) ? _initial_batch_size : fin_batch;
@@ -457,8 +454,8 @@ class SNLSTrDlDenseG_Batch
             for (int iBatch = 0; iBatch < batch_size; iBatch++) {
                const int moff = SNLS_MOFF(iBatch, _nXnDim);
                *_os << "Batch item # " << iBatch << std::endl;
-               *_os << "J_an = " << std::endl ; printMatJ( &J_data[moff],    *_os );
-               *_os << "J_fd = " << std::endl ; printMatJ( &J_FD_data[moff], *_os );
+               *_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_data[moff],    *_os ) ;
+               *_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_FD_data[moff], *_os ) ;
             }
 
             // Clean-up the memory these objects use.
@@ -540,7 +537,7 @@ class SNLSTrDlDenseG_Batch
          const int end = offset + batch_size;
          SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
          switch(Device::GetBackend()) {
-   #ifdef RAJA_ENABLE_CUDA
+#ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::CUDA): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
                RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
@@ -555,8 +552,8 @@ class SNLSTrDlDenseG_Batch
                red_add = (output.get() == batch_size) ? true : false;
                break;
             }
-   #endif
-   #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
+#endif
+#if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
             case(ExecutionStrategy::OPENMP): {
                //RAJA::ReduceBitAnd<RAJA::omp_reduce_ordered, bool> output(init_val);
                RAJA::ReduceSum<RAJA::omp_reduce_ordered, int> output(0);
@@ -571,7 +568,7 @@ class SNLSTrDlDenseG_Batch
                red_add = (output.get() == batch_size) ? true : false;
                break;
             }
-   #endif
+#endif
             case(ExecutionStrategy::CPU):
             default: {
                //RAJA::ReduceBitAnd<RAJA::seq_reduce, bool> output(init_val);
@@ -592,7 +589,7 @@ class SNLSTrDlDenseG_Batch
       } // end of status_exitable
 
       /// Performs a bitwise reduction and operation on _status to see if the
-      /// current batch can exit.
+      /// FD portion of computeRJ was successful
       template <const int NUMTHREADS>
       inline bool reduced_rjSuccess(rview1b &rJSuccess,
                                     const int batch_size)
@@ -642,28 +639,6 @@ class SNLSTrDlDenseG_Batch
       SNLSStatus_t * getStatusHost() {
          return _status.data(chai::ExecutionSpace::CPU);
       }
-   
-#ifdef SNLS_DEBUG
-#ifdef __cuda_host_only__
-      void  printVecX (const double* const y, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            oss << y[iX] << " " ;
-         }
-         oss << std::endl ;
-      }
-
-      void  printMatJ (const double* const A, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            for ( int jX=0; jX<_nDim; ++jX) {
-               oss << std::setw(21) << std::setprecision(11) << A[SNLS_NN_INDX(iX,jX,_nDim)] << " " ;
-            }
-            oss << std::endl ;
-         } 
-      }
-#endif
-#endif
 
    public:
       rview2d _x;

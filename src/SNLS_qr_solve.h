@@ -13,13 +13,13 @@
 
 namespace snls {
 
-// Need to add an actual QR solver in here at some point. It currently just contains just QR factorization functions
+// Need to add an actual QR solver in here at some point. It currently contains just QR factorization functions
 
 // Algorithm taken from Matrix Computation 4th ed. by GH Golub and CF Van Loan
 // pg. 236 alg. 5.1.1
 __snls_hdev__
 inline
-void houseHolderVec(double& beta,
+void householderVec(double& beta,
                     double* const nu,
                     const double *const x,
                     const int length) 
@@ -68,7 +68,7 @@ void houseHolderVec(double& beta,
 __snls_hdev__
 template<int m>
 inline
-void houseHolderQMat(double *const Q,
+void householderQMat(double *const Q,
                      const double *const matFac, 
                      const double *const betav)
 {
@@ -124,7 +124,7 @@ void houseHolderQMat(double *const Q,
 __snls_hdev__
 template<int m, int n>
 inline
-void houseHolderQR(double *const matrix,
+void householderQR(double *const matrix,
                    double *const Q,
                    double *const work_arr1,
                    double *const work_arr2,
@@ -137,7 +137,7 @@ void houseHolderQR(double *const matrix,
         for (int j = 0; j < (m - i); j++) {
             work_arr3[j] = matrix[SNLS_NM_INDX(i + j, i, n, m)];
         }
-        houseHolderVec(work_arr1[i], work_arr2, work_arr3, (m - i));
+        householderVec(work_arr1[i], work_arr2, work_arr3, (m - i));
         // work array 3 will contain the product nu.T * matrix[i:m, i:n]
         // It has dimensions of 1xn
         // We need to zero it first
@@ -168,7 +168,7 @@ void houseHolderQR(double *const matrix,
     }
     // Now back out the Q array. Although, we could maybe do this inline with the above
     // if we thought about this a bit more.
-    houseHolderQMat<m>(Q, matrix, work_arr1);
+    householderQMat<m>(Q, matrix, work_arr1);
 }
 
 __snls_hdev__

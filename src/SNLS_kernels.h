@@ -138,7 +138,7 @@ void dogleg(const double delta,
             const double qc = norm_s_sd_opt * norm_s_sd_opt - delta * delta;
             beta = (qb + sqrt(qb * qb - qa * qc)) / qa;
          }
-#ifdef SNLS_DEBUG
+#if defined(SNLS_DEBUG) && defined(SNLS_EXTRA_DEBUG_CHECKS)
          if ( beta > 1.0 || beta < 0.0 ) {
             SNLS_FAIL(__func__, "beta not in [0,1]") ;
          }
@@ -165,7 +165,7 @@ void dogleg(const double delta,
       } // if norm_s_sd_opt >= delta
    } // use_nr
 
-   // update x here as we want to avoid additional kernel calls
+   // update x here to keep in line with batch version
    for (int iX = 0; iX < nDim; iX++) {
       x[iX] += delx[iX];
    }
@@ -236,6 +236,8 @@ void updateDelta(const TrDeltaControl* const deltaControl,
             return; // while ( _nIters < _maxIter ) 
          }
       }
+      // Could also potentially include the reject previous portion in here as well
+      // if we want to keep this similar to the batch version of things
    }
 } // end update delta
 

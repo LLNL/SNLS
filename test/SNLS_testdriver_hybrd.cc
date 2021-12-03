@@ -113,6 +113,10 @@ public:
       static const int _nXn = nDimSys*nDimSys ;
 };
 
+// This problem is described originally in 
+// Fletcher, R. "Function minimization without evaluating derivatives - a review." The Computer Journal 8.1 (1965): 33-41.
+// doi: https://doi.org/10.1093/comjnl/8.1.33
+// It's original description in the Fletcher paper is a function that "represents those found in practice".
 template<int nd>
 class ChebyQuad
 {
@@ -181,12 +185,13 @@ class ChebyQuad
 
 };
 
-// This test will fail due to our delta being too aggressive which causes the solution to not move 
+// This test will fail due to how our trust region controls our step size
+// It's possible that this could be solved if we tuned the trust region parameters just right.
 TEST(snls, chebyquad_a) // int main(int , char ** )
 {
    const int nDim = ChebyQuad<3>::nDimSys;
 
-   ChebyQuad<3> chebyquad; // LAMBDA_BROYDEN 
+   ChebyQuad<3> chebyquad;
    snls::SNLSHybrdTrDLDenseG<ChebyQuad<3>> solver(chebyquad);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
@@ -199,10 +204,6 @@ TEST(snls, chebyquad_a) // int main(int , char ** )
    }
    //
    double r[nDim], J[nDim*nDim] ;
-   //
-   // any of these should be equivalent:
-   // broyden.computeRJ(r, J, solver._x);
-   // solver._crj.computeRJ(r, J, solver._x);
    solver.computeRJ(r, J); 
 
    snls::SNLSStatus_t status = solver.solve( );
@@ -213,19 +214,13 @@ TEST(snls, chebyquad_a) // int main(int , char ** )
       snprintf(errmsg, sizeof(errmsg), "Solver failed to converge! Using tol=%g and maxIter=%i",NL_TOLER,NL_MAXITER);
       SNLS_WARN(__func__,errmsg);
    }
-/*
-   std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";
-   std::cout << "Jacobian evaluations: " << solver.getNJEvals() << "\n";
-   EXPECT_EQ( solver.getNFEvals(), 30) << "Expected 29 function evaluations for this case";
-   EXPECT_EQ( solver.getNJEvals(), 3) << "Expected 3 jacobian evaluations for this case";
-*/
 }
 
 TEST(snls, chebyquad_b) // int main(int , char ** )
 {
    const int nDim = ChebyQuad<5>::nDimSys;
 
-   ChebyQuad<5> chebyquad; // LAMBDA_BROYDEN 
+   ChebyQuad<5> chebyquad;
    snls::SNLSHybrdTrDLDenseG<ChebyQuad<5>> solver(chebyquad);
    snls::TrDeltaControl deltaControl;
    deltaControl._deltaInit = 1e0;
@@ -238,10 +233,6 @@ TEST(snls, chebyquad_b) // int main(int , char ** )
    }
    //
    double r[nDim], J[nDim*nDim] ;
-   //
-   // any of these should be equivalent:
-   // broyden.computeRJ(r, J, solver._x);
-   // solver._crj.computeRJ(r, J, solver._x);
    solver.computeRJ(r, J); 
 
    snls::SNLSStatus_t status = solver.solve( );
@@ -253,7 +244,7 @@ TEST(snls, chebyquad_b) // int main(int , char ** )
    }
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";
    std::cout << "Jacobian evaluations: " << solver.getNJEvals() << "\n";
-   EXPECT_EQ( solver.getNFEvals(), 67) << "Expected 63 function evaluations for this case";
+   EXPECT_EQ( solver.getNFEvals(), 71) << "Expected 71 function evaluations for this case";
    EXPECT_EQ( solver.getNJEvals(), 4) << "Expected 4 jacobian evaluations for this case";
 }
 
@@ -290,7 +281,7 @@ TEST(snls,broyden_a) // int main(int , char ** )
    std::cout << "Jacobian evaluations: " << solver.getNJEvals() << "\n";
    std::cout << "Residual: " << solver.getRes() << "\n";
    snls::linalg::printVec<nDim>(solver.m_x);
-   EXPECT_EQ( solver.getNFEvals(), 28) << "Expected 28 function evaluations for this case";
+   EXPECT_EQ( solver.getNFEvals(), 30) << "Expected 30 function evaluations for this case";
    EXPECT_EQ( solver.getNJEvals(), 2) << "Expected 2 jacobian evaluations for this case";
 }
 
@@ -327,7 +318,7 @@ TEST(snls,broyden_b) // int main(int , char ** )
    std::cout << "Jacobian evaluations: " << solver.getNJEvals() << "\n";
    std::cout << "Residual: " << solver.getRes() << "\n";
    snls::linalg::printVec<nDim>(solver.m_x);
-   EXPECT_EQ( solver.getNFEvals(), 33) << "Expected 33 function evaluations for this case";
+   EXPECT_EQ( solver.getNFEvals(), 35) << "Expected 35 function evaluations for this case";
    EXPECT_EQ( solver.getNJEvals(), 2) << "Expected 2 jacobian evaluations for this case";
 }
 
@@ -362,7 +353,7 @@ TEST(snls,broyden_c) // int main(int , char ** )
    }
    std::cout << "Function evaluations: " << solver.getNFEvals() << "\n";
    std::cout << "Jacobian evaluations: " << solver.getNJEvals() << "\n";
-   EXPECT_EQ( solver.getNFEvals(), 21) << "Expected 21 function evaluations for this case";
+   EXPECT_EQ( solver.getNFEvals(), 23) << "Expected 23 function evaluations for this case";
    EXPECT_EQ( solver.getNJEvals(), 2) << "Expected 2 jacobian evaluations for this case";
 }
 

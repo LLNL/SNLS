@@ -61,15 +61,15 @@ __snls_host__
 inline
 void dogleg(const int offset,
             const int batch_size,
-            const chai::ManagedArray<SNLSStatus_t> &status,
-            const rview1d &delta,
+            const chai::ManagedArray<SNLSStatus_t> &status, // makes use of offset
+            const rview1d &delta, // makes use of offset
             const rview1d &res_0,
             const rview1d &nr_norm,
             const rview1d &Jg_2,
             const rview2d &grad,
             const rview2d &nrStep,
             rview2d &delx,
-            rview2d &x,
+            rview2d &x, // makes use of offset
             rview1d &pred_resid,
             rview1b &use_nr
             ) 
@@ -77,6 +77,7 @@ void dogleg(const int offset,
    SNLS_FORALL_T(i, 256, 0, batch_size,
    {
       // this breaks out of the internal lambda and is essentially a loop continue
+      // This check is to prevent the solver from further updating  the solution after a point has been solved/failed
       if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
       // No need to do any other calculations if this condition is true
       use_nr(i) = false;
@@ -141,11 +142,11 @@ void dogleg(const int offset,
                const double qc = norm_s_sd_opt * norm_s_sd_opt - delta(i + offset) * delta(i + offset);
                beta = (qb + sqrt(qb * qb - qa * qc)) / qa;
             }
-   #ifdef SNLS_DEBUG
+#if defined(SNLS_DEBUG) && defined(SNLS_EXTRA_DEBUG_CHECKS)
             if ( beta > 1.0 || beta < 0.0 ) {
                SNLS_FAIL(__func__, "beta not in [0,1]") ;
             }
-   #endif
+#endif
             beta = fmax(0.0, fmin(1.0, beta)) ; // to deal with any roundoff
 
             // delx[iX] = alpha*ngrad[iX] + beta*p[iX] = beta*nrStep[iX] - (1.0-beta)*alpha*grad[iX]
@@ -177,7 +178,7 @@ inline
 void updateDelta(const int offset,
                  const int batch_size,
                  const int mfevals,
-                 const TrDeltaControl* const deltaControl,
+                 const TrDeltaControl* const deltaControl, // makes use of offset
                  const rview2d &residual,
                  const rview1d &pred_resid,
                  const rview1d &nr_norm,
@@ -185,23 +186,23 @@ void updateDelta(const int offset,
                  const rview1b &rjSuccess,
                  const double tolerance,
                  rview2d &delx,
-                 rview2d &x,
+                 rview2d &x, // makes use of offset
                  rview1d res_0,
-                 rview1d res,
-                 rview1d delta,
+                 rview1d res, // makes use of offset
+                 rview1d delta, // makes use of offset
                  rview1b reject_prev,
-                 chai::ManagedArray<int> fevals,
-                 chai::ManagedArray<SNLSStatus_t> &status
+                 chai::ManagedArray<int> fevals, // makes use of offset
+                 chai::ManagedArray<SNLSStatus_t> &status // makes use of offset
                  ) 
 {
    // The below set of fused kernels compute the updated delta for the step size,
    // reject the previous solution if the computeRJ up above failed,
    // and updates the res0 if the solution is still unconverged.
-   // start of compute kernel 3
    SNLS_FORALL_T(i, 256, 0, batch_size,
    {
       // Update the delta kernel
       // this breaks out of the internal lambda and is essentially a loop continue
+      // This check is to prevent the solver from further updating  the solution after a point has been solved/failed
       if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
       reject_prev(i) = false;
       if ( !(rjSuccess(i)) ) {
@@ -246,7 +247,7 @@ void updateDelta(const int offset,
       }
       // update our res_0 for the next iteration
       res_0(i) = res(i + offset);
-   }); // end of batch compute kernel 3
+   });
 
 } // end batch update delta
 
