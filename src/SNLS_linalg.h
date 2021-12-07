@@ -143,13 +143,11 @@ inline void matTVecMult(const double* const M,
 {
     for (int iM = 0; iM < mdim; ++iM) {
         p[iM] = 0.0;
-    }
-
-    for (int iN = 0; iN < ndim; ++iN) {
-        for (int jM = 0; jM < mdim; ++jM) {
-            p[jM] += M[iN * ndim + jM] * a[iN];
+        for (int jN = 0; jN < ndim; ++jN) {
+            p[iM] += M[jN * ndim + iM] * a[jN];
         }
     }
+
 }
 
 /// Upper triangle matrix vector product
@@ -341,6 +339,7 @@ inline void rotMatrix(const double* const mat,
     }
 }
 
+#ifdef __cuda_host_only__
 template<int n>
 inline void
 printVec(const double* const y,
@@ -362,6 +361,7 @@ printMat(const double* const A,
         oss << std::endl;
     }
 }
+#endif
 
 } // End of linalg namespace
 } // End of snls namespace
