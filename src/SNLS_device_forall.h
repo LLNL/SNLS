@@ -49,6 +49,12 @@ end,                                             \
 #define SNLS_MOFF(ielem, ndim2) (ielem * ndim2)
 
 namespace snls {
+
+   typedef RAJA::View<bool, RAJA::Layout<1> > rview1b;
+   typedef RAJA::View<double, RAJA::Layout<1> > rview1d;
+   typedef RAJA::View<double, RAJA::Layout<2> > rview2d;
+   typedef RAJA::View<double, RAJA::Layout<3> > rview3d;
+
    /// ExecutionStrategy defines how one would like the
    /// computations done.
    /// CPU refers to serial executions of for loops on the Host

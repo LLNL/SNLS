@@ -3,10 +3,14 @@
 #ifndef SNLS_TRDLDG_BATCH_H
 #define SNLS_TRDLDG_BATCH_H
 
+// SNLS_base includes the type defs of the raja views
 #include "SNLS_base.h"
 #if defined(SNLS_RAJA_PERF_SUITE)
+#include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
+#include "SNLS_kernels_batch.h"
+
 #include "SNLS_device_forall.h"
 #include "SNLS_memory_manager.h"
 #include "RAJA/RAJA.hpp"
@@ -34,54 +38,19 @@ extern "C" {
 #endif
 
 //////////////////////////////////////////////////////////////////////
-// row-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
 /// This macro provides a simple way to set-up raja views given a chai
 /// array (wdata), the chai execution space (es), and the offset into
 /// that chai array for the raja view
 #define SNLS_RSETUP(wdata, es, offset) &(wdata.data(es))[offset]
+// Macros related to the number of local and global single and vector
+// data for either double or bool data
+#define SNLS_BATCH_LOCAL_SPS 4
+#define SNLS_BATCH_GLOBAL_SPS 2
+#define SNLS_BATCH_LOCAL_VPS 4
+#define SNLS_BATCH_BOOL_PTS 3
 
 namespace snls {
-
-// useful RAJA views for our needs
-typedef RAJA::View<bool, RAJA::Layout<1> > rview1b;
-typedef RAJA::View<double, RAJA::Layout<1> > rview1d;
-typedef RAJA::View<double, RAJA::Layout<2> > rview2d;
-typedef RAJA::View<double, RAJA::Layout<3> > rview3d;
-
 namespace batch{
-
-/** Helper templates to ensure compliant CRJ implementations */
-template<typename CRJ, typename = void>
-struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct has_valid_computeRJ <
-   CRJ,typename std::enable_if<
-       std::is_void<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<rview2d&>(), std::declval<rview3d&>(), std::declval<const rview2d&>(), 
-                    std::declval<rview1b&>(), std::declval<const chai::ManagedArray<SNLSStatus_t>&>(),
-                    std::declval<const int>(), std::declval<const int>())) 
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
-
-template<typename CRJ, typename = void>
-struct has_ndim : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct has_ndim <
-   CRJ,typename std::enable_if<
-       std::is_same<
-           decltype(CRJ::nDimSys),
-           const int  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
 
 // trust region type solver, dogleg approximation
 // for dense general Jacobian matrix
@@ -89,9 +58,9 @@ template< class CRJ >
 class SNLSTrDlDenseG_Batch 
 {
    public:
-      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( rview2d &r, rview3d &J, const rview2d &x,"
-                                                      " rview1b &rJSuccess, const chai::ManagedArray<SNLSStatus_t> &status, const int offset, const int nbatch )");
-      static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
+      static_assert(snls::batch::has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG_Batch needs to implement void computeRJ( rview2d &r, rview3d &J, const rview2d &x,"
+                                                                  " rview1b &rJSuccess, const chai::ManagedArray<SNLSStatus_t> &status, const int offset, const int nbatch )");
+      static_assert(snls::batch::has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
    public:
    /// constructor which requires the number of points to be set
@@ -125,14 +94,13 @@ class SNLSTrDlDenseG_Batch
       // solution variable _x, _delta, and l2 norm of residual (_res)
       // Working arrays used in the solve function are:
       // 1d arrays [_initial_batch_size]
-      // res_0, nr2norm, alpha, norm_s_sd_opt, norm_grad
-      // norm_grad_inv, qa, qb, Jg2, res_cauchy, pred_resid
+      // res_0, nr_norm, Jg2, pred_resid
       // 2d arrays [_initial_batch_size, CRJ::nDimSys]
-      // nrStep, grad, delx, solx, _residual
+      // nrStep, grad, delx, _residual
       // 3d arrays [_initial_batch_size, CRJ::nDimSys, CRJ::nDimSys]
       // _Jacobian
-      const int num_allocs = _initial_batch_size * (11 + (5 * CRJ::nDimSys) + CRJ::nDimSys * CRJ::nDimSys) + 
-                             _npts * (2 + CRJ::nDimSys);
+      const int num_allocs = _initial_batch_size * (SNLS_BATCH_LOCAL_SPS + (SNLS_BATCH_LOCAL_VPS * CRJ::nDimSys) + CRJ::nDimSys * CRJ::nDimSys) +
+                             _npts * (SNLS_BATCH_GLOBAL_SPS + CRJ::nDimSys);
       wrk_data = mm.allocManagedArray<double>(num_allocs);
       _status = mm.allocManagedArray<SNLSStatus_t>(_npts);
       _fevals = mm.allocManagedArray<int>(_npts);
@@ -141,11 +109,11 @@ class SNLSTrDlDenseG_Batch
       // _rjSuccess is the only one accessible for external uses
       // 1d arrays [_initial_batch_size]
       // _rjSuccess, use_nr, reject_prev
-      wrkb_data = mm.allocManagedArray<bool>(3 * _initial_batch_size);
+      wrkb_data = mm.allocManagedArray<bool>(SNLS_BATCH_BOOL_PTS * _initial_batch_size);
       _rjSuccess.set_data(SNLS_RSETUP(wrkb_data, es, 0));
 
       int offset = 0;
-      _offset_work = _npts * (2 + CRJ::nDimSys)
+      _offset_work = _npts * (SNLS_BATCH_GLOBAL_SPS + CRJ::nDimSys)
                    + _initial_batch_size * (CRJ::nDimSys + CRJ::nDimSys * CRJ::nDimSys);
       _x.set_data(SNLS_RSETUP(wrk_data, es, offset));
       offset += _npts * CRJ::nDimSys;
@@ -242,14 +210,10 @@ class SNLSTrDlDenseG_Batch
       /**
        * Must call setupSolver before calling solve
        */
-      void   setupSolver(int maxIter,
+      void setupSolver(int maxIter,
                          double tolerance,
                          TrDeltaControl * deltaControl,
                          int outputLevel=0) {
-         SNLS_FORALL(i, 0, _npts, {
-            _status[i] = SNLSStatus_t::unConverged ;
-            _fevals[i] = 0;
-         });
 
          _maxIter = maxIter ;
          _tolerance = tolerance ;
@@ -297,30 +261,11 @@ class SNLSTrDlDenseG_Batch
          const int off2d = _initial_batch_size * _nDim;
          const int off1d = _initial_batch_size;
 
-         // 11 * batch_size + 5 * (batch_size * ndim) + 1 * batch_size * ndim*ndim
-         // internal memory usage for solver...
-         // if ndim = 8 and batch_size = 500k then this is roughly 460MBs
-         // We're probably close to 500 MBs total then for the solver at size
-         // if batch_size and npts are equal
          rview1d res_0(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d nr2norm(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
+         rview1d nr_norm(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
-         rview1d alpha(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d norm_s_sd_opt(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d norm_grad(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d norm_grad_inv(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d qa(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d qb(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d Jg2(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
-         woffset += off1d;
-         rview1d res_cauchy(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
+         rview1d Jg_2(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
          rview1d pred_resid(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size);
          woffset += off1d;
@@ -331,8 +276,6 @@ class SNLSTrDlDenseG_Batch
          woffset += off2d;
          rview2d delx(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size, _nDim);
          woffset += off2d;
-         rview2d solx(SNLS_RSETUP(wrk_data, es, woffset), _initial_batch_size, _nDim);
-         // offset += off2d;
 
          int m_fevals = 0;
          int m_nJFact = 0;
@@ -343,7 +286,7 @@ class SNLSTrDlDenseG_Batch
             _mfevals = 0 ;
             _nJFact = 0 ;
             _nIters = 0 ;
-            // Checks to see if we're the last bulk and if not use the initial batch size
+            // Checks to see if we're the last block and if not use the initial batch size
             // if we are we need to either use initial batch size or the npts%initial_batch_size
             const int fin_batch = (_npts % _initial_batch_size == 0) ? _initial_batch_size : _npts % _initial_batch_size;
             const int batch_size = (iblk != numblks - 1) ? _initial_batch_size : fin_batch;
@@ -353,13 +296,8 @@ class SNLSTrDlDenseG_Batch
                _rjSuccess(i) = true;
                reject_prev(i) = false;
                use_nr(i) = false;
-               nr2norm(i) = 0.0;
-               alpha(i) = 0.0;
-               norm_s_sd_opt(i) = 0.0;
-               norm_grad(i) = 0.0;
-               norm_grad_inv(i) = 0.0;
-               qa(i) = 0.0;
-               qb(i) = 0.0;
+               nr_norm(i) = 0.0;
+               Jg_2(i) = 0.0;
 
                _delta(i + offset) = _deltaControl->getDeltaInit();
             });
@@ -372,7 +310,7 @@ class SNLSTrDlDenseG_Batch
                }
                // this breaks out of the internal lambda and is essentially a loop continue
                if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  _res(i + offset) = this->normvec(&_residual.data[i * _nDim]) ;
+                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.data[i * _nDim]);
                   res_0(i) = _res(i + offset);
             });
 
@@ -380,204 +318,40 @@ class SNLSTrDlDenseG_Batch
                //
                _nIters += 1 ;
                // Start of batch compute kernel 1
-               // This loop contains the LU solve/ the 
-               // cauchy point calculations, update delta x, and 
-               // update of the solution steps.
-               // These could be broken down to 3 different 
-               // compute kernels. However, it is more performant to
-               // fuse all of them into one kernel.
-               //
-               // This compute kernel is the most sensitive to the number of threads
-               // So, the number of threads might have to be varied to achieve
-               // optimal performance for a given nonlinear system.
+               // This loop contains the LU solve and the
+               // update to gradient term if previous solution wasn't rejected.
+               // Previously, we had this kernel fused with the rest of the dogleg
+               // algo and update x portion of code. However, we couldn't easily split
+               // up the kernels if we did the above...
+               // We  might be able to move some or all of this code to other kernels in the code
+               // to reduce number of kernels launches which could help with performance.
                SNLS_FORALL_T(i, 256, 0, batch_size,
                { // start of cauchy point calculations
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev(i) ) {
-                     //
-                     // have a newly accepted solution point
-                     // compute information for step determination
-                     // fix me: this won't work currently
-                     this->computeSysMult( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim], true );
-                     // used to keep :
-                     //	ngrad[iX] = -grad[iX] ;
-                     // 	nsd[iX]   = ngrad[iX] * norm_grad_inv ; 
-                     
-                     // find Cauchy point
-                     //
+                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim]);
                      {
-                        double norm2_grad = this->normvecSq( &grad.data[i * _nDim] ) ;
-                        norm_grad(i) = sqrt( norm2_grad ) ;
-                        {
-                           double ntemp[_nDim] ; 
-                           this->computeSysMult( &_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], &ntemp[0], false ) ; // was -grad in previous implementation, but sign does not matter
-                           Jg2(i) = this->normvecSq( &ntemp[0] ) ;
-                        }
-                        
-                        alpha(i) = 1e0 ;
-                        res_cauchy(i) = res_0(i);
-                        if ( Jg2(i) > 0e0 ) { 
-                           alpha(i) = norm2_grad / Jg2(i) ;
-                           res_cauchy(i) = sqrt(fmax(res_0(i) * res_0(i) - alpha(i) * norm2_grad, 0.0)) ;
-                        }
-
-                        // optimal step along steapest descent is alpha*ngrad
-                        norm_s_sd_opt(i) = alpha(i) * norm_grad(i);
-                        
-                        norm_grad_inv(i) = 1e0 ;
-                        if ( norm_grad(i) > 0e0 ) {
-                           norm_grad_inv(i) = 1e0 / norm_grad(i);
-                        }
-                        
+                        double ntemp[_nDim] ;
+                        snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
+                        Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                      }
-
                      this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
-                     nr2norm(i) = this->normvec( &nrStep.data[i * _nDim] ) ;
-                     //
-                     // as currently implemented, J is not factored in-place and computeSysMult no loner works ;
-                     // or would have to be reworked for PLU=J
-
-                     {
-                        {
-                           double gam0 = 0e0 ;
-                           double norm2_p = 0.0 ;
-                           for (int iX = 0; iX < _nDim; ++iX) {
-                              double p_iX = nrStep(i, iX) + alpha(i) * grad(i, iX);
-                              norm2_p += p_iX * p_iX ;
-                              gam0 += p_iX * grad(i, iX);
-                           }
-                           gam0 = -gam0 * norm_grad_inv(i);
-
-                           qb(i) = 2.0 * gam0 * norm_s_sd_opt(i);
-
-                           qa(i) = norm2_p ;
-                        }
-                     }
-
-                  } // !reject_prev
-                  // end cauchy point calculations
-
-                  // compute the step given _delta
-                  //
-                  // start of calculating size of delta x
-                  use_nr(i) = false;
-                  if ( nr2norm(i) <= _delta(i + offset) ) {
-                     // use Newton step
-                     use_nr(i) = true ;
-
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        delx(i, iX) = nrStep(i, iX);
-                     }
-                     pred_resid(i) = 0e0 ;
-
-   #ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "trying newton step" << std::endl ;
-                     }
-   #endif
+                     nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.data[i * _nDim] );
                   }
-                  else { // use_nr
-
-                     // step along dogleg path
-                     if ( norm_s_sd_opt(i) >= _delta(i + offset) ) {
-                        // use step along steapest descent direction
-                        {
-                           double factor = -_delta(i + offset) * norm_grad_inv(i);
-                           for (int iX = 0; iX < _nDim; ++iX) {
-                              delx(i, iX) = factor * grad(i, iX);
-                           }
-                        }
-                        {
-                           double val = -(_delta(i + offset) * norm_grad(i)) 
-                                      + 0.5 * _delta(i + offset) * _delta(i + offset) * Jg2(i)
-                                      * (norm_grad_inv(i) * norm_grad_inv(i));
-                           pred_resid(i) = sqrt(fmax(2.0 * val + res_0(i) * res_0(i), 0.0)) ;
-                        }
-                     }
-                     else{
-                        // qc and beta depend on delta
-                        //
-                        double qc = norm_s_sd_opt(i) * norm_s_sd_opt(i) - _delta(i + offset) * _delta(i + offset);
-                        //
-                        double beta = (-qb(i) + sqrt(qb(i) * qb(i) - 4.0 * qa(i) * qc))/(2.0 * qa(i)) ;
-   #ifdef SNLS_DEBUG
-                        if ( beta > 1.0 || beta < 0.0 ) {
-                           SNLS_FAIL(__func__, "beta not in [0,1]") ;
-                        }
-   #endif
-                        beta = fmax(0.0, fmin(1.0, beta)) ; // to deal with and roundoff
-
-                        // delx[iX] = alpha*ngrad[iX] + beta*p[iX] = beta*nrStep[iX] - (1.0-beta)*alpha*grad[iX]
-                        //
-                        {
-                           double omb  = 1.0 - beta ;
-                           double omba = omb * alpha(i);
-                           for (int iX = 0; iX < _nDim; ++iX) {
-                              delx(i, iX) = beta * nrStep(i, iX) - omba * grad(i, iX);
-                           }
-                           pred_resid(i) = omb * res_cauchy(i);
-                        }
-                     } // if norm_s_sd_opt >= delta
-                  } // use_nr
-                  // end of calculating delta x size
-                  this->update( &delx.data[i * _nDim], i, offset ) ;
-                  reject_prev(i) = false ;
                }); // end of batch compute kernel 1
-               // start of batch compute kernel 2
+               // Computes the batch version of the dogleg code and updates the solution variable x
+               snls::batch::dogleg<_nDim>(offset, batch_size, _status, _delta, res_0, nr_norm, Jg_2, grad, nrStep,
+                                          delx, _x, pred_resid, use_nr);
                // This calculates the new residual and jacobian given the updated x value
                this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size) ; // at _x
 
-               // The below set of fused kernels compute the updated delta for the step size,
-               // reject the previous solution if the computeRJ up above failed,
-               // and updates the res0 if the solution is still unconverged.
-               // start of compute kernel 3
-               SNLS_FORALL_T(i, 256, 0, batch_size,
-               {
-                  // Update the delta kernel
-                  // this breaks out of the internal lambda and is essentially a loop continue
-                  if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  if ( !(_rjSuccess(i)) ) {
-                     // got an error doing the evaluation
-                     // try to cut back step size and go again
-                     bool deltaSuccess = _deltaControl->decrDelta(_os, _delta(i + offset), nr2norm(i), use_nr(i) ) ;
-                     if ( ! deltaSuccess ) {
-                        _status[i + offset] = deltaFailure ;
-                        _fevals[i + offset] = _mfevals;
-                        return; // equivalent to a continue in a while loop
-                     }
-                     reject_prev(i) = true ;
-                  }
-                  else {
-                     _res(i + offset) = this->normvec(&_residual.data[i * _nDim]);
-                     // allow to exit now, may have forced one iteration anyway, in which
-                     // case the delta update can do funny things if the residual was
-                     // already very small 
-                     if ( _res(i + offset) < _tolerance ) {
-                        _status[i + offset] = converged ;
-                        _fevals[i + offset] = _mfevals;
-                        return; // equivalent to a continue in a while loop
-                     }
-                     {
-                        bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                     _delta(i + offset), _res(i + offset), res_0(i), pred_resid(i),
-                                                                     reject_prev(i), use_nr(i), nr2norm(i)) ;
-                        if ( ! deltaSuccess ) {
-                           _status[i + offset] = deltaFailure ;
-                           _fevals[i + offset] = _mfevals;
-                           return; // equivalent to a continue in a while loop
-                        }
-                     }
-                  }
-                   // end of updating the delta
-                  // rejects the previous solution if things failed earlier
-                  if ( reject_prev(i) ) { 
-                     _res(i + offset) = res_0(i);
-                     this->reject( &delx.data[i * _nDim], i, offset ) ;
-                  }
-                  // update our res_0 for the next iteration
-                  res_0(i) = _res(i + offset);
-               }); // end of batch compute kernel 3
+               // updates delta based on a trust region
+               // if the solution is rejected than x is also returned to its previous value
+               snls::batch::updateDelta<_nDim>(offset, batch_size, _mfevals, _deltaControl,
+                                               _residual, pred_resid, nr_norm, use_nr, _rjSuccess, _tolerance,
+                                               delx, _x, res_0, _res, _delta, reject_prev, _fevals, _status);
+
                // If this is true then that means all of the batched items
                // either failed or converged, and so we can exit and start the new batched data
                if(status_exit<true, SNLS_GPU_THREADS>(offset, batch_size)) {
@@ -680,8 +454,8 @@ class SNLSTrDlDenseG_Batch
             for (int iBatch = 0; iBatch < batch_size; iBatch++) {
                const int moff = SNLS_MOFF(iBatch, _nXnDim);
                *_os << "Batch item # " << iBatch << std::endl;
-               *_os << "J_an = " << std::endl ; printMatJ( &J_data[moff],    *_os );
-               *_os << "J_fd = " << std::endl ; printMatJ( &J_FD_data[moff], *_os );
+               *_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_data[moff],    *_os ) ;
+               *_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_FD_data[moff], *_os ) ;
             }
 
             // Clean-up the memory these objects use.
@@ -742,46 +516,6 @@ class SNLSTrDlDenseG_Batch
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
-
-      __snls_hdev__ inline void  computeSysMult(const double* const J, 
-                                  const double* const v,
-                                  double* const       p,
-                                  bool                transpose ) {
-
-         // row-major storage
-         bool sysByV = not transpose ;
-
-         if ( sysByV ) {
-            int ipX = 0 ;
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-               for (int kX = 0; kX < _nDim; ++kX) {
-                  p[pX] += J[kX+ipX] * v[kX] ;
-               }
-               ipX += _nDim ; // ipX = pX*_nDim ;
-            }
-         }
-         else {
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-            }
-            int ikX = 0 ;
-            for (int kX = 0; kX < _nDim; ++kX) {
-               for (int pX = 0; pX < _nDim; ++pX) {
-                  p[pX] += J[ikX+pX] * v[kX] ;
-               }
-               ikX += _nDim ; // ikW = kX*_nDim ;
-            }
-         }
-      }
-      // Update x using a provided delta x
-      __snls_hdev__ inline void  update(const double* const delX, const int ielem, const int offset ) {
-         const int toffset = ielem + offset;
-         //delX is already offset
-         for (int iX = 0; iX < _nDim; ++iX) {
-            _x(toffset, iX) = _x(toffset, iX) + delX[iX] ;
-         }
-      }
       // Reject the updated x using a provided delta x
       __snls_hdev__ inline void  reject(const double* const delX, const int ielem, const int offset ) {
          const int toffset = ielem + offset;
@@ -789,18 +523,6 @@ class SNLSTrDlDenseG_Batch
          for (int iX = 0; iX < _nDim; ++iX) {
             _x(toffset, iX) = _x(toffset, iX) - delX[iX] ;
          }
-      }
-
-      __snls_hdev__ inline double normvec(const double* const v) {
-         return sqrt( this->normvecSq(v) ) ;
-      }
-
-      __snls_hdev__ inline double normvecSq(const double* const v) {
-         double a = 0e0;
-         for (int iX = 0; iX < _nDim; ++iX) {
-            a += v[iX]*v[iX] ;
-         }
-         return a ;
       }
       
    public:
@@ -815,7 +537,7 @@ class SNLSTrDlDenseG_Batch
          const int end = offset + batch_size;
          SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
          switch(Device::GetBackend()) {
-   #ifdef RAJA_ENABLE_CUDA
+#ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::CUDA): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
                RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
@@ -830,8 +552,8 @@ class SNLSTrDlDenseG_Batch
                red_add = (output.get() == batch_size) ? true : false;
                break;
             }
-   #endif
-   #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
+#endif
+#if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
             case(ExecutionStrategy::OPENMP): {
                //RAJA::ReduceBitAnd<RAJA::omp_reduce_ordered, bool> output(init_val);
                RAJA::ReduceSum<RAJA::omp_reduce_ordered, int> output(0);
@@ -846,7 +568,7 @@ class SNLSTrDlDenseG_Batch
                red_add = (output.get() == batch_size) ? true : false;
                break;
             }
-   #endif
+#endif
             case(ExecutionStrategy::CPU):
             default: {
                //RAJA::ReduceBitAnd<RAJA::seq_reduce, bool> output(init_val);
@@ -867,7 +589,7 @@ class SNLSTrDlDenseG_Batch
       } // end of status_exitable
 
       /// Performs a bitwise reduction and operation on _status to see if the
-      /// current batch can exit.
+      /// FD portion of computeRJ was successful
       template <const int NUMTHREADS>
       inline bool reduced_rjSuccess(rview1b &rJSuccess,
                                     const int batch_size)
@@ -917,28 +639,6 @@ class SNLSTrDlDenseG_Batch
       SNLSStatus_t * getStatusHost() {
          return _status.data(chai::ExecutionSpace::CPU);
       }
-   
-#ifdef SNLS_DEBUG
-#ifdef __cuda_host_only__
-      void  printVecX (const double* const y, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            oss << y[iX] << " " ;
-         }
-         oss << std::endl ;
-      }
-
-      void  printMatJ (const double* const A, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            for ( int jX=0; jX<_nDim; ++jX) {
-               oss << std::setw(21) << std::setprecision(11) << A[SNLSTRDLDG_J_INDX(iX,jX,_nDim)] << " " ;
-            }
-            oss << std::endl ;
-         } 
-      }
-#endif
-#endif
 
    public:
       rview2d _x;

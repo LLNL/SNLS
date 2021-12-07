@@ -4,8 +4,10 @@
 #define SNLS_TRDLDG_H
 
 #include "SNLS_base.h"
+#include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
+#include "SNLS_kernels.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -30,41 +32,7 @@ extern "C" {
 
 //////////////////////////////////////////////////////////////////////
 
-// row-major storage
-#define SNLSTRDLDG_J_INDX(p,q,nDim) (p)*(nDim)+(q)
-
 namespace snls {
-
-/** Helper templates to ensure compliant CRJ implementations */
-template<typename CRJ, typename = void>
-struct has_valid_computeRJ : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct has_valid_computeRJ <
-   CRJ,typename std::enable_if<
-       std::is_same<
-           decltype(std::declval<CRJ>().computeRJ(std::declval<double* const>(), std::declval<double* const>(),std::declval<const double *>())),
-           bool  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
-
-template<typename CRJ, typename = void>
-struct has_ndim : std::false_type { static constexpr bool value = false;};
-
-template<typename CRJ>
-struct has_ndim <
-   CRJ,typename std::enable_if<
-       std::is_same<
-           decltype(CRJ::nDimSys),
-           const int  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
 
 // trust region type solver, dogleg approximation
 // for dense general Jacobian matrix
@@ -76,7 +44,7 @@ struct has_ndim <
 // 		TODO ... J becomes a RAJA::View ?
 //	have trait nDimSys
 //
-// TODO ...*** specialize to N=1 case, nad N=2 also?
+// TODO ...*** specialize to N=1 case, and N=2 also?
 //
 template< class CRJ >
 class SNLSTrDlDenseG 
@@ -188,7 +156,7 @@ class SNLSTrDlDenseG
                return _status ;
             }
          }
-         _res = this->normvec(residual) ;
+         _res = snls::linalg::norm<_nDim>(residual);
          double res_0 = _res ;
 #ifdef __cuda_host_only__
          if (_os) { *_os << "res = " << _res << std::endl ; }
@@ -197,239 +165,61 @@ class SNLSTrDlDenseG
          bool reject_prev = false ;
          //
          // data for sorting out the step
-         double nr2norm = 0.0 ;
-         double alpha = 0.0 ;
-         double norm_s_sd_opt = 0.0 ;
-         double norm_grad = 0.0 ;
-         double norm_grad_inv = 0.0 ;
-         double qa = 0.0, qb = 0.0 ;
-         double Jg2 = 0.0 ;
-         double res_cauchy = 0.0 ;
-         double nrStep[_nDim] ;
-         double grad[_nDim] ;
+         double nrStep[_nDim];
+         double grad[_nDim];
+         double delx[_nDim];
+         double Jg_2;
+
          //
          while ( _nIters < _maxIter ) {
             //
             _nIters += 1 ;
 
-            if ( !reject_prev ) {
-               //
-               // have a newly accepted solution point
-               // compute information for step determination
-
-               this->computeSysMult( Jacobian, residual, grad, true );
-               // used to keep :
-               //	ngrad[iX] = -grad[iX] ;
-               // 	nsd[iX]   = ngrad[iX] * norm_grad_inv ; 
-               
-               // find Cauchy point
-               //
+            // This is done outside this step so that these operations can be done with varying solve
+            // techniques such as LU/QR or etc...
+            if(!reject_prev) {
+               // So the LU solve does things in-place which causes issues when calculating the grad term...
+               // So, we need to pull this out and perform this operation first
+               snls::linalg::matTVecMult<_nDim, _nDim>(Jacobian, residual, grad);
                {
-                  double norm2_grad = this->normvecSq( grad ) ;
-                  norm_grad = sqrt( norm2_grad ) ;
-                  {
-                     double ntemp[_nDim] ; 
-                     this->computeSysMult( Jacobian, grad, ntemp, false ) ; // was -grad in previous implementation, but sign does not matter
-                     Jg2 = this->normvecSq( ntemp ) ;
-                  }
-                  
-                  alpha = 1e0 ;
-                  res_cauchy = res_0 ;
-                  if ( Jg2 > 0e0 ) { 
-                     alpha = norm2_grad / Jg2 ;
-                     res_cauchy = sqrt(fmax(res_0*res_0 - alpha*norm2_grad,0.0)) ;
-                  }
-
-                  // optimal step along steapest descent is alpha*ngrad
-                  norm_s_sd_opt = alpha*norm_grad ;
-                  
-                  norm_grad_inv = 1e0 ;
-                  if ( norm_grad > 0e0 ) {
-                     norm_grad_inv = 1e0 / norm_grad ;
-                  }
-                  
+                  double ntemp[_nDim] ;
+                  snls::linalg::matVecMult<_nDim, _nDim>(Jacobian, grad, ntemp);
+                  Jg_2 = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                }
+               this->computeNewtonStep( Jacobian, residual, nrStep );
 
-               this->computeNewtonStep( Jacobian, residual, nrStep ) ;
-               nr2norm = this->normvec( nrStep ) ;
-               //
-               // as currently implemented, J is not factored in-place and computeSysMult no loner works ;
-               // or would have to be reworked for PLU=J
-
-               {
-
-                  // inline the use of p instead of computing it
-                  //
-                  // double p[_nDim] ;
-                  // for (int iX = 0; iX < _nDim; ++iX) {
-                  //    p[iX] = nrStep[iX] + alpha*grad[iX] ; // nrStep - alpha*ngrad
-                  // }
-
-                  {
-                     double gam0 = 0e0 ;
-                     double norm2_p = 0.0 ;
-                     for (int iX = 0; iX < _nDim; ++iX) {
-                        double p_iX = nrStep[iX] + alpha*grad[iX] ;
-                        norm2_p += p_iX*p_iX ;
-                        gam0 += p_iX * grad[iX] ;
-                     }
-                     gam0 = -gam0 * norm_grad_inv ;
-
-                     qb = 2.0 * gam0 * norm_s_sd_opt ;
-
-                     qa = norm2_p ;
-                     
-                  }
-                     
-               }
-
-            } // !reject_prev
-
-            // compute the step given _delta
-            //
-            {
-               double delx[_nDim] ;
-               double pred_resid ;
-               bool use_nr = false ;
-               //
-               if ( nr2norm <= _delta ) {
-                  // use Newton step
-                  use_nr = true ;
-
-                  for (int iX = 0; iX < _nDim; ++iX) {
-                     delx[iX] = nrStep[iX] ;
-                  }
-                  pred_resid = 0e0 ;
-
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "trying newton step" << std::endl ;
-                  }
-#endif
-               }
-               else { // use_nr
-
-                  // step along dogleg path
-               
-                  if ( norm_s_sd_opt >= _delta ) {
-
-                     // use step along steapest descent direction
-
-                     {
-                        double factor = -_delta * norm_grad_inv ;
-                        for (int iX = 0; iX < _nDim; ++iX) {
-                           delx[iX] = factor * grad[iX] ;
-                        }
-                     }
-
-                     {
-                        double val = -(_delta*norm_grad) + 0.5*_delta*_delta*Jg2 * (norm_grad_inv*norm_grad_inv) ;
-                        pred_resid = sqrt(fmax(2.0*val + res_0*res_0,0.0)) ;
-                     }
-            
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "trying step along first leg" << std::endl ;
-                     }
-#endif
-            
-                  }
-                  else{
-
-                     // qc and beta depend on delta
-                     //
-                     double qc = norm_s_sd_opt*norm_s_sd_opt - _delta*_delta ;
-                     //
-                     double beta = (-qb+sqrt(qb*qb-4.0*qa*qc))/(2.0*qa) ;
-#ifdef SNLS_DEBUG
-                     if ( beta > 1.0 || beta < 0.0 ) {
-                        SNLS_FAIL(__func__, "beta not in [0,1]") ;
-                     }
-#endif
-                     beta = fmax(0.0,fmin(1.0,beta)) ; // to deal with and roundoff
-
-                     // delx[iX] = alpha*ngrad[iX] + beta*p[iX] = beta*nrStep[iX] - (1.0-beta)*alpha*grad[iX]
-                     //
-                     {
-                        double omb  = 1.0-beta ;
-                        double omba = omb*alpha ;
-                        for (int iX = 0; iX < _nDim; ++iX) {
-                           delx[iX] = beta * nrStep[iX] - omba*grad[iX] ;
-                        }
-                        pred_resid = omb * res_cauchy ;
-                     }
-
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "trying step along second leg" << std::endl ;
-                     }
-#endif
-                  } // if norm_s_sd_opt >= delta
-
-               } // use_nr
-               
-               this->update( delx ) ;
-               reject_prev = false ;
-               //
-               {
-                  bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
-                  if ( !(rjSuccess) ) {
-                     // got an error doing the evaluation
-                     // try to cut back step size and go again
-                     bool deltaSuccess = _deltaControl->decrDelta(_os, _delta, nr2norm, use_nr ) ;
-                     if ( ! deltaSuccess ) {
-                        _status = deltaFailure ;
-                        break ; // while ( _nIters < _maxIter ) 
-                     }
-                     reject_prev = true ;
-                  }
-                  else {
-                     _res = this->normvec(residual) ;
-#ifdef __cuda_host_only__
-                     if ( _os != nullptr ) {
-                        *_os << "res = " << _res << std::endl ;
-                     }
-#endif
-
-                     // allow to exit now, may have forced one iteration anyway, in which
-                     // case the delta update can do funny things if the residual was
-                     // already very small 
-
-                     if ( _res < _tolerance ) {
-#ifdef __cuda_host_only__
-                        if ( _os != nullptr ) {
-                           *_os << "converged" << std::endl ;
-                        }
-#endif
-                        _status = converged ;
-                        break ; // while ( _nIters < _maxIter ) 
-                     }
-
-                     {
-                        bool deltaSuccess = _deltaControl->updateDelta(_os,
-                                                                       _delta, _res, res_0, pred_resid,
-                                                                       reject_prev, use_nr, nr2norm, _rhoLast) ;
-                        if ( ! deltaSuccess ) {
-                           _status = deltaFailure ;
-                           break ; // while ( _nIters < _maxIter ) 
-                        }
-                     }
-
-                  }
-               }
-
-               if ( reject_prev ) { 
-#ifdef __cuda_host_only__
-                  if ( _os != nullptr ) {
-                     *_os << "rejecting solution" << std::endl ;
-                  }
-#endif
-                  _res = res_0 ;
-                  this->reject( delx ) ;
-               }
             }
             //
-            res_0 = _res ;
+            double pred_resid;
+            bool use_nr = false;
+
+            // If the step was rejected nrStep will be the same value as previously, and so we can just recalculate nr_norm here.
+            const double nr_norm = snls::linalg::norm<_nDim>(nrStep);
+
+            // computes the updated delta x, predicated residual error, and whether or not NR method was used.
+            snls::dogleg<_nDim>(_delta, res_0, nr_norm, Jg_2, grad, nrStep,
+                                delx, _x, pred_resid, use_nr, _os);
+            reject_prev = false;
+
+            //
+            {
+               bool rjSuccess = this->computeRJ(residual, Jacobian) ; // at _x
+               snls::updateDelta<_nDim>(_deltaControl, residual, res_0, pred_resid, nr_norm, _tolerance, use_nr, rjSuccess,
+                                        _delta, _res, _rhoLast, reject_prev, _status, _os);
+               if(_status != SNLSStatus_t::unConverged) { break; }
+            }
+
+            if ( reject_prev ) {
+#ifdef __cuda_host_only__
+               if ( _os != nullptr ) {
+                  *_os << "rejecting solution" << std::endl ;
+               }
+#endif
+               _res = res_0 ;
+               this->reject( delx ) ;
+            }
+            //
+            res_0 = _res;
             
          } // _nIters < _maxIter
          
@@ -472,12 +262,12 @@ class SNLSTrDlDenseG
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
                }
                for ( int iR = 0; iR < _nDim ; iR++ ) {
-                  J_FD[SNLSTRDLDG_J_INDX(iR,iX,_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
+                  J_FD[SNLS_NN_INDX(iR,iX,_nDim)] = pert_val_inv * ( r_pert[iR] - r_base[iR] ) ;
                }
             }
             
-            *_os << "J_an = " << std::endl ; printMatJ( J,    *_os ) ;
-            *_os << "J_fd = " << std::endl ; printMatJ( J_FD, *_os ) ;
+            *_os << "J_an = " << std::endl ; snls::linalg::printMat<_nDim>( J,    *_os ) ;
+            *_os << "J_fd = " << std::endl ; snls::linalg::printMat<_nDim>( J_FD, *_os ) ;
 
             // put things back the way they were ;
             retval = this->_crj.computeRJ(r, J, _x);
@@ -544,85 +334,11 @@ class SNLSTrDlDenseG
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
       
-      __snls_hdev__ inline void  computeSysMult(const double* const J, 
-                                                const double* const v,
-                                                double* const       p,
-                                                bool                transpose ) {
-         
-         // row-major storage
-         bool sysByV = not transpose ;
-   
-         if ( sysByV ) {
-            int ipX = 0 ;
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-               for (int kX = 0; kX < _nDim; ++kX) {
-                  p[pX] += J[kX+ipX] * v[kX] ;
-               }
-               ipX += _nDim ; // ipX = pX*_nDim ;
-            }
-         }
-         else {
-            for (int pX = 0; pX < _nDim; ++pX) {
-               p[pX] = 0e0 ;
-            }
-            int ikX = 0 ;
-            for (int kX = 0; kX < _nDim; ++kX) {
-               for (int pX = 0; pX < _nDim; ++pX) {
-                  p[pX] += J[ikX+pX] * v[kX] ;
-               }
-               ikX += _nDim ; // ikW = kX*_nDim ;
-            }
-         }
-      }
-      
-      __snls_hdev__ inline void  update(const double* const delX ) {
-         for (int iX = 0; iX < _nDim; ++iX) {
-            _x[iX] = _x[iX] + delX[iX] ;
-         }
-      }
-      
       __snls_hdev__ inline void  reject(const double* const delX ) {
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX] = _x[iX] - delX[iX] ;
          }
       }
-      
-      __snls_hdev__ inline double normvec(const double* const v) {
-         return sqrt( this->normvecSq(v) ) ;
-      }
-      
-      __snls_hdev__ inline double normvecSq(const double* const v) {
-         double a = 0e0;
-         for (int iX = 0; iX < _nDim; ++iX) {
-            a += v[iX]*v[iX] ;
-         }
-         return a ;
-      }
-      
-   public:
-   
-#ifdef SNLS_DEBUG
-#ifdef __cuda_host_only__
-      __snls_hdev__ void  printVecX         (const double* const y, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            oss << y[iX] << " " ;
-         }
-         oss << std::endl ;
-      }
-      
-      __snls_hdev__ void  printMatJ         (const double* const A, std::ostream & oss ) {
-         oss << std::setprecision(14) ;
-         for ( int iX=0; iX<_nDim; ++iX) {
-            for ( int jX=0; jX<_nDim; ++jX) {
-               oss << std::setw(21) << std::setprecision(11) << A[SNLSTRDLDG_J_INDX(iX,jX,_nDim)] << " " ;
-            }
-            oss << std::endl ;
-         } 
-      }
-#endif
-#endif
 
    public:
       double _x[_nDim] ;

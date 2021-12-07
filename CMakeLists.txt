@@ -58,6 +58,7 @@ endif (DEFINED ECMECH_SOURCE_DIR)
 ################################
 include(cmake/CMakeBasics.cmake)
 
+
 if(ENABLE_CUDA)
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -restrict --expt-extended-lambda --expt-relaxed-constexpr")
   if (NOT "${CMAKE_CUDA_FLAGS}" MATCHES "-arch")
