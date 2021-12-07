@@ -45,7 +45,7 @@ extern "C" {
 // Macros related to the number of local and global single and vector
 // data for either double or bool data
 #define SNLS_BATCH_LOCAL_SPS 4
-#define SNLS_BATCH_GLOBAL_SPS 4
+#define SNLS_BATCH_GLOBAL_SPS 2
 #define SNLS_BATCH_LOCAL_VPS 4
 #define SNLS_BATCH_BOOL_PTS 3
 
