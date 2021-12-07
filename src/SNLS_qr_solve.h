@@ -65,8 +65,8 @@ void householderVec(double& beta,
 // Algorithm taken from Matrix Computation 4th ed. by GH Golub and CF Van Loan
 // pg. 238 alg 5.1.5 with the slight modification that we use the beta values
 // saved off earlier.
-__snls_hdev__
 template<int m>
+__snls_hdev__
 inline
 void householderQMat(double *const Q,
                      const double *const matFac, 
@@ -121,8 +121,8 @@ void householderQMat(double *const Q,
 // mxm and R should have dimensions of mxn where m >= n.
 // For our use cases in SNLS m will always equal n.
 // We'll also supply 3 working arrays of length n.
-__snls_hdev__
 template<int m, int n>
+__snls_hdev__
 inline
 void householderQR(double *const matrix,
                    double *const Q,
