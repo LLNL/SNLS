@@ -266,8 +266,8 @@ class SNLSTrDlDenseG
                }
             }
             
-            *_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( J,    *_os ) ;
-            *_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( J_FD, *_os ) ;
+            *_os << "J_an = " << std::endl ; snls::linalg::printMat<_nDim>( J,    *_os ) ;
+            *_os << "J_fd = " << std::endl ; snls::linalg::printMat<_nDim>( J_FD, *_os ) ;
 
             // put things back the way they were ;
             retval = this->_crj.computeRJ(r, J, _x);
