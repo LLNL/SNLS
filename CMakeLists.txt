@@ -53,62 +53,29 @@ endif (DEFINED MSLIB_SOURCE_DIR)
 if (DEFINED ECMECH_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
 endif (DEFINED ECMECH_SOURCE_DIR)
+################################
+# Include standard build system logic and options
+################################
+include(cmake/CMakeBasics.cmake)
+
+
+if(ENABLE_CUDA)
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -restrict --expt-extended-lambda --expt-relaxed-constexpr")
+  if (NOT "${CMAKE_CUDA_FLAGS}" MATCHES "-arch")
+     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch ${CUDA_ARCH}")
+  endif()
+endif()
 
 #------------------------------------------------------------------------------
 # Sources
 #------------------------------------------------------------------------------
-set(SNLS_HEADERS
-    SNLS_base.h
-    SNLS_cuda_portability.h
-    SNLS_port.h
-    SNLS_lup_solve.h
-    SNLS_TrDLDenseG.h
-    SNLS_NewtonBB.h)
-
-# no SNLS_SOURCES -- SNLS is header-only
-
-#------------------------------------------------------------------------------
-# Defines
-#------------------------------------------------------------------------------
-
-SET(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}   -DDEBUG")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
-
-#------------------------------------------------------------------------------
-# Includes
-#------------------------------------------------------------------------------
-set(SNLS_INCLUDES ${HEADER_INCLUDE_DIR}
-                  ${CMAKE_SOURCE_DIR}/snls)
-if (DEFINED MSLIB_SOURCE_DIR)
-    list(APPEND SNLS_INCLUDES ${MSLIB_SOURCE_DIR}/ms)
-endif (DEFINED MSLIB_SOURCE_DIR)
-
-#------------------------------------------------------------------------------
-# Build Targets
-#------------------------------------------------------------------------------
-blt_add_library(NAME        snls
-                INCLUDES    ${SNLS_INCLUDES}
-                HEADERS     ${SNLS_HEADERS})
+add_subdirectory(src)
 
 #------------------------------------------------------------------------------
 # Testing
 #------------------------------------------------------------------------------
 
 if(ENABLE_TESTS)
-    # do not have DEPENDS_ON snls, given that it is header-only 
-
-    blt_add_executable(NAME       snlstest
-                       SOURCES    SNLS_testdriver.cc
-                       OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                       DEPENDS_ON gtest)
-    blt_add_test(NAME    snlstest
-                 COMMAND snlstest)
+   add_subdirectory(test)
 endif(ENABLE_TESTS)
 
-#------------------------------------------------------------------------------
-# Install files
-#------------------------------------------------------------------------------
-
-install(FILES ${SNLS_HEADERS} DESTINATION include)
-
-install(TARGETS snls DESTINATION lib)
