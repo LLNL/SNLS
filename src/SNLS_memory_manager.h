@@ -15,7 +15,7 @@
 #include <umpire/Allocator.hpp>
 #include <umpire/ResourceManager.hpp>
 #include <umpire/strategy/QuickPool.hpp>
-#include <chai/ManagedArray.hpp>"
+#include <chai/ManagedArray.hpp>
 
 namespace snls {
    /*! A global memory manager designed to be used with the Umpire library.
