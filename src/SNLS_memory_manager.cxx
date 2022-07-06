@@ -9,7 +9,6 @@
 #include <cstring>
 
 #if defined(SNLS_RAJA_PERF_SUITE)
-#include "umpire/strategy/DynamicPool.hpp"
 
 namespace snls {
   

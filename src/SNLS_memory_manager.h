@@ -12,10 +12,10 @@
 #include "SNLS_device_forall.h"
 
 #if defined(SNLS_RAJA_PERF_SUITE)
-#include "umpire/strategy/DynamicPool.hpp"
-#include "umpire/Allocator.hpp"
-#include "umpire/ResourceManager.hpp"
-#include "chai/ManagedArray.hpp"
+#include <umpire/Allocator.hpp>
+#include <umpire/ResourceManager.hpp>
+#include <umpire/strategy/QuickPool.hpp>
+#include <chai/ManagedArray.hpp>
 
 namespace snls {
    /*! A global memory manager designed to be used with the Umpire library.
