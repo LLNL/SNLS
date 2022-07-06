@@ -16,7 +16,7 @@ blt_add_test(NAME    snlsNLS
 set(SNLS_TEST_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_TEST_DEPENDS
-                       DEPENDS_ON chai raja umpire camp openmp cuda_runtime cuda)
+                       DEPENDS_ON chai raja umpire camp openmp cuda_runtime cuda blt::hip blt::hip_runtime)
 
 blt_add_executable(NAME       snls_mm
                    SOURCES    SNLS_mm.cxx
