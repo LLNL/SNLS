@@ -105,13 +105,7 @@ namespace snls {
             }
          }
 
-         ~Device() {
-#ifdef __CUDACC__
-            Get()._es = ExecutionStrategy::CUDA;
-#else
-            Get()._es = ExecutionStrategy::CPU;
-#endif
-         }
+         ~Device() {}
    };
 
    /// The forall kernel body wrapper. It should be noted that one
