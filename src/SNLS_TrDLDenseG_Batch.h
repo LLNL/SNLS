@@ -336,7 +336,11 @@ class SNLSTrDlDenseG_Batch
                         snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
                         Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                      }
-                     this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
+                     const bool sol_stat = this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
+                     if (!sol_stat) {
+                        _status[i + offset] = SNLSStatus_t::linearSolveFailure;
+                        return;
+                     }
                      nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.data[i * _nDim] );
                   }
                }); // end of batch compute kernel 1
@@ -470,7 +474,7 @@ class SNLSTrDlDenseG_Batch
 #endif
       }
    private :
-     __snls_hdev__ inline void  computeNewtonStep (double* const       J,
+     __snls_hdev__ inline bool  computeNewtonStep (double* const       J,
                                       const double* const r,
                                       double* const       newton  ) {
          _nJFact++ ;
@@ -490,7 +494,10 @@ class SNLSTrDlDenseG_Batch
          int ipiv[_nDim] ;
          DGETRF(&_nDim, &_nDim, J, &_nDim, ipiv, &info) ;
 
-         if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from dgetrf"); }
+         if ( info != 0 ) {
+            SNLS_WARN(__func__, "info non-zero from dgetrf");
+            return false;
+         }
 
          for (int iX = 0; iX < _nDim; ++iX) {
             newton[iX] = - r[iX] ; 
@@ -499,7 +506,10 @@ class SNLSTrDlDenseG_Batch
          int nRHS=1; info=0;
          DGETRS(&trans, &_nDim, &nRHS, J, &_nDim, ipiv, newton, &_nDim, &info);
 
-         if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from lapack::dgetrs()") ; }
+         if ( info != 0 ) {
+            SNLS_WARN(__func__, "info non-zero from lapack::dgetrs()");
+            return false;
+         }
 
 #else
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
@@ -509,11 +519,13 @@ class SNLSTrDlDenseG_Batch
 
             int   err = SNLS_LUP_Solve<n>(J, newton, r);
             if (err<0) {
-               SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
+               SNLS_WARN(__func__," fail return from LUP_Solve()");
+               return false;
             }
             for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
          }
 #endif
+         return true;
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
       // Reject the updated x using a provided delta x

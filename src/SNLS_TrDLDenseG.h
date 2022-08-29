@@ -186,7 +186,11 @@ class SNLSTrDlDenseG
                   snls::linalg::matVecMult<_nDim, _nDim>(Jacobian, grad, ntemp);
                   Jg_2 = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                }
-               this->computeNewtonStep( Jacobian, residual, nrStep );
+               const bool sol_stat = this->computeNewtonStep( Jacobian, residual, nrStep );
+               if (!sol_stat) {
+                  _status = SNLSStatus_t::linearSolveFailure;
+                  break;
+               }
 
             }
             //
@@ -281,7 +285,7 @@ class SNLSTrDlDenseG
       
    private :
    
-      __snls_hdev__ inline void  computeNewtonStep (double* const       J,
+      __snls_hdev__ inline bool  computeNewtonStep (double* const       J,
                                                     const double* const r,
                                                     double* const       newton  ) {
          
@@ -304,7 +308,10 @@ class SNLSTrDlDenseG
          int ipiv[_nDim] ;
          DGETRF(&_nDim, &_nDim, J, &_nDim, ipiv, &info) ;
 
-         if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from dgetrf"); }
+         if ( info != 0 ) {
+            SNLS_WARN(__func__, "info non-zero from dgetrf");
+            return false;
+         }
 
          // std::copy( r, r + _nDim, newton );
          for (int iX = 0; iX < _nDim; ++iX) {
@@ -314,7 +321,10 @@ class SNLSTrDlDenseG
          int nRHS=1; info=0;
          DGETRS(&trans, &_nDim, &nRHS, J, &_nDim, ipiv, newton, &_nDim, &info);
 
-         if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from lapack::dgetrs()") ; }
+         if ( info != 0 ) {
+            SNLS_WARN(__func__, "info non-zero from lapack::dgetrs()");
+            return false;
+         }
 
 #else
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
@@ -324,7 +334,8 @@ class SNLSTrDlDenseG
 
             int   err = SNLS_LUP_Solve<n>(J, newton, r);
             if (err<0) {
-               SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
+               SNLS_WARN(__func__," fail return from LUP_Solve()");
+               return false;
             }
             //
             for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
@@ -332,6 +343,7 @@ class SNLSTrDlDenseG
          }
 #endif
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+         return true;
       }
       
       __snls_hdev__ inline void  reject(const double* const delX ) {
