@@ -1,0 +1,45 @@
+#
+#=== Usage ===================================================================
+# This file allows SNLS to be automatically detected by other libraries
+# using CMake.  To build with SNLS, you can do one of two things:
+#
+#   1. Set the SNLS_DIR environment variable to the root directory of the SNLS
+#      installation.  If you loaded RAJA through a dotkit, this may already
+#      be set, and SNLS will be autodetected by CMake.
+#
+#   2. Configure your project with this option:
+#      -SNLS_DIR=<SNLS install prefix>/share/
+#
+# If you have done either of these things, then CMake should automatically find
+# and include this file when you call find_package(SNLS) from your
+# CMakeLists.txt file.
+#
+#=== Components ==============================================================
+#
+# To link against these, just do, for example:
+#
+#   find_package(SNLS REQUIRED)
+#   add_executable(foo foo.c)
+#   target_link_libraries(foo SNLS)
+#
+# That's all!
+#
+
+#----------------------------------------------------------------------------
+# Set version and paths
+#----------------------------------------------------------------------------
+
+set (SNLS_INSTALL_PREFIX @CMAKE_INSTALL_PREFIX@)
+set (SNLS_INCLUDE_DIRS @CMAKE_INSTALL_PREFIX@/include/snls)
+set (SNLS_LIB_DIR @CMAKE_INSTALL_PREFIX@/lib)
+set (SNLS_CMAKE_DIR @CMAKE_INSTALL_PREFIX@/share/snls/cmake)
+
+set (SNLS_USE_RAJA_PERF_SUITE @SNLS_USE_RAJA_PERF_SUITE@)
+
+# Export version number
+set(SNLS_VERSION_MAJOR @SNLS_VERSION_MAJOR@)
+set(SNLS_VERSION_MINOR @SNLS_VERSION_MINOR@)
+set(SNLS_VERSION_PATCH @SNLS_VERSION_PATCH@)
+
+
+include(@CMAKE_INSTALL_PREFIX@/share/snls/cmake/snls-targets.cmake)
