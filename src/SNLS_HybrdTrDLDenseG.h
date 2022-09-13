@@ -138,7 +138,7 @@ class SNLSHybrdTrDLDenseG
     SNLSStatus_t solve() {
     
         if ( !m_complete) {
-        SNLS_FAIL("solve", "Setup not called beforehand!") ;
+            SNLS_FAIL("solve", "Setup not called beforehand!") ;
         }
 
         double residual[m_nDim];
@@ -303,7 +303,7 @@ class SNLSHybrdTrDLDenseG
                 // onto the other libraries / application codes using SNLS.
                 const bool success = this->computeNewtonStep( Jacobian, qtf, nrStep);
                 if (!success) {
-                    m_status = algFailure;
+                    m_status = SNLSStatus_t::linearSolveFailure;
                     return m_status;
                 }
             }
@@ -432,7 +432,7 @@ class SNLSHybrdTrDLDenseG
                // On the GPU, the fail just prints out and  doesn't abort anything so
                // we return this signal notifying us of the failure which can then be passed
                // onto the other libraries / application codes using SNLS.
-                SNLS_FAIL(__func__, "Diagonal term in R matrix was too small");
+                SNLS_WARN(__func__, "Diagonal term in R matrix was too small");
                 return false;
             }
             double sum = 0.0;
