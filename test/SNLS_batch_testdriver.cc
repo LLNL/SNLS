@@ -99,7 +99,7 @@ public:
          // at all. If it does then we'll compute the Jacobian.
          // One could have additional checks to ensure its size and
          // what you expect it to be match up.
-         bool doComputeJ = (J.layout.size() > 0) ;
+         bool doComputeJ = (J.get_layout().size() > 0) ;
          if ( doComputeJ ) {
             for ( int ii=0; ii< nDim; ++ii ) {
                for (int jj = 0; jj < nDim; ++jj)
