@@ -47,7 +47,7 @@ The develop branch is the main development branch for snls. Changes to develop a
 AUTHORS
 ======
 
-The principal devleoper of SNLS is Nathan Barton, nrbarton@llnl.gov. Brett Wayne and Robert Carson have also made contributions.
+The principal developer of SNLS is Nathan Barton, nrbarton@llnl.gov. Brett Wayne and Robert Carson have also made contributions.
 
 CITATION
 ======
