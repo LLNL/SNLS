@@ -12,7 +12,7 @@ if(NOT RAJA_DIR)
     MESSAGE(FATAL_ERROR "Could not find RAJA. RAJA support needs explicit RAJA_DIR")
 endif()
 
-set(raja_DIR ${RAJA_DIR}/share/raja/cmake)
+set(raja_DIR ${RAJA_DIR})
 
 if (NOT RAJA_CONFIG_CMAKE)
    set(RAJA_CONFIG_CMAKE "${RAJA_DIR}/share/raja/cmake/raja-config.cmake")
