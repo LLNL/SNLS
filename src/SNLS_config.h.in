@@ -4,5 +4,6 @@
 
 #cmakedefine HAVE_SNLS
 #cmakedefine SNLS_RAJA_PERF_SUITE
+#cmakedefine SNLS_RAJA_EXPT_FEATURES
 #cmakedefine SNLS_USE_LAPACK
 #cmakedefine SNLS_DEBUG
