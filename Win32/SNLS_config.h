@@ -1,0 +1,7 @@
+#define SNLS_VERSION_MAJOR 0
+#define SNLS_VERSION_MINOR 3
+#define SNLS_VERSION_PATCH "1"
+
+#define HAVE_SNLS
+/* #undef SNLS_RAJA_PERF_SUITE */
+#define SNLS_USE_LAPACK
