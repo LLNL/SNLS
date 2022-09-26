@@ -4,4 +4,4 @@
 
 #define HAVE_SNLS
 /* #undef SNLS_RAJA_PERF_SUITE */
-#define SNLS_USE_LAPACK
+/* #undef SNLS_USE_LAPACK */
