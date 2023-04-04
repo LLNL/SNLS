@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="CUDADebug|x64">
@@ -24,7 +24,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{4E2006B1-837F-30EB-8454-9CC51622FBB7}</ProjectGuid>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <Keyword>Win32Proj</Keyword>
     <Platform>x64</Platform>
     <ProjectName>snls_static</ProjectName>
@@ -34,48 +34,47 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>Intel C++ Compiler 2022</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 2023</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CUDADebug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>Intel C++ Compiler 2022</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 2023</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>Intel C++ Compiler 2022</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 2023</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CUDARelease|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>Intel C++ Compiler 2022</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 2023</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>Intel C++ Compiler 2022</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 2023</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings"></ImportGroup>
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Import Project="..\..\..\src\Win32\Properties\Solution.Language.props" />
+    <Import Project="$(SolutionDir)Properties\Solution.Language.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='CUDARelease|x64'">
-    <Import Project="..\..\..\src\Win32\Properties\Solution.Language.props" />
+    <Import Project="$(SolutionDir)Properties\Solution.Language.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
-    <Import Project="..\..\..\src\Win32\Properties\Solution.Language.props" />
+    <Import Project="$(SolutionDir)Properties\Solution.Language.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='CUDADebug|x64'">
-    <Import Project="..\..\..\src\Win32\Properties\Solution.Language.props" />
+    <Import Project="$(SolutionDir)Properties\Solution.Language.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Import Project="..\..\..\src\Win32\Properties\Solution.Language.props" />
+    <Import Project="$(SolutionDir)Properties\Solution.Language.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
@@ -176,8 +175,7 @@
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level4</WarningLevel>
       <PreprocessorDefinitions>WIN32;_WINDOWS;SNLS_HAVE_MSLIB=1;HAVE_LAPACK=1;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DebugInformationFormat>
-      </DebugInformationFormat>
+      <DebugInformationFormat></DebugInformationFormat>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <ResourceCompile>
@@ -207,8 +205,7 @@
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level4</WarningLevel>
       <PreprocessorDefinitions>WIN32;_WINDOWS;SNLS_HAVE_MSLIB=1;HAVE_LAPACK=1;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <DebugInformationFormat>
-      </DebugInformationFormat>
+      <DebugInformationFormat></DebugInformationFormat>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
     </ClCompile>
     <ResourceCompile>
@@ -275,6 +272,5 @@
     <ClInclude Include="..\src\SNLS_kernels_batch.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets"></ImportGroup>
 </Project>
