@@ -1,7 +1,7 @@
 set(SNLS_HEADERS
     ${SNLS_HEADER_INCLUDE_DIR}/SNLS_config.h
     SNLS_base.h
-    SNLS_cuda_portability.h
+    SNLS_gpu_portability.h
     SNLS_port.h
     SNLS_lup_solve.h
     SNLS_TrDelta.h

@@ -4,7 +4,7 @@
 #define SNLS_BASE_H
 
 #include "SNLS_config.h"
-#include "SNLS_cuda_portability.h"
+#include "SNLS_gpu_portability.h"
 #include "SNLS_port.h"
 
 #define SNLS_NN_INDX(p, q, nDim) (p) * (nDim) + (q)

@@ -61,9 +61,9 @@ namespace snls {
    /// through RAJA forall abstractions
    /// OPENMP refers to parallel executuons of for loops on the 
    /// Host using OpenMP through RAJA forall abstractions
-   /// CUDA refers to parallel executions of for loops on the Device
-   /// using CUDA through RAJA forall abstractions
-   enum class ExecutionStrategy { CPU, CUDA, OPENMP };
+   /// GPU refers to parallel executions of for loops on the Device
+   /// using GPU through RAJA forall abstractions
+   enum class ExecutionStrategy { CPU, GPU, OPENMP };
    /// This has largely been inspired by the MFEM device
    /// class, since they make use of it with their FORALL macro
    /// It's recommended to only have one object for the lifetime
@@ -76,8 +76,8 @@ namespace snls {
          ExecutionStrategy _es;
          static Device& Get() { return device_singleton; }
       public:
-#ifdef __CUDACC__
-         Device() : _es(ExecutionStrategy::CUDA) {}
+#ifdef __snls_gpu_active__
+         Device() : _es(ExecutionStrategy::GPU) {}
 #else
          Device() : _es(ExecutionStrategy::CPU) {}
 #endif
@@ -90,8 +90,8 @@ namespace snls {
          static inline chai::ExecutionSpace GetCHAIES() 
          {
             switch (Get()._es) {
-#ifdef __CUDACC__
-               case ExecutionStrategy::CUDA: {
+#ifdef __snls_gpu_active__
+               case ExecutionStrategy::GPU: {
                   return chai::ExecutionSpace::GPU;
                }
 #endif
@@ -106,8 +106,8 @@ namespace snls {
          }
 
          ~Device() {
-#ifdef __CUDACC__
-            Get()._es = ExecutionStrategy::CUDA;
+#ifdef __snls_gpu_active__
+            Get()._es = ExecutionStrategy::GPU;
 #else
             Get()._es = ExecutionStrategy::CPU;
 #endif
@@ -134,8 +134,14 @@ namespace snls {
       // is used.
       switch(Device::GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
-         case(ExecutionStrategy::CUDA): {
+         case(ExecutionStrategy::GPU): {
             RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
+            break;
+         }
+#endif
+#ifdef RAJA_ENABLE_HIP
+         case(ExecutionStrategy::GPU): {
+            RAJA::forall<RAJA::hip_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
             break;
          }
 #endif

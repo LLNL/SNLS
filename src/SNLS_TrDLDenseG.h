@@ -11,7 +11,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -67,7 +67,7 @@ class SNLSTrDlDenseG
                };
    // destructor
    __snls_hdev__ ~SNLSTrDlDenseG() {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       if ( _outputLevel > 1 && _os != nullptr ) {
          *_os << "Function and Jacobian factorizations: " << _fevals << " " << _nJFact << std::endl;
       }
@@ -121,7 +121,7 @@ class SNLSTrDlDenseG
          _outputLevel = outputLevel ;
          _os          = nullptr ;
          //
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if ( _outputLevel > 0 ) {
             _os = &(std::cout) ;
          }
@@ -143,7 +143,7 @@ class SNLSTrDlDenseG
          _nIters = 0 ;
          
          _delta = _deltaControl->getDeltaInit() ;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (_os) { *_os << "initial delta = " << _delta << std::endl ; }
 #endif
 
@@ -158,7 +158,7 @@ class SNLSTrDlDenseG
          }
          _res = snls::linalg::norm<_nDim>(residual);
          double res_0 = _res ;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (_os) { *_os << "res = " << _res << std::endl ; }
 #endif
          
@@ -210,7 +210,7 @@ class SNLSTrDlDenseG
             }
 
             if ( reject_prev ) {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
                if ( _os != nullptr ) {
                   *_os << "rejecting solution" << std::endl ;
                }
@@ -235,7 +235,7 @@ class SNLSTrDlDenseG
          bool retval = this->_crj.computeRJ(r, J, _x);
          
 #ifdef SNLS_DEBUG
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if ( _outputLevel > 2 && _os != nullptr ) {
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
@@ -287,7 +287,7 @@ class SNLSTrDlDenseG
          
          _nJFact++ ;
          
-#if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+#if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
 // This version of the Newton solver uses the LAPACK solver DGETRF() and DGETRS()
 // 
 // Note that we can replace this with a custom function if there are performance 
@@ -317,7 +317,7 @@ class SNLSTrDlDenseG
          if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from lapack::dgetrs()") ; }
 
 #else
-// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
 
          {
             const int n = _nDim;
@@ -331,7 +331,7 @@ class SNLSTrDlDenseG
 
          }
 #endif
-// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
       }
       
       __snls_hdev__ inline void  reject(const double* const delX ) {
@@ -359,7 +359,7 @@ class SNLSTrDlDenseG
       // _rhoLast is not really needed -- but is kept for debug and testing purposes
       double _rhoLast ;
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       std::ostream* _os ;
 #else
       char* _os ; // do not use

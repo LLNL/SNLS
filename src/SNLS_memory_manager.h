@@ -8,7 +8,7 @@
 #define SNLS_memory_manager_h
 
 #include "SNLS_config.h"
-#include "SNLS_cuda_portability.h"
+#include "SNLS_gpu_portability.h"
 #include "SNLS_device_forall.h"
 
 #if defined(SNLS_RAJA_PERF_SUITE)
@@ -112,7 +112,7 @@ namespace snls {
          memoryManager();
          bool _complete;
          umpire::Allocator _host_allocator;
-#ifdef __CUDACC__
+#ifdef __snls_gpu_active__
          umpire::Allocator _device_allocator;
 #endif
          umpire::ResourceManager& _rm;

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "SNLS_cuda_portability.h"
+#include "SNLS_gpu_portability.h"
 #include "SNLS_port.h"
 
 //-----------------------------------------------------------------------------------------------

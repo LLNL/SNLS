@@ -14,7 +14,7 @@
  * used to do "typedef double double", but have switched to just using double
  */
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <stdio.h>
 #include <exception>
 #include <stdexcept>

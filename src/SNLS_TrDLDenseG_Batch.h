@@ -18,7 +18,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -474,7 +474,7 @@ class SNLSTrDlDenseG_Batch
                                       const double* const r,
                                       double* const       newton  ) {
          _nJFact++ ;
-#if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+#if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
 // This version of the Newton solver uses the LAPACK solver DGETRF() and DGETRS()
 // 
 // Note that we can replace this with a custom function if there are performance 
@@ -502,7 +502,7 @@ class SNLSTrDlDenseG_Batch
          if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from lapack::dgetrs()") ; }
 
 #else
-// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
 
          {
             const int n = _nDim;
@@ -514,7 +514,7 @@ class SNLSTrDlDenseG_Batch
             for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
          }
 #endif
-// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
       }
       // Reject the updated x using a provided delta x
       __snls_hdev__ inline void  reject(const double* const delX, const int ielem, const int offset ) {
@@ -538,10 +538,26 @@ class SNLSTrDlDenseG_Batch
          SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
          switch(Device::GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
-            case(ExecutionStrategy::CUDA): {
+            case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
                RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
                RAJA::forall<RAJA::cuda_exec<512>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
+                  if(!batch_loop) { 
+                     if(isConverged(status[i])) output += 1;
+                  }
+                  else {
+                     if(status[i] != SNLSStatus_t::unConverged) output += 1;
+                  }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
+            }
+#endif
+#ifdef RAJA_ENABLE_HIP
+            case(ExecutionStrategy::GPU): {
+               //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::hip_reduce, int> output(0);
+               RAJA::forall<RAJA::hip_exec<512>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
                   if(!batch_loop) { 
                      if(isConverged(status[i])) output += 1;
                   }
@@ -598,10 +614,21 @@ class SNLSTrDlDenseG_Batch
          const int end = batch_size;
          switch(Device::GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
-            case(ExecutionStrategy::CUDA): {
+            case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
                RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
                RAJA::forall<RAJA::cuda_exec<512>>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
+                  if (rJSuccess(i)) { output += 1; }
+               });
+               red_add = (output.get() == batch_size) ? true : false;
+               break;
+            }
+#endif
+#ifdef RAJA_ENABLE_HIP
+            case(ExecutionStrategy::GPU): {
+               //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
+               RAJA::ReduceSum<RAJA::hip_reduce, int> output(0);
+               RAJA::forall<RAJA::hip_exec<512>>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
                   if (rJSuccess(i)) { output += 1; }
                });
                red_add = (output.get() == batch_size) ? true : false;

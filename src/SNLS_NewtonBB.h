@@ -7,7 +7,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -59,7 +59,7 @@ public:
    
    // destructor
    __snls_hdev__ ~NewtonBB() {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       if ( _outputLevel > 1 && _os != nullptr ) {
          *_os << "NewtonBB Function evaluations : " << _fevals << std::endl;
       }
@@ -160,7 +160,7 @@ public:
             double J ;
             double fhPrev = fh ;
             success = this->_cfj->computeFJ(fh, J, xh) ; _fevals++ ; 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (_os) { *_os << "NewtonBB in bounding, have x, f, J : "
                             << xh << " " <<  fh << " "  << J << std::endl ; }
 #endif
@@ -168,7 +168,7 @@ public:
                // try a smaller step
                xh = xhPrev ; fh = fhPrev ; // dxhi is as was before
                delH = delH * 0.1 ;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
                if (_os) { *_os << "NewtonBB trouble in bounding, cut delH back to = " << delH << std::endl ; }
 #endif
                continue ;
@@ -189,7 +189,7 @@ public:
             double J ;
             double flPrev = fl ;
             success = this->_cfj->computeFJ(fl, J, xl) ; _fevals++ ; 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (_os) { *_os << "NewtonBB in bounding, have x, f, J : "
                             << xl << " " <<  fl << " "  << J << std::endl ; }
 #endif
@@ -197,7 +197,7 @@ public:
                // try a smaller step
                xl = xlPrev ; fl = flPrev ; // dxli is as was before
                delL = delL * 0.1 ;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
                if (_os) { *_os << "NewtonBB trouble in bounding, cut delL back to = " << delL << std::endl ; }
 #endif
                continue ;
@@ -225,7 +225,7 @@ public:
       _outputLevel = outputLevel ;
       _os          = nullptr ;
       //
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       if ( _outputLevel > 0 ) {
          _os = &(std::cout) ;
       }
@@ -335,14 +335,14 @@ public:
             dxold = dx;
             dx = ( xh - xl) / 2.0;
             x = xl + dx;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (_os) { *_os << "NewtonBB doing bisection with dx : " << fabs(dx) << std::endl ; }
 #endif
          }
          else {
             dxold = dx;
             dx = -fun / J;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (_os) { *_os << "NewtonBB trying newton step with dx : " << dx << std::endl ; }
 #endif
             x = x + dx;
@@ -353,7 +353,7 @@ public:
             // could additionally check (fabs(x) > _tolx) && (fabs(dx) / fabs(x) < _tol) for convergence
             // but that may in some cases be too sloppy
             //
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if ( _os != nullptr ) {
                *_os << "converged by bracketing" << std::endl ;
             }
@@ -363,7 +363,7 @@ public:
          }
 
          success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (_os) { *_os << "NewtonBB evaluation with f, J, x : " 
                          << fun << " " << J << " " << x << std::endl ; }
 #endif
@@ -373,7 +373,7 @@ public:
          }
   
          if ( fabs(fun) < _tol ) {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if ( _os != nullptr ) {
                *_os << "converged" << std::endl ;
             }
@@ -406,7 +406,7 @@ private:
    int     _fevals ;
    
    int   _outputLevel;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
    std::ostream* _os ;
 #else
    char* _os ; // do not use

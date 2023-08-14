@@ -3,7 +3,7 @@
 #include <math.h>
 #include "SNLS_base.h"
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <stdlib.h>
 #include <iostream>
 #include <string>
@@ -339,7 +339,7 @@ inline void rotMatrix(const double* const mat,
     }
 }
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 template<int n>
 inline void
 printVec(const double* const y,
