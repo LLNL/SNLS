@@ -151,8 +151,12 @@ class SNLSTrDlDenseG_Batch
       int     getNDim   () const { return(_nDim   ); };
       /// Returns the maximum of function evaluations across all the nonlinear system solves
       int     getMaxNFEvals() const { return(_mfevals ); };
+      /// Returns the maximum of jacobian evaluations across all the nonlinear system solves
+      int     getMaxNJEvals() const { return(_mfevals ); };
       /// Returns the function evaluation array for each point
       const chai::ManagedArray<int> getNFEvals() const { return _fevals; };
+      /// Returns the jacobian evaluation array for each point
+      const chai::ManagedArray<int> getNJEvals() const { return _fevals; };
       /// Returns the size of the delta step used as part of the dogleg solve of the
       /// PDE
       const rview1d& getDelta() const { return _delta; };

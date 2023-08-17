@@ -80,6 +80,7 @@ class SNLSTrDlDenseG
                
       __snls_hdev__ int     getNDim   () const { return(_nDim   ); };
       __snls_hdev__ int     getNFEvals() const { return(_fevals ); };
+      __snls_hdev__ int     getNJEvals() const { return(_fevals ); };
       __snls_hdev__ double  getRhoLast() const { return(_rhoLast); };
       __snls_hdev__ double  getDelta  () const { return(_delta  ); };
       __snls_hdev__ double  getRes    () const { return(_res    ); };
