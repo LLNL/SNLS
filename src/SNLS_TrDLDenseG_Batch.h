@@ -418,7 +418,7 @@ class SNLSTrDlDenseG_Batch
                // const int jX  = imod % _nDim;
                // cJ[i] = J(ipt, iX, jX);
                // Alternatively, we can just use the underlying data here.
-               cJ[i] = J.data[i]
+               cJ[i] = J.data[i];
             });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
@@ -440,7 +440,7 @@ class SNLSTrDlDenseG_Batch
                   }
                   x_pert(offset, iX) = x_pert(offset, iX) + pert_val;
                });
-               this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, offset, batch_size);
+               this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, _status, offset, batch_size);
                const bool success = reduced_rjSuccess<SNLS_GPU_THREADS>(rJSuccess, batch_size);
                if ( !success ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
@@ -453,13 +453,13 @@ class SNLSTrDlDenseG_Batch
             }
 
             // Terribly inefficient here if running on the GPU...
-            const double* J_FD_data = &cJ_FD.data(chai::ExecutionSpace::CPU);
-            const double* J_data = &cJ.data(chai::ExecutionSpace::CPU);
+            const double* J_FD_data = cJ_FD.data(chai::ExecutionSpace::CPU);
+            const double* J_data = cJ.data(chai::ExecutionSpace::CPU);
             for (int iBatch = 0; iBatch < batch_size; iBatch++) {
                const int moff = SNLS_MOFF(iBatch, _nXnDim);
                *_os << "Batch item # " << iBatch << std::endl;
-               *_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_data[moff],    *_os ) ;
-               *_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_FD_data[moff], *_os ) ;
+               *_os << "J_an = " << std::endl ; snls::linalg::printMat<_nDim>( &J_data[moff],    *_os ) ;
+               *_os << "J_fd = " << std::endl ; snls::linalg::printMat<_nDim>( &J_FD_data[moff], *_os ) ;
             }
 
             // Clean-up the memory these objects use.
@@ -469,7 +469,7 @@ class SNLSTrDlDenseG_Batch
             cJ.free();
 
             // put things back the way they were ;
-            this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
+            this->_crj.computeRJ(r, J, _x, rJSuccess, _status, offset, batch_size);
          } // _os != nullptr
 #endif
       }
