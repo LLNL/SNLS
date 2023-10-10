@@ -44,6 +44,23 @@ struct has_ndim <
    >::type
 >: std::true_type { static constexpr bool value = true;};
 
+
+/** Helper templates to ensure compliant CFJ implementations */
+template<typename CFJ, typename = void>
+struct has_valid_computeFJ : std::false_type { static constexpr bool value = false;};
+
+template<typename CFJ>
+struct has_valid_computeFJ <
+   CFJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CFJ>().computeFJ(std::declval<double&>(), std::declval<double&>(),std::declval<double>())),
+           bool
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
 template<int nDim>
 __snls_hdev__
 inline
@@ -170,6 +187,16 @@ void dogleg(const double delta,
       x[iX] += delx[iX];
    }
 }// end non-batch dogleg
+
+// Add a simple swap function for our swapping values
+// if we weren't using these functions on the GPU we could just use
+// std::swap
+template<class T>
+__snls_hdev__
+inline
+void snls_swap(T& v1, T& v2) {
+   const T v3(v1); v1 = v2; v2 = v3;
+}
 
 template<int nDim>
 __snls_hdev__

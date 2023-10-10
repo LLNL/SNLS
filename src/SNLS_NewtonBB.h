@@ -4,6 +4,7 @@
 #define SNLS_NEWTONBB_H
 
 #include "SNLS_base.h"
+#include "SNLS_kernels.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -18,22 +19,6 @@
 namespace snls {
 
 const double mulTolXDefault = 1e-4 ;
-
-/** Helper templates to ensure compliant CFJ implementations */
-template<typename CFJ, typename = void>
-struct has_valid_computeFJ : std::false_type { static constexpr bool value = false;};
-
-template<typename CFJ>
-struct has_valid_computeFJ <
-   CFJ,typename std::enable_if<
-       std::is_same<
-           decltype(std::declval<CFJ>().computeFJ(std::declval<double&>(), std::declval<double&>(),std::declval<double>())),
-           bool  
-       >::value
-       ,
-       void
-   >::type
->: std::true_type { static constexpr bool value = true;};
 
 // 1D Newton solver, with bounding/bisection checks
 //
@@ -103,9 +88,7 @@ public:
              double &fh ) {
       
       if ( xl > xh ) {
-         double tempvar = xl ;
-         xl = xh ;
-         xh = tempvar ;
+         snls_swap(xl, xh);
       }
       
       double delH = 0.2*fmax(xh-xl,fmax(fabs(xl), 1.0)) ;
@@ -141,78 +124,65 @@ public:
          // the ordering here biases the search toward exploring smaller x values
          //
          if ( iBracket < 10 && dxli < 0.0 ) {
-            xlPrev = xl ; xl = xl + fmax(-delL, _boundOvershootFactor / dxli) ; newH = false ;
+            xlPrev = xl ; xl += fmax(-delL, _boundOvershootFactor / dxli) ; newH = false ;
          }
          else if ( iBracket < 10 && dxhi > 0.0 ) {
-            xhPrev = xh ; xh = xh + fmin( delH, _boundOvershootFactor / dxhi) ; newH = true ;
+            xhPrev = xh ; xh += fmin( delH, _boundOvershootFactor / dxhi) ; newH = true ;
          }
          else {
             // take turns
             if ( newH ) { 
-               xlPrev = xl ; xl = xl - delL ; newH = false ;
+               xlPrev = xl ; xl -= delL ; newH = false ;
             }
             else {
-               xhPrev = xh ; xh = xh + delH ; newH = true ;
+               xhPrev = xh ; xh += delH ; newH = true ;
             }
          }
-         
-         if ( newH ) {
-            double J ;
-            double fhPrev = fh ;
-            success = this->_cfj->computeFJ(fh, J, xh) ; _fevals++ ; 
+         // Create a lambda function to deal with the bound updates portion of things as
+         // updating the lower bounds was exactly the same as doing it for the upper bounds code
+         // wise...
+         auto bnd_fnc = [this, &success]
+         (double &func, double &x_val, double &x_prev, double &delta, double &delta_x, double &x_other, double &func_other) {
+
+            double J;
+            double func_prev = func ;
+            success = this->_cfj->computeFJ(func, J, x_val) ; this->_fevals++ ;
 #ifdef __snls_host_only__
-            if (_os) { *_os << "NewtonBB in bounding, have x, f, J : "
-                            << xh << " " <<  fh << " "  << J << std::endl ; }
+            if (this->_os) { *this->_os << "NewtonBB in bounding, have x, f, J : "
+                            << x_val << " " <<  func << " "  << J << std::endl ; }
 #endif
             if ( !success ) {
                // try a smaller step
-               xh = xhPrev ; fh = fhPrev ; // dxhi is as was before
-               delH = delH * 0.1 ;
+               x_val = x_prev ; func = func_prev ; // delta_x is as was before
+               delta *= 0.1;
 #ifdef __snls_host_only__
-               if (_os) { *_os << "NewtonBB trouble in bounding, cut delH back to = " << delH << std::endl ; }
+               if (this->_os) { *this->_os << "NewtonBB trouble in bounding, cut delta back to = " << delta << std::endl ; }
 #endif
-               continue ;
+               return false;
             }
-            if ( fabs(fh) < _tol ) {
+            if ( fabs(func) < this->_tol ) {
                return true ;
             }
-            if ( fhPrev * fh < 0.0 ) { 
+            if ( func_prev * func < 0.0 ) {
                // bracketed
-               xl = xhPrev ;
-               fl = fhPrev ; 
+               x_other = x_prev ;
+               func_other = func_prev ;
                return true ;
             }
-            dxhi = -J / fh;
-            delH = delH * _boundStepGrowthFactor;
+            delta_x = -J / func;
+            delta *= this->_boundStepGrowthFactor;
+            return false;
+         };
+
+         if ( newH ) {
+            const bool ret_val = bnd_fnc(fh, xh, xhPrev, delH, dxhi, xl, fl);
+            if (ret_val) return true;
+            if (!success) continue;
          }
          else {
-            double J ;
-            double flPrev = fl ;
-            success = this->_cfj->computeFJ(fl, J, xl) ; _fevals++ ; 
-#ifdef __snls_host_only__
-            if (_os) { *_os << "NewtonBB in bounding, have x, f, J : "
-                            << xl << " " <<  fl << " "  << J << std::endl ; }
-#endif
-            if ( !success ) {
-               // try a smaller step
-               xl = xlPrev ; fl = flPrev ; // dxli is as was before
-               delL = delL * 0.1 ;
-#ifdef __snls_host_only__
-               if (_os) { *_os << "NewtonBB trouble in bounding, cut delL back to = " << delL << std::endl ; }
-#endif
-               continue ;
-            }
-            if ( fabs(fl) < _tol ) {
-               return true ;
-            }
-            if ( flPrev * fl < 0.0 ) {
-               // bracketed
-               xh = xlPrev ;
-               fh = flPrev ;
-               return true ;
-            }
-            dxli = -J / fl;
-            delL = delL * _boundStepGrowthFactor;
+            const bool ret_val = bnd_fnc(fl, xl, xlPrev, delL, dxli, xh, fh);
+            if (ret_val) return true;
+            if (!success) continue;
          }
       
       } // iBracket
@@ -281,7 +251,7 @@ public:
          }
       }
    
-      if ( fl*fh > 0 ) {
+      if ( fl * fh > 0 ) {
          // root is not bracketed
 
          if ( unbounded ) {
@@ -300,15 +270,8 @@ public:
       // make xl point at which fl=f(xl) < 0
       //
       if ( fl > 0.0 ) {
-         double tempvar ;
-         
-         tempvar = fl ;
-         fl = fh ;
-         fh = tempvar ;
-
-         tempvar = xl ;
-         xl = xh ;
-         xh = tempvar ;
+         snls_swap(fl, fh);
+         snls_swap(xl, xh);
       }
    
       double dxold = fabs( xh - xl ) ;
@@ -345,7 +308,7 @@ public:
 #ifdef __snls_host_only__
             if (_os) { *_os << "NewtonBB trying newton step with dx : " << dx << std::endl ; }
 #endif
-            x = x + dx;
+            x += dx;
          }
   
          if ( fabs(dx) < _tolx  &&  j>10 ) {
