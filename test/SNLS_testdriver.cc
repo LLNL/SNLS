@@ -6,6 +6,7 @@
 using namespace std;
 
 #include "SNLS_config.h"
+#include "SNLS_base.h"
 #include "SNLS_TrDLDenseG.h"
 #include "SNLS_NewtonBB.h"
 
@@ -136,7 +137,7 @@ public:
    
 };
 
-#ifndef __cuda_host_only__
+#if defined(__snls_gpu_active__)
 
 __snls_device__
 void Test_SNLSBroyden_D (Broyden *broyden)
@@ -190,7 +191,6 @@ void snls::Test_SNLSBroyden_GPU(const int npoints)
 }
 
 #endif
-// ifndef __cuda_host_only__
 
 TEST(snls,broyden_a) // int main(int , char ** )
 {
@@ -319,7 +319,7 @@ TEST(snls,newtonbb_c)
 }
 
 
-#ifdef __CUDACC__
+#if defined(__snls_gpu_active__)
 TEST(snls,broyden_gpu_a)
 {
    const int nDim = Broyden::nDimSys ;

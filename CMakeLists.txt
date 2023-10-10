@@ -11,7 +11,7 @@ message(STATUS "Using cmake version ${CMAKE_VERSION}")
 
 project(SNLS LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 
 #--------------------------------------------------------------------------------
 # BLT
@@ -37,10 +37,16 @@ endif()
 
 set(ENABLE_GTEST OFF CACHE BOOL "")
 set(ENABLE_FRUIT OFF CACHE BOOL "")
+set(ENABLE_GBENCHMARK OFF CACHE BOOL "")
 
 if(ENABLE_TESTS)
     set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
 endif(ENABLE_TESTS)
+
+if(ENABLE_BENCHMARKS)
+    set(ENABLE_BENCHMARKS ON CACHE BOOL "" FORCE)
+    set(ENABLE_GBENCHMARK ON CACHE BOOL "" FORCE)
+endif(ENABLE_BENCHMARKS)
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 
