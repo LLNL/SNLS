@@ -113,7 +113,12 @@ namespace snls {
          ExecutionStrategy m_es;
 
          ///
-         /// Default destructor
+         /// Default constructor
+         ///
+         Device();
+
+         ///
+         /// Destructor
          ///
          ~Device() = default;
    };
