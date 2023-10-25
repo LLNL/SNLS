@@ -38,7 +38,7 @@ namespace snls {
 	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"),
                           initial_size);
 #endif
-      es = snls::Device::GetCHAIES();
+      es = snls::Device::GetInstance().GetCHAIES();
    }
   
    /** Changes the internal host allocator to be one that
