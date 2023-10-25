@@ -87,7 +87,7 @@ class SNLSTrDlDenseG_Batch
       // Create all of the working arrays at initializations to reduce the number
       // of mallocs we need to create through out the life of the solver object
       memoryManager& mm = memoryManager::getInstance();
-      const auto es = snls::Device::GetCHAIES();
+      const auto es = snls::Device::GetInstance().GetCHAIES();
       // Values multiplied by _initial_batch_size are related to the various
       // working arrays needed such as the residual and Jacobian matrices
       // Values multiplied _npts are those useful to the user such as the
@@ -257,7 +257,7 @@ class SNLSTrDlDenseG_Batch
          // All of our temporary variables needed for the batch solve
          // We make use of the working arrays created initially to reuse
          // memory if multiple solves are called during the life of this object
-         const auto es = snls::Device::GetCHAIES();
+         const auto es = snls::Device::GetInstance().GetCHAIES();
          rview1b use_nr(SNLS_RSETUP(wrkb_data, es, _initial_batch_size), _initial_batch_size);
          rview1b reject_prev(SNLS_RSETUP(wrkb_data, es, 2 * _initial_batch_size), _initial_batch_size);
 
@@ -429,7 +429,7 @@ class SNLSTrDlDenseG_Batch
             rview3d J_dummy(nullptr, 0, 0, 0);
             chai::ManagedArray<double> cr_pert = mm.allocManagedArray<double>(_initial_batch_size * _nDim);
             chai::ManagedArray<double> cx_pert = mm.allocManagedArray<double>(_npts * _nDim);
-            const auto es = snls::Device::GetCHAIES();
+            const auto es = snls::Device::GetInstance().GetCHAIES();
             rview2d r_pert(SNLS_RSETUP(cr_pert, es, 0), _initial_batch_size, _nDim);
             rview2d x_pert(SNLS_RSETUP(cx_pert, es, 0), _npts, _nDim);
             rview3d J_FD(SNLS_RSETUP(cJ_FD, es, 0), _initial_batch_size, _nDim, _nDim);
@@ -551,8 +551,8 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = offset + batch_size;
-         SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
-         switch(Device::GetBackend()) {
+         SNLSStatus_t*  status = _status.data(Device::GetInstance().GetCHAIES());
+         switch(Device::GetInstance().GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
@@ -628,7 +628,7 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = batch_size;
-         switch(Device::GetBackend()) {
+         switch(Device::GetInstance().GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);

@@ -1,4 +1,5 @@
 build-*
+*.swp
 *.vcxproj.user
 Win32/lib/
 Win32/snls_static.dir/
