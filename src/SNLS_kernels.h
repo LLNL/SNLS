@@ -82,37 +82,8 @@ struct has_valid_computeFJ <
    >::type
 >: std::true_type { static constexpr bool value = true;};
 
-// namespace meta {
-
-// template<typename Sig>
-// struct signature;
-
-// template<typename R, typename ...Args>
-// struct signature<R(Args...)>
-// {
-//     using type = std::tuple<Args...>;
-// };
-
-// template<typename F>
-// concept is_fun = std::is_function_v<F>;
-
-// template<is_fun F>
-// auto arguments(const F &) -> typename signature<F>::type;
-
-// }
-
 template<typename CFJ, typename = void>
 struct has_valid_computeFJ_lamb : std::false_type { static constexpr bool value = false;};
-
-// std::is_same_v<decltype(arguments(foo)), 
-//                              std::tuple<const string &, int, double>>
-
-// template<typename CFJ>
-// struct has_valid_computeFJ_lamb <
-//    CFJ,typename std::enable_if<
-//        std::is_same_v<decltype(meta::arguments(CFJ)), std::tuple<double&, double&, double>>
-//    >::type
-// >: std::true_type { static constexpr bool value = true;};
 
 template<typename CFJ>
 struct has_valid_computeFJ_lamb <
