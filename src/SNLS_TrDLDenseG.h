@@ -46,12 +46,12 @@ namespace snls {
 //
 // TODO ...*** specialize to N=1 case, and N=2 also?
 //
-template< class CRJ >
+template< typename CRJ, int nDimSys = CRJ::nDimSys >
 class SNLSTrDlDenseG 
 {
    public:
-      static_assert(has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x )");
-      static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
+      static_assert(has_valid_computeRJ<CRJ>::value || has_valid_computeRJ_lambda<CRJ>::value, "The CRJ implementation in SNLSTrDlDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x ) or be a lambda function that takes in the same arguments");
+      // static_assert(has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
    public:
    // constructor
@@ -76,7 +76,7 @@ class SNLSTrDlDenseG
 
    public:
       CRJ &_crj ;
-      static const int _nDim = CRJ::nDimSys ;
+      static const int _nDim = nDimSys;
                
       __snls_hdev__ int     getNDim   () const { return(_nDim   ); };
       __snls_hdev__ int     getNFEvals() const { return(_fevals ); };
@@ -233,7 +233,12 @@ class SNLSTrDlDenseG
                                           double* const J ) {
          
          _fevals++ ;
-         bool retval = this->_crj.computeRJ(r, J, _x);
+         bool retval;
+         if constexpr(has_valid_computeRJ<CRJ>::value) {
+            retval = this->_crj.computeRJ(r, J, _x);
+         } else {
+            retval = this->_crj(r, J, _x);
+         }
          
 #ifdef SNLS_DEBUG
 #ifdef __snls_host_only__
@@ -258,7 +263,12 @@ class SNLSTrDlDenseG
                   x_pert[jX] = _x[jX] ;
                }
                x_pert[iX] = x_pert[iX] + pert_val ;
-               bool retvalThis = this->_crj.computeRJ( r_pert, nullptr, x_pert ) ;
+               bool retvalThis;
+               if constexpr(has_valid_computeRJ<CRJ>::value) {
+                  retvalThis = this->_crj.computeRJ(r_pert, nullptr, x_pert);
+               } else {
+                  retvalThis = this->_crj(r_pert, nullptr, x_pert);
+               }
                if ( !retvalThis ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
                }
@@ -271,7 +281,11 @@ class SNLSTrDlDenseG
             *_os << "J_fd = " << std::endl ; snls::linalg::printMat<_nDim>( J_FD, *_os ) ;
 
             // put things back the way they were ;
-            retval = this->_crj.computeRJ(r, J, _x);
+            if constexpr(has_valid_computeRJ<CRJ>::value) {
+               retval = this->_crj.computeRJ(r, J, _x);
+            } else {
+               retval = this->_crj(r, J, _x);
+            }
             
          } // _os != nullptr
 #endif

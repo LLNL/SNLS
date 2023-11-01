@@ -22,14 +22,16 @@ const double mulTolXDefault = 1e-4 ;
 
 // 1D Newton solver, with bounding/bisection checks
 //
-template< class CFJ, bool unbounded >
+template< typename CFJ, bool unbounded >
 class NewtonBB
 {
 public:
-   static_assert(has_valid_computeFJ<CFJ>::value, "The CFJ implementation in SNLSNewtonBB needs to implement bool computeFJ( double &f, double &J, double x )");
+   // Note this is not perfect and might fail as seen in the notes for these helper functions
+   // However, the compiler can help to identify some of these issues
+   static_assert(has_valid_computeFJ<CFJ>::value || has_valid_computeFJ_lamb<CFJ>::value, "The CFJ implementation in SNLSNewtonBB needs to implement bool computeFJ( double &f, double &J, double x ) or a lambda function with same types");
    
    // constructor
-   __snls_hdev__ NewtonBB( CFJ       *cfj ) :
+   __snls_hdev__ NewtonBB( CFJ &cfj ) :
       _cfj(cfj),
       _boundStepGrowthFactor(1.2),
       _boundOvershootFactor(1.2),
@@ -72,6 +74,18 @@ public:
    inline
    int
    getNFEvals() const { return(_fevals); };
+
+   __snls_hdev__
+   inline
+   bool
+   computeFJ(double& fh, double& Jh, double xh) {
+      if constexpr(has_valid_computeFJ<CFJ>::value) {
+         return _cfj.computeFJ(fh, Jh, xh);
+      }
+      else {
+         return _cfj(fh, Jh, xh);
+      }
+   }
    
    /** find bounds for zero of a function for which x does not have limits ;
     *
@@ -99,12 +113,12 @@ public:
       double dxhi, dxli ;
       {
          double Jh ;
-         success = this->_cfj->computeFJ(fh, Jh, xh) ; _fevals++ ; 
+         success = computeFJ(fh, Jh, xh) ; _fevals++ ; 
          if ( !success ) {
             return false ;
          }
          double Jl ;
-         success = this->_cfj->computeFJ(fl, Jl, xl) ; _fevals++ ; 
+         success = computeFJ(fl, Jl, xl) ; _fevals++ ; 
          if ( !success ) {
             return false ;
          }
@@ -146,7 +160,7 @@ public:
 
             double J;
             double func_prev = func ;
-            success = this->_cfj->computeFJ(func, J, x_val) ; this->_fevals++ ;
+            success = computeFJ(func, J, x_val) ; this->_fevals++ ;
 #ifdef __snls_host_only__
             if (this->_os) { *this->_os << "NewtonBB in bounding, have x, f, J : "
                             << x_val << " " <<  func << " "  << J << std::endl ; }
@@ -215,7 +229,7 @@ public:
       SNLSStatus_t status = unset ;
    
       double fun, J ;
-      bool success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
+      bool success = computeFJ(fun, J, x) ; _fevals++ ;
       if ( !success ) {
          status = initEvalFailure ;
          return status ;
@@ -229,7 +243,7 @@ public:
       double fl, fh ;
       {
          double tmpJ;
-         success = this->_cfj->computeFJ(fl, tmpJ, xl) ; _fevals++ ;
+         success = computeFJ(fl, tmpJ, xl) ; _fevals++ ;
          if ( !success ) {
             status = initEvalFailure ;
             return status ;
@@ -239,7 +253,7 @@ public:
             status = converged ;
             return status ;
          }
-         success = this->_cfj->computeFJ(fh, tmpJ, xh) ; _fevals++ ;
+         success = computeFJ(fh, tmpJ, xh) ; _fevals++ ;
          if ( !success ) {
             status = initEvalFailure ;
             return status ;
@@ -325,7 +339,7 @@ public:
             return status ;
          }
 
-         success = this->_cfj->computeFJ(fun, J, x) ; _fevals++ ;
+         success = computeFJ(fun, J, x) ; _fevals++ ;
 #ifdef __snls_host_only__
          if (_os) { *_os << "NewtonBB evaluation with f, J, x : " 
                          << fun << " " << J << " " << x << std::endl ; }
@@ -359,7 +373,7 @@ public:
    }
 
 public:
-   CFJ     *_cfj ;
+   CFJ     &_cfj ;
    double  _boundStepGrowthFactor ;
    double  _boundOvershootFactor ;
    

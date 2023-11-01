@@ -36,12 +36,12 @@ namespace snls {
 //
 // Might want to look into having this templated on a class that controls the delta as well as the trust region can at times decrease the step control a bit
 // too fast which can lead the solver to fail.
-template< class CRJ>
+template< typename CRJ, int nDimSys = CRJ::nDimSys>
 class SNLSHybrdTrDLDenseG 
 {
     public:
-    static_assert(snls::has_valid_computeRJ<CRJ>::value, "The CRJ implementation in SNLSHybrdTrDLDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x )");
-    static_assert(snls::has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
+    static_assert(has_valid_computeRJ<CRJ>::value || has_valid_computeRJ_lambda<CRJ>::value, "The CRJ implementation in SNLSHybrdTrDLDenseG needs to implement bool computeRJ( double* const r, double* const J, const double* const x ) or be a lambda function that takes in the same arguments");
+    // static_assert(snls::has_ndim<CRJ>::value, "The CRJ Implementation must define the const int 'nDimSys' to represent the number of dimensions");
 
     // constructor
     __snls_hdev__ SNLSHybrdTrDLDenseG(CRJ &crj) :
@@ -171,7 +171,12 @@ class SNLSHybrdTrDLDenseG
     {
         m_fevals += 1;
         m_jevals += ((J == nullptr) ? 0 : 1);
-        bool retval = this->m_crj.computeRJ(r, J, m_x);
+        bool retval;
+        if constexpr(has_valid_computeRJ<CRJ>::value) {
+            retval = this->m_crj.computeRJ(r, J, m_x);
+        } else {
+            retval = this->m_crj(r, J, m_x);
+        }
 #ifdef SNLS_DEBUG
 #ifdef __snls_host_only__
          if ( m_outputLevel > 2 && m_os != nullptr ) {
@@ -195,7 +200,12 @@ class SNLSHybrdTrDLDenseG
                   x_pert[jX] = m_x[jX] ;
                }
                x_pert[iX] = x_pert[iX] + pert_val ;
-               bool retvalThis = this->m_crj.computeRJ( r_pert, nullptr, x_pert ) ;
+               bool retvalThis;
+               if constexpr(has_valid_computeRJ<CRJ>::value) {
+                    retvalThis = this->m_crj.computeRJ(r_pert, nullptr, x_pert);
+               } else {
+                    retvalThis = this->m_crj(r_pert, nullptr, x_pert);
+               }
                if ( !retvalThis ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
                }
@@ -208,7 +218,11 @@ class SNLSHybrdTrDLDenseG
             *m_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( J_FD, *m_os ) ;
 
             // put things back the way they were ;
-            retval = this->m_crj.computeRJ(r, J, m_x);
+            if constexpr(has_valid_computeRJ<CRJ>::value) {
+                retval = this->m_crj.computeRJ(r, J, m_x);
+            } else {
+                retval = this->m_crj(r, J, m_x);
+            }
             
          } // _os != nullptr
 #endif
@@ -569,7 +583,7 @@ class SNLSHybrdTrDLDenseG
 
     // Class member variables
     public:
-    static const int m_nDim = CRJ::nDimSys;
+    static const int m_nDim = nDimSys;
     CRJ & m_crj ;
     double m_x[m_nDim];
 
