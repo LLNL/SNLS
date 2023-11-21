@@ -37,10 +37,8 @@ namespace snls {
       _device_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
 	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"),
                           initial_size);
-      es = chai::ExecutionSpace::GPU;
-#else
-      es = chai::ExecutionSpace::CPU;
 #endif
+      es = snls::Device::GetInstance().GetCHAIES();
    }
   
    /** Changes the internal host allocator to be one that

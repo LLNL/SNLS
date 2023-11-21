@@ -24,6 +24,7 @@ typedef enum {
    slowConvergence    = -50,
    algFailure         = -100,
    bracketFailure     = -101,
+   linearSolveFailure = -110,
    unset              = -200
 } SNLSStatus_t ;
 

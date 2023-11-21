@@ -64,6 +64,7 @@ namespace snls {
    /// GPU refers to parallel executions of for loops on the Device
    /// using GPU through RAJA forall abstractions
    enum class ExecutionStrategy { CPU, GPU, OPENMP };
+
    /// This has largely been inspired by the MFEM device
    /// class, since they make use of it with their FORALL macro
    /// It's recommended to only have one object for the lifetime
@@ -71,47 +72,55 @@ namespace snls {
    /// multiple objects can occur in regards to which models
    /// run on what ExecutionStrategy backend.
    class Device {
-      private:
-         static Device device_singleton;
-         ExecutionStrategy _es;
-         static Device& Get() { return device_singleton; }
       public:
-#ifdef __snls_gpu_active__
-         Device() : _es(ExecutionStrategy::GPU) {}
-#else
-         Device() : _es(ExecutionStrategy::CPU) {}
-#endif
-         Device(ExecutionStrategy es) : _es(es) {
-            Get()._es = es;
-         }
-         void SetBackend(ExecutionStrategy es) { Get()._es = es; }
-         static inline ExecutionStrategy GetBackend() { return Get()._es; }
+         static Device& GetInstance();
 
-         static inline chai::ExecutionSpace GetCHAIES() 
-         {
-            switch (Get()._es) {
-#ifdef __snls_gpu_active__
-               case ExecutionStrategy::GPU: {
-                  return chai::ExecutionSpace::GPU;
-               }
-#endif
-#ifdef OPENMP_ENABLE
-               case ExecutionStrategy::OPENMP:
-#endif
-               case ExecutionStrategy::CPU:
-               default: {
-                  return chai::ExecutionSpace::CPU;
-               }
-            }
-         }
+         ///
+         /// Get the current execution strategy
+         ///
+         /// @return   the current execution strategy
+         ///
+         ExecutionStrategy GetBackend() { return m_es; }
 
-         ~Device() {
-#ifdef __snls_gpu_active__
-            Get()._es = ExecutionStrategy::GPU;
-#else
-            Get()._es = ExecutionStrategy::CPU;
-#endif
-         }
+         ///
+         /// Set the current execution strategy
+         ///
+         /// @param[in]   es   New execution strategy
+         ///
+         void SetBackend(ExecutionStrategy es) { m_es = es; }
+
+         ///
+         /// Get CHAI execution space corresponding to the execution strategy
+         ///
+         /// @return   the current CHAI execution space
+         ///
+         chai::ExecutionSpace GetCHAIES();
+
+         ///
+         /// Delete copy constructor
+         ///
+         Device(const Device&) = delete;
+
+         ///
+         /// Delete copy assignment operator
+         ///
+         Device& operator=(const Device&) = delete;
+
+      private:
+         ///
+         /// Current execution strategy
+         ///
+         ExecutionStrategy m_es;
+
+         ///
+         /// Default constructor
+         ///
+         Device();
+
+         ///
+         /// Destructor
+         ///
+         ~Device() = default;
    };
 
    /// The forall kernel body wrapper. It should be noted that one
@@ -132,7 +141,7 @@ namespace snls {
       // and you don't have multiple Device objects changing
       // the backend things should just work no matter where this
       // is used.
-      switch(Device::GetBackend()) {
+      switch(Device::GetInstance().GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
          case(ExecutionStrategy::GPU): {
             RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);

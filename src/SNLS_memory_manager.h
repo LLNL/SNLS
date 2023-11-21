@@ -15,6 +15,7 @@
 #include <umpire/Allocator.hpp>
 #include <umpire/ResourceManager.hpp>
 #include <umpire/strategy/QuickPool.hpp>
+#include <chai/config.hpp>
 #include <chai/ManagedArray.hpp>
 
 namespace snls {
@@ -68,7 +69,7 @@ namespace snls {
          inline
          chai::ManagedArray<T> allocManagedArray(std::size_t size=0)
          {
-            es = snls::Device::GetCHAIES();
+            es = snls::Device::GetInstance().GetCHAIES();
             chai::ManagedArray<T> array(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
@@ -90,6 +91,7 @@ namespace snls {
          inline
          chai::ManagedArray<T>* allocPManagedArray(std::size_t size=0)
          {
+            es = snls::Device::GetInstance().GetCHAIES();
             auto array = new chai::ManagedArray<T>(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)

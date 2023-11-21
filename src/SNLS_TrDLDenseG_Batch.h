@@ -87,7 +87,7 @@ class SNLSTrDlDenseG_Batch
       // Create all of the working arrays at initializations to reduce the number
       // of mallocs we need to create through out the life of the solver object
       memoryManager& mm = memoryManager::getInstance();
-      const auto es = snls::Device::GetCHAIES();
+      const auto es = snls::Device::GetInstance().GetCHAIES();
       // Values multiplied by _initial_batch_size are related to the various
       // working arrays needed such as the residual and Jacobian matrices
       // Values multiplied _npts are those useful to the user such as the
@@ -257,7 +257,7 @@ class SNLSTrDlDenseG_Batch
          // All of our temporary variables needed for the batch solve
          // We make use of the working arrays created initially to reuse
          // memory if multiple solves are called during the life of this object
-         const auto es = snls::Device::GetCHAIES();
+         const auto es = snls::Device::GetInstance().GetCHAIES();
          rview1b use_nr(SNLS_RSETUP(wrkb_data, es, _initial_batch_size), _initial_batch_size);
          rview1b reject_prev(SNLS_RSETUP(wrkb_data, es, 2 * _initial_batch_size), _initial_batch_size);
 
@@ -340,7 +340,11 @@ class SNLSTrDlDenseG_Batch
                         snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &grad.get_data()[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
                         Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                      }
-                     this->computeNewtonStep( &_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &nrStep.get_data()[i * _nDim] ) ;
+                     const bool sol_stat = this->computeNewtonStep( &_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &nrStep.get_data()[i * _nDim] ) ;
+                     if (!sol_stat) {
+                        _status[i + offset] = SNLSStatus_t::linearSolveFailure;
+                        return;
+                     }
                      nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.get_data()[i * _nDim] );
                   }
                }); // end of batch compute kernel 1
@@ -418,14 +422,14 @@ class SNLSTrDlDenseG_Batch
                // const int jX  = imod % _nDim;
                // cJ[i] = J(ipt, iX, jX);
                // Alternatively, we can just use the underlying data here.
-		cJ[i] = J.get_data()[i];
+               cJ[i] = J.get_data()[i]
             });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
             rview3d J_dummy(nullptr, 0, 0, 0);
             chai::ManagedArray<double> cr_pert = mm.allocManagedArray<double>(_initial_batch_size * _nDim);
             chai::ManagedArray<double> cx_pert = mm.allocManagedArray<double>(_npts * _nDim);
-            const auto es = snls::Device::GetCHAIES();
+            const auto es = snls::Device::GetInstance().GetCHAIES();
             rview2d r_pert(SNLS_RSETUP(cr_pert, es, 0), _initial_batch_size, _nDim);
             rview2d x_pert(SNLS_RSETUP(cx_pert, es, 0), _npts, _nDim);
             rview3d J_FD(SNLS_RSETUP(cJ_FD, es, 0), _initial_batch_size, _nDim, _nDim);
@@ -474,7 +478,7 @@ class SNLSTrDlDenseG_Batch
 #endif
       }
    private :
-     __snls_hdev__ inline void  computeNewtonStep (double* const       J,
+     __snls_hdev__ inline bool  computeNewtonStep (double* const       J,
                                       const double* const r,
                                       double* const       newton  ) {
          _nJFact++ ;
@@ -494,7 +498,10 @@ class SNLSTrDlDenseG_Batch
          int ipiv[_nDim] ;
          DGETRF(&_nDim, &_nDim, J, &_nDim, ipiv, &info) ;
 
-         if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from dgetrf"); }
+         if ( info != 0 ) {
+            SNLS_WARN(__func__, "info non-zero from dgetrf");
+            return false;
+         }
 
          for (int iX = 0; iX < _nDim; ++iX) {
             newton[iX] = - r[iX] ; 
@@ -503,7 +510,10 @@ class SNLSTrDlDenseG_Batch
          int nRHS=1; info=0;
          DGETRS(&trans, &_nDim, &nRHS, J, &_nDim, ipiv, newton, &_nDim, &info);
 
-         if ( info != 0 ) { SNLS_FAIL(__func__, "info non-zero from lapack::dgetrs()") ; }
+         if ( info != 0 ) {
+            SNLS_WARN(__func__, "info non-zero from lapack::dgetrs()");
+            return false;
+         }
 
 #else
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
@@ -513,12 +523,14 @@ class SNLSTrDlDenseG_Batch
 
             int   err = SNLS_LUP_Solve<n>(J, newton, r);
             if (err<0) {
-               SNLS_FAIL(__func__," fail return from LUP_Solve()") ;
+               SNLS_WARN(__func__," fail return from LUP_Solve()");
+               return false;
             }
             for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
          }
 #endif
-// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
+         return true;
+// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
       // Reject the updated x using a provided delta x
       __snls_hdev__ inline void  reject(const double* const delX, const int ielem, const int offset ) {
@@ -539,8 +551,8 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = offset + batch_size;
-         SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
-         switch(Device::GetBackend()) {
+         SNLSStatus_t*  status = _status.data(Device::GetInstance().GetCHAIES());
+         switch(Device::GetInstance().GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
@@ -616,7 +628,7 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = batch_size;
-         switch(Device::GetBackend()) {
+         switch(Device::GetInstance().GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
             case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
