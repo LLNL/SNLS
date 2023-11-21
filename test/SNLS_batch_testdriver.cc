@@ -181,7 +181,7 @@ void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int npts) {
    // If we pass in a raw pointer like down below we need to make sure the data
    // exists in the same memory location. This is why we're getting the 
    // chai memory location that corresponds to what our Device backend is set to
-   solver.setX(x.data(snls::Device::GetCHAIES()));
+   solver.setX(x.data(snls::Device::GetInstance().GetCHAIES()));
    // Alternatively, since we're using a chai managed array we could have just done the below.
    // Here the chai managed array will automatically transfer the data if need be to the correct
    // location based on our use of the snls_forall macros in setX.
