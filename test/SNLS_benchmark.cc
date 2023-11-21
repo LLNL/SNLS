@@ -1,15 +1,15 @@
+#include "SNLS_base.h"
+
+#include "SNLS_TrDLDenseG.h"
+#include "SNLS_NewtonBB.h"
+#include "SNLS_HybrdTrDLDenseG.h"
+#include "SNLS_testmodels.h"
+
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
 
 #include <benchmark/benchmark.h>
-
-using namespace std;
-
-#include "SNLS_config.h"
-#include "SNLS_TrDLDenseG.h"
-#include "SNLS_HybrdTrDLDenseG.h"
-#include "SNLS_NewtonBB.h"
-#include "SNLS_testmodels.h"
 
 #if defined(__GNUC__)
 #define BENCHMARK_NOINLINE __attribute__((noinline))
@@ -78,6 +78,7 @@ double BENCHMARK_NOINLINE broyden_a_class()
 {
    constexpr int nDimSys = BROYDEN_NDIM_SYS;
    constexpr double lambda = 0.9999;
+
    Broyden broyden(lambda, broyden_lambda(lambda, nDimSys)); // LAMBDA_BROYDEN 
    snls::SNLSTrDlDenseG<decltype(broyden)> solver(broyden);
    return broyden_solver(solver);
@@ -255,3 +256,4 @@ BENCHMARK(BM_NewtonBB_Class);
 BENCHMARK(BM_NewtonBB_Lambda);
 BENCHMARK(BM_NewtonBB_Func);
 BENCHMARK_MAIN();
+

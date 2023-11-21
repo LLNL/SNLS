@@ -314,7 +314,7 @@ class SNLSTrDlDenseG_Batch
                }
                // this breaks out of the internal lambda and is essentially a loop continue
                if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.data[i * _nDim]);
+                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.get_data()[i * _nDim]);
                   res_0(i) = _res(i + offset);
             });
 
@@ -334,14 +334,14 @@ class SNLSTrDlDenseG_Batch
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev(i) ) {
-                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim]);
+                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &grad.get_data()[i * _nDim]);
                      {
                         double ntemp[_nDim] ;
-                        snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
+                        snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &grad.get_data()[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
                         Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                      }
-                     this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
-                     nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.data[i * _nDim] );
+                     this->computeNewtonStep( &_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &nrStep.get_data()[i * _nDim] ) ;
+                     nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.get_data()[i * _nDim] );
                   }
                }); // end of batch compute kernel 1
                // Computes the batch version of the dogleg code and updates the solution variable x
@@ -418,7 +418,7 @@ class SNLSTrDlDenseG_Batch
                // const int jX  = imod % _nDim;
                // cJ[i] = J(ipt, iX, jX);
                // Alternatively, we can just use the underlying data here.
-               cJ[i] = J.data[i];
+		cJ[i] = J.get_data()[i];
             });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.

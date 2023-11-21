@@ -15,6 +15,19 @@
 
 #define FUNASOLN 2.345
 
+// Note with CUDA compilations we run into issues similar to those described here:
+// https://gitlab.lrz.de/IP/quickvec/-/issues/1 for our lambda functions if we use __snls_hdev__ or __snls_device__.
+// This is a limitation of NVCC since it appears to return 2 different types when a lambda function has the
+// __host__ __device__ decoration on it. One of the types is for the host compiler and the other is for the
+// device compilation. So, if we use auto in the return position this causes issues for the nvcc compiler or
+// at least that's my understanding of things after reading the documentation for extended lambdas in CUDA:
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#extended-lambda .
+// If we really wanted to we could probably use a functor instead or some macro usages but that's not worth the trouble.
+// In the mean time, it's easier to just revert all the __snls_hdev__ calls to __snls_host__ calls so things compile. 
+// However, we only see this pop-up when compiling the SNLS_benchmark.cc case
+// No easy solution here as the alternative to the lambda functions is to define
+// a struct that implements the code and just return that rather than having the lambda funcs...
+
 /*!
   Comment as in the Trilinos NOX package:
   
@@ -38,7 +51,7 @@
 
 inline
 auto broyden_lambda(const double lambda, const int nDimSys) {
-   return [nDimSys, lambda](double* const r,
+   return [nDimSys, lambda] __snls_host__(double* const r,
                             double* const J,
                             const double* const x ) -> bool 
     {
@@ -102,7 +115,7 @@ public:
    Broyden(double lambda, T &&lambda_func)
     : _lambda(lambda), func(std::forward<T>(lambda_func)) {};
 
-   __snls_hdev__ 
+   __snls_host__
    bool computeRJ(double* const r,
                   double* const J,
                   const double* const x)
@@ -126,7 +139,7 @@ public:
 // It's original description in the Fletcher paper is a function that "represents those found in practice".
 inline
 auto cheby_quad_lambda(const int nDimSys) {
-    return [nDimSys] (double* const r,
+    return [nDimSys] __snls_host__(double* const r,
                       double* const J,
                       const double* const x) -> bool
     {
@@ -191,6 +204,7 @@ public:
     ChebyQuad(T&& lambda) : func(std::forward<T>(lambda)) {}
     ~ChebyQuad(){}
 
+    __snls_host__
     bool computeRJ(double* const r,
                     double* const J,
                     const double* const x)
@@ -213,7 +227,7 @@ auto make_cheby_quad5(T&& lambda) {
 
 inline
 auto fun_a_lambda(const double alpha, const double xsoln) {
-    return [alpha, xsoln](double &f, double &J, double x) -> bool 
+    return [alpha, xsoln] __snls_host__(double &f, double &J, double x) -> bool 
     {
         double arg = alpha * (x - xsoln) ;
         f = tanh( arg ) ;
@@ -232,10 +246,10 @@ public:
     // this way we can share implementation details across all our different
     // cases. We avoid using a std::function to hold things here
     // as it results in a 20% hit in performance.
-    __snls_hdev__  FunA(double alpha, T &&lambda) 
+    FunA(double alpha, T &&lambda) 
     : _alpha(alpha), _xSoln(FUNASOLN), func(std::forward<T>(lambda)) {};
 
-    __snls_hdev__
+    __snls_host__
     bool computeFJ(double &f,
                   double &J,
                   double  x)
@@ -243,6 +257,7 @@ public:
         return func(f, J, x);
     } ;
 
+    __snls_host__
     void operator()(double &f,
                     double &J,
                     double  x ) { 
