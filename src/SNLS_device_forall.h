@@ -169,6 +169,18 @@ namespace snls {
          }
       } // End of switch
    } // end of forall wrap
+
+   /// An alternative to the macro forall interface and copies more or less the 
+   /// MFEM's team alternative design as well. This new formulation should allow for better debug information.
+   /// So, it should allow better debug information and also better control over our lambda
+   /// functions and what we capture in them.
+   template <const int NUMTHREADS, typename BODY>
+   inline void forall(const int st,
+                      const int end,
+                      BODY &&body)
+   {
+      SNLS_ForallWrap<NUMTHREADS>(st, end, body, body);
+   }
 }
 #endif // SNLS_RAJA_PERF_SUITE
 #endif /* SNLS_device_forall_h */

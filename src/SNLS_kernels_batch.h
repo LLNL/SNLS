@@ -74,7 +74,7 @@ void dogleg(const int offset,
             rview1b &use_nr
             ) 
 {
-   SNLS_FORALL_T(i, 256, 0, batch_size,
+   snls::forall<SNLS_GPU_THREADS>(0, batch_size, [=] __snls_hdev__ (int i)
    {
       // this breaks out of the internal lambda and is essentially a loop continue
       // This check is to prevent the solver from further updating  the solution after a point has been solved/failed
@@ -198,7 +198,7 @@ void updateDelta(const int offset,
    // The below set of fused kernels compute the updated delta for the step size,
    // reject the previous solution if the computeRJ up above failed,
    // and updates the res0 if the solution is still unconverged.
-   SNLS_FORALL_T(i, 256, 0, batch_size,
+   snls::forall<SNLS_GPU_THREADS>(0, batch_size, [=] __snls_hdev__ (int i)
    {
       // Update the delta kernel
       // this breaks out of the internal lambda and is essentially a loop continue
