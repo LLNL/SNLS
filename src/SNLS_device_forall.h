@@ -54,6 +54,10 @@ namespace snls {
    typedef RAJA::View<double, RAJA::Layout<1> > rview1d;
    typedef RAJA::View<double, RAJA::Layout<2> > rview2d;
    typedef RAJA::View<double, RAJA::Layout<3> > rview3d;
+   typedef RAJA::View<const bool, RAJA::Layout<1> > crview1b;
+   typedef RAJA::View<const double, RAJA::Layout<1> > crview1d;
+   typedef RAJA::View<const double, RAJA::Layout<2> > crview2d;
+   typedef RAJA::View<const double, RAJA::Layout<3> > crview3d;
 
    /// ExecutionStrategy defines how one would like the
    /// computations done.
@@ -144,19 +148,19 @@ namespace snls {
       switch(Device::GetInstance().GetBackend()) {
 #ifdef RAJA_ENABLE_CUDA
          case(ExecutionStrategy::GPU): {
-            RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
+            RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), std::forward<DBODY>(d_body));
             break;
          }
 #endif
 #ifdef RAJA_ENABLE_HIP
          case(ExecutionStrategy::GPU): {
-            RAJA::forall<RAJA::hip_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
+            RAJA::forall<RAJA::hip_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), std::forward<DBODY>(d_body));
             break;
          }
 #endif
 #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
          case(ExecutionStrategy::OPENMP): {
-            RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(st, end), h_body);
+            RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
             break;
          }
 #endif
@@ -164,7 +168,7 @@ namespace snls {
          default: {
             // Moved from a for loop to raja forall so that the chai ManagedArray
             // would automatically move the memory over
-            RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(st, end), h_body);
+            RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
             break;
          }
       } // End of switch
@@ -179,7 +183,7 @@ namespace snls {
                       const int end,
                       BODY &&body)
    {
-      SNLS_ForallWrap<NUMTHREADS>(st, end, body, body);
+      SNLS_ForallWrap<NUMTHREADS>(st, end, std::forward<BODY>(body), std::forward<BODY>(body));
    }
 }
 #endif // SNLS_RAJA_PERF_SUITE
