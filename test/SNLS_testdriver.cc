@@ -136,7 +136,7 @@ public:
    
 };
 
-#ifndef __cuda_host_only__
+#ifdef __snls_device_only__
 
 __snls_device__
 void Test_SNLSBroyden_D (Broyden *broyden)
@@ -190,7 +190,6 @@ void snls::Test_SNLSBroyden_GPU(const int npoints)
 }
 
 #endif
-// ifndef __cuda_host_only__
 
 TEST(snls,broyden_a) // int main(int , char ** )
 {
@@ -319,7 +318,7 @@ TEST(snls,newtonbb_c)
 }
 
 
-#ifdef __CUDACC__
+#ifdef __snls_gpu_active__
 TEST(snls,broyden_gpu_a)
 {
    const int nDim = Broyden::nDimSys ;
