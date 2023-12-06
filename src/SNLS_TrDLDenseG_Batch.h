@@ -422,7 +422,7 @@ class SNLSTrDlDenseG_Batch
                // const int jX  = imod % _nDim;
                // cJ[i] = J(ipt, iX, jX);
                // Alternatively, we can just use the underlying data here.
-               cJ[i] = J.get_data()[i]
+               cJ[i] = J.get_data()[i];
             });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
