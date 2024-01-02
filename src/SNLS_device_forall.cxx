@@ -14,8 +14,8 @@ namespace snls {
    }
 
    Device::Device() :
-#if defined(__CUDACC__)
-      m_es{ExecutionStrategy::CUDA}
+#if defined(__snls_gpu_active__)
+      m_es{ExecutionStrategy::GPU}
 #else
       m_es{ExecutionStrategy::CPU}
 #endif
@@ -24,8 +24,8 @@ namespace snls {
 
    chai::ExecutionSpace Device::GetCHAIES() {
       switch (m_es) {
-#if defined(__CUDACC__)
-         case ExecutionStrategy::CUDA:
+#if defined(__snls_gpu_active__)
+         case ExecutionStrategy::GPU:
             return chai::ExecutionSpace::GPU;
 #endif
 
