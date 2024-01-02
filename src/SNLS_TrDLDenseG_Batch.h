@@ -553,27 +553,18 @@ class SNLSTrDlDenseG_Batch
          const int end = offset + batch_size;
          SNLSStatus_t*  status = _status.data(Device::GetInstance().GetCHAIES());
          switch(Device::GetInstance().GetBackend()) {
-#ifdef RAJA_ENABLE_CUDA
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
             case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-               RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
-               RAJA::forall<RAJA::cuda_exec<512>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
-                  if(!batch_loop) { 
-                     if(isConverged(status[i])) output += 1;
-                  }
-                  else {
-                     if(status[i] != SNLSStatus_t::unConverged) output += 1;
-                  }
-               });
-               red_add = (output.get() == batch_size) ? true : false;
-               break;
-            }
+#if defined(RAJA_ENABLE_CUDA)
+               using gpu_reduce = RAJA::cuda_reduce;
+               using gpu_policy = RAJA::cuda_exec<512>;
+#else
+               using gpu_reduce = RAJA::hip_reduce;
+               using gpu_policy = RAJA::hip_exec<512>;
 #endif
-#ifdef RAJA_ENABLE_HIP
-            case(ExecutionStrategy::GPU): {
-               //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-               RAJA::ReduceSum<RAJA::hip_reduce, int> output(0);
-               RAJA::forall<RAJA::hip_exec<512>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
+               RAJA::ReduceSum<gpu_reduce, int> output(0);
+               RAJA::forall<gpu_policy>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
                   if(!batch_loop) { 
                      if(isConverged(status[i])) output += 1;
                   }
@@ -629,22 +620,18 @@ class SNLSTrDlDenseG_Batch
          bool red_add = false;
          const int end = batch_size;
          switch(Device::GetInstance().GetBackend()) {
-#ifdef RAJA_ENABLE_CUDA
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
             case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-               RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
-               RAJA::forall<RAJA::cuda_exec<512>>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
-                  if (rJSuccess(i)) { output += 1; }
-               });
-               red_add = (output.get() == batch_size) ? true : false;
-               break;
-            }
+#if defined(RAJA_ENABLE_CUDA)
+               using gpu_reduce = RAJA::cuda_reduce;
+               using gpu_policy = RAJA::cuda_exec<512>;
+#else
+               using gpu_reduce = RAJA::hip_reduce;
+               using gpu_policy = RAJA::hip_exec<512>;
 #endif
-#ifdef RAJA_ENABLE_HIP
-            case(ExecutionStrategy::GPU): {
-               //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-               RAJA::ReduceSum<RAJA::hip_reduce, int> output(0);
-               RAJA::forall<RAJA::hip_exec<512>>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
+               RAJA::ReduceSum<gpu_reduce, int> output(0);
+               RAJA::forall<gpu_policy>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
                   if (rJSuccess(i)) { output += 1; }
                });
                red_add = (output.get() == batch_size) ? true : false;

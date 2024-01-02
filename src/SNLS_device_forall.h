@@ -141,15 +141,14 @@ namespace snls {
       // the backend things should just work no matter where this
       // is used.
       switch(Device::GetInstance().GetBackend()) {
-#ifdef RAJA_ENABLE_CUDA
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
          case(ExecutionStrategy::GPU): {
-            RAJA::forall<RAJA::cuda_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
-            break;
-         }
+#if defined(RAJA_ENABLE_CUDA)
+            using gpu_policy = RAJA::cuda_exec<NUMTHREADS>;
+#else
+            using gpu_policy = RAJA::hip_exec<NUMTHREADS>;
 #endif
-#ifdef RAJA_ENABLE_HIP
-         case(ExecutionStrategy::GPU): {
-            RAJA::forall<RAJA::hip_exec<NUMTHREADS>>(RAJA::RangeSegment(st, end), d_body);
+            RAJA::forall<gpu_policy>(RAJA::RangeSegment(st, end), d_body);
             break;
          }
 #endif
