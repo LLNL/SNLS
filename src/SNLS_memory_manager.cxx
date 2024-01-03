@@ -32,13 +32,13 @@ namespace snls {
                          ("MSLib_HOST_pool", _rm.getAllocator("HOST"),
                           initial_size);
       // _host_allocator = _rm.getAllocator("HOST");
-#ifdef __CUDACC__
+#ifdef __snls_gpu_active__
       // Do we want to make this pinned memory instead?
       _device_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
 	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"),
                           initial_size);
 #endif
-      es = snls::Device::GetCHAIES();
+      es = snls::Device::GetInstance().GetCHAIES();
    }
   
    /** Changes the internal host allocator to be one that
@@ -67,10 +67,10 @@ namespace snls {
    __snls_host__
    void memoryManager::setDeviceAllocator(int id)
    {
-#ifdef __CUDACC__
+#ifdef __snls_gpu_active__
       // We don't want to disassociate our default device allocator from
       // Umpire just in case it still has memory associated with it floating around.
-      if(_rm.getAllocator(id).getPlatform() == umpire::Platform::cuda) {
+      if((_rm.getAllocator(id).getPlatform() == umpire::Platform::cuda) || (_rm.getAllocator(id).getPlatform() == umpire::Platform::hip)) {
          _device_allocator = _rm.getAllocator(id);
       } else {
          SNLS_FAIL("memoryManager::setDeviceAllocator", "The supplied id should be associated with a device allocator");

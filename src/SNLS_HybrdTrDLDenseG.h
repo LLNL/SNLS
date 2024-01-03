@@ -9,7 +9,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -56,7 +56,7 @@ class SNLSHybrdTrDLDenseG
     // destructor
     __snls_hdev__ ~SNLSHybrdTrDLDenseG()
     {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
         if ( m_outputLevel > 1 && m_os != nullptr ) {
             *m_os << "Function and Jacobian evaluations: " << m_fevals << " " << m_jevals << std::endl;
         }
@@ -123,7 +123,7 @@ class SNLSHybrdTrDLDenseG
         m_outputLevel = outputLevel;
         m_os          = nullptr;
         //
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
         if ( m_outputLevel > 0 ) {
             m_os = &(std::cout);
         }
@@ -173,7 +173,7 @@ class SNLSHybrdTrDLDenseG
         m_jevals += ((J == nullptr) ? 0 : 1);
         bool retval = this->m_crj.computeRJ(r, J, m_x);
 #ifdef SNLS_DEBUG
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if ( m_outputLevel > 2 && m_os != nullptr ) {
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
@@ -235,7 +235,7 @@ class SNLSHybrdTrDLDenseG
         
         m_res = snls::linalg::norm<m_nDim>(residual);
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (m_os) { *m_os << "res = " << m_res << std::endl ; }
 #endif
 
@@ -325,7 +325,7 @@ class SNLSHybrdTrDLDenseG
             if(m_status != SNLSStatus_t::unConverged) { return m_status; }
 
             if ( reject_prev ) {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
                if ( m_os != nullptr ) {
                   *m_os << "rejecting solution" << std::endl ;
                }
@@ -584,7 +584,7 @@ class SNLSHybrdTrDLDenseG
     double m_res;
     bool m_complete = false;
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
     std::ostream* m_os ;
 #else
     char* m_os ; // do not use

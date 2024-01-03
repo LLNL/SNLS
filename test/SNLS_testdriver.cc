@@ -47,8 +47,10 @@ public:
    __snls_hdev__  Broyden(double lambda )
       : _lambda(lambda)
       {
+#if defined(__snls_host_only__)
          std::cout << "Broyden ill-conditioning: lambda = "
-                   << std::setw(21) << std::setprecision(11) << _lambda << std::endl;          
+                   << std::setw(21) << std::setprecision(11) << _lambda << std::endl;
+#endif    
       } ;
 
    __snls_hdev__ bool computeRJ(double* const r,
@@ -136,22 +138,20 @@ public:
    
 };
 
-#ifndef __cuda_host_only__
+#ifdef __snls_gpu_active__
 
 __snls_device__
-void Test_SNLSBroyden_D (Broyden *broyden)
+void Test_SNLSBroyden_D ()
 {
    const int nDim = Broyden::nDimSys ;
-   
-   *broyden = Broyden( LAMBDA_BROYDEN ); 
+
+   Broyden broyden = Broyden( LAMBDA_BROYDEN );
    snls::SNLSTrDlDenseG<Broyden> solver(broyden) ;
    snls::TrDeltaControl deltaControlBroyden ;
    deltaControlBroyden._deltaInit = 1e0 ;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden);
 
    int    i   = (blockIdx.x * blockDim.x) + threadIdx.x; 
-
-   printf("(%s::%s(ln=%d) cuda bx=%d bw=%2d thrd=%2d i=%2d broyden=%p)\n", __FILE__, __func__, __LINE__, blockIdx .x, blockDim .x, threadIdx.x, i, &broyden);
 
    for (int iX = 0; iX < nDim; ++iX) {
       solver._x[iX] = 0e0 ;
@@ -169,28 +169,34 @@ void Test_SNLSBroyden_K
 {
    int i = blockDim.x * blockIdx.x + threadIdx.x; 
 
-   Broyden   broyden[40];
-
-   if (i<n) { Test_SNLSBroyden_D(broyden+i); }
+   if (i<n) { Test_SNLSBroyden_D(); }
 
 }
 
-void snls::Test_SNLSBroyden_GPU(const int npoints)
+void Test_SNLSBroyden_GPU(const int npoints)
 {
    int nthrds  = 32;
    int nblks   = (npoints+(nthrds-1))/nthrds;
 
    Test_SNLSBroyden_K<<<nblks,nthrds>>>(npoints);
+#if defined(__CUDACC__)
    cudaDeviceSynchronize();
 
    cudaError_t  cu_err     = cudaGetLastError();
    char        *cu_err_str = (char *) ( cu_err ? cudaGetErrorString(cu_err) : 0 );
 
    if (cu_err_str) { printf("%s::%s(ln=%d) : CUDA error=\"%s\"\n", __FILE__, __func__, __LINE__, cu_err_str ); exit(0); }
+#else
+   hipDeviceSynchronize();
+
+   hipError_t  cu_err     = hipGetLastError();
+   char        *cu_err_str = (char *) ( cu_err ? hipGetErrorString(cu_err) : 0 );
+
+   if (cu_err_str) { printf("%s::%s(ln=%d) : HIP error=\"%s\"\n", __FILE__, __func__, __LINE__, cu_err_str ); exit(0); }
+#endif
 }
 
 #endif
-// ifndef __cuda_host_only__
 
 TEST(snls,broyden_a) // int main(int , char ** )
 {
@@ -319,7 +325,7 @@ TEST(snls,newtonbb_c)
 }
 
 
-#ifdef __CUDACC__
+#ifdef __snls_gpu_active__
 TEST(snls,broyden_gpu_a)
 {
    const int nDim = Broyden::nDimSys ;

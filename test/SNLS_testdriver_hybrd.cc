@@ -23,6 +23,10 @@ using namespace std;
 
 #define FUNASOLN 2.345
 
+// When running tests on a HIP machine found that this also compiled things for the device as well...
+// Use this to only compile for host
+#if defined(__snls_host_only__)
+
 /*!
   Comment as in the Trilinos NOX package:
   
@@ -357,3 +361,4 @@ TEST(snls,broyden_c) // int main(int , char ** )
    EXPECT_EQ( solver.getNJEvals(), 2) << "Expected 2 jacobian evaluations for this case";
 }
 
+#endif

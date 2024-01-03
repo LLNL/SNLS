@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -57,7 +57,7 @@ void dogleg(const double delta,
             double* const x,
             double &pred_resid,
             bool &use_nr,
-            #ifdef __cuda_host_only__
+            #ifdef __snls_host_only__
             std::ostream* _os
             #else
             char* _os // do not use
@@ -74,7 +74,7 @@ void dogleg(const double delta,
       }
       pred_resid = 0e0 ;
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       if ( _os != nullptr ) {
          *_os << "trying newton step" << std::endl ;
       }
@@ -110,7 +110,7 @@ void dogleg(const double delta,
             pred_resid = sqrt(fmax(2.0 * val + res_0 * res_0, 0.0));
          }
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if ( _os != nullptr ) {
             *_os << "trying step along first leg" << std::endl ;
          }
@@ -157,7 +157,7 @@ void dogleg(const double delta,
             pred_resid = omb * res_cauchy;
          }
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if ( _os != nullptr ) {
             *_os << "trying step along second leg" << std::endl ;
          }
@@ -187,7 +187,7 @@ void updateDelta(const TrDeltaControl* const deltaControl,
                  double& rhoLast,
                  bool& reject_prev,
                  SNLSStatus_t& status,
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
                  std::ostream* os
 #else
                  char* os // do not use
@@ -207,7 +207,7 @@ void updateDelta(const TrDeltaControl* const deltaControl,
    }
    else {
       res = snls::linalg::norm<nDim>(residual);
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       if ( os != nullptr ) {
          *os << "res = " << res << std::endl ;
       }
@@ -218,7 +218,7 @@ void updateDelta(const TrDeltaControl* const deltaControl,
       // already very small
 
       if ( res < tolerance ) {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if ( os != nullptr ) {
             *os << "converged" << std::endl ;
          }

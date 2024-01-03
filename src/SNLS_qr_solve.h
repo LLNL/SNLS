@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>

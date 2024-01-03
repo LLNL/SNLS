@@ -8,6 +8,9 @@
 #ifdef __CUDACC__
 #include <cuda_runtime_api.h>
 #endif
+#if defined(__HIPCC__)
+#include <hip/hip_runtime.h>
+#endif
 
 // When compiling using the Nvidia/CUDA tools, nvcc defines the host, device, and global
 // labels to identify the compilation target for a particular module. Routines that 
@@ -19,7 +22,8 @@
 // For non-CUDA builds, we need to declare empty macros for portability.
 //----------------------------------------------------------------------------------------
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__) 
+#define __snls_gpu_active__
 #define __snls_host__   __host__
 #define __snls_device__ __device__
 #define __snls_global__ __global__
@@ -31,24 +35,14 @@
 #define __snls_hdev__
 #endif
 
-// declare a CUDA runtime error handler and macro...
-//----------------------------------------------------------------------------------------
-
-#ifdef __CUDACC__
-extern void CUDART_Check(const cudaError_t err, const char *file, const char *func, const int ln);
-#define CUDART_CHECK(err) CUDART_Check(err,__FILE__,__func__,__LINE__);
-#else
-#define CUDART_CHECK(err)
-#endif
-
 // __CUDA_ARCH__ is defined when compiling for the device, the macro below is used
 // to filter code that cannot be compiled for the device.
 //----------------------------------------------------------------------------------------
 
-#ifdef __CUDA_ARCH__
-#define __cuda_device_only__      
+#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ > 0)) || defined(__HIP_DEVICE_COMPILE__)
+#define __snls_device_only__      
 #else
-#define __cuda_host_only__      
+#define __snls_host_only__      
 #endif
 
 #endif  // __SNLS_CUDA_PORTABILITY_H

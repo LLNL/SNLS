@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -52,14 +52,14 @@ public:
       {
          delta = _deltaMin ;
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (strm) { *((std::ostream *) strm) << "delta now at min " << delta << std::endl ; }
 #endif
 
          success = false ;
       }
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       else 
          if (strm) { *((std::ostream *) strm) << "decr delta to " << delta << std::endl ; }
 #endif
@@ -76,11 +76,11 @@ public:
       {
          delta = _deltaMax ;
 
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (strm) { *((std::ostream *) strm) << "delta now at max " << delta << std::endl ; }
 #endif
       }
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
       else 
          if (strm) { *((std::ostream *) strm) << "incr delta to "    << delta << std::endl ; }
 #endif
@@ -107,13 +107,13 @@ public:
       {
          if ( delta >= _deltaMax ) {
             // things are going badly enough that the solver should probably stop
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero and delta at max" << std::endl; }
 #endif
             success = false ;
          }
          else {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero, forcing delta larger" << std::endl; }
 #endif
             delta = fmin( delta * _xiForcedIncDelta, _deltaMax );
@@ -123,7 +123,7 @@ public:
       else 
       {
          rho = actual_change / pred_change;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (strm) { *((std::ostream *) strm) << "rho = " << rho << std::endl; }
 #endif
          if ( ( rho > _xiLG ) &&
@@ -141,7 +141,7 @@ public:
             //    double temp_b = normfull * _xiIncDelta;
             //    if (temp_b < delta) {
             //       delta = temp_b;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             //       if ( _os != NULL ) {
             //          _os << "took full step, delta truncated from " << temp << " to " << delta << std::endl;
             //       }
@@ -191,13 +191,13 @@ public:
       {
          if ( delta >= _deltaMax ) {
             // things are going badly enough that the solver should probably stop
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero and delta at max" << std::endl; }
 #endif
             success = false ;
          }
          else {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             if (strm) { *((std::ostream *) strm) << "predicted change is zero, forcing delta larger" << std::endl; }
 #endif
             delta = fmin( delta * _xiForcedIncDelta, _deltaMax );
@@ -207,7 +207,7 @@ public:
       else 
       {
          double rho = actual_change / pred_change;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          if (strm) { *((std::ostream *) strm) << "rho = " << rho << std::endl; }
 #endif
          if ( ( rho > _xiLG ) &&
@@ -225,7 +225,7 @@ public:
             //    double temp_b = normfull * _xiIncDelta;
             //    if (temp_b < delta) {
             //       delta = temp_b;
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
             //       if ( _os != NULL ) {
             //          _os << "took full step, delta truncated from " << temp << " to " << delta << std::endl;
             //       }

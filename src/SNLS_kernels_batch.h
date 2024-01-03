@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -98,7 +98,7 @@ void dogleg(const int offset,
          // The nice thing about recomputing is that we can actually define the variables as const
          // to help the compiler out.
 
-         const double norm2_grad = snls::linalg::dotProd<nDim>(&grad.data[i * nDim], &grad.data[i * nDim]);
+         const double norm2_grad = snls::linalg::dotProd<nDim>(&grad.get_data()[i * nDim], &grad.get_data()[i * nDim]);
          const double norm_grad = sqrt( norm2_grad );
 
          const double alpha = (Jg_2(i) > 0.0) ? (norm2_grad / Jg_2(i)) : 1.0;
@@ -217,7 +217,7 @@ void updateDelta(const int offset,
          reject_prev(i) = true;
       }
       else {
-         res(i + offset) = snls::linalg::norm<nDim>(&residual.data[i * nDim]);
+         res(i + offset) = snls::linalg::norm<nDim>(&residual.get_data()[i * nDim]);
          // allow to exit now, may have forced one iteration anyway, in which
          // case the delta update can do funny things if the residual was
          // already very small 

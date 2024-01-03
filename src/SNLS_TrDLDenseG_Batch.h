@@ -18,7 +18,7 @@
 
 #include <stdlib.h>
 #include <iostream>
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -87,7 +87,7 @@ class SNLSTrDlDenseG_Batch
       // Create all of the working arrays at initializations to reduce the number
       // of mallocs we need to create through out the life of the solver object
       memoryManager& mm = memoryManager::getInstance();
-      const auto es = snls::Device::GetCHAIES();
+      const auto es = snls::Device::GetInstance().GetCHAIES();
       // Values multiplied by _initial_batch_size are related to the various
       // working arrays needed such as the residual and Jacobian matrices
       // Values multiplied _npts are those useful to the user such as the
@@ -151,8 +151,12 @@ class SNLSTrDlDenseG_Batch
       int     getNDim   () const { return(_nDim   ); };
       /// Returns the maximum of function evaluations across all the nonlinear system solves
       int     getMaxNFEvals() const { return(_mfevals ); };
+      /// Returns the maximum of jacobian evaluations across all the nonlinear system solves
+      int     getMaxNJEvals() const { return(_mfevals ); };
       /// Returns the function evaluation array for each point
       const chai::ManagedArray<int> getNFEvals() const { return _fevals; };
+      /// Returns the jacobian evaluation array for each point
+      const chai::ManagedArray<int> getNJEvals() const { return _fevals; };
       /// Returns the size of the delta step used as part of the dogleg solve of the
       /// PDE
       const rview1d& getDelta() const { return _delta; };
@@ -253,7 +257,7 @@ class SNLSTrDlDenseG_Batch
          // All of our temporary variables needed for the batch solve
          // We make use of the working arrays created initially to reuse
          // memory if multiple solves are called during the life of this object
-         const auto es = snls::Device::GetCHAIES();
+         const auto es = snls::Device::GetInstance().GetCHAIES();
          rview1b use_nr(SNLS_RSETUP(wrkb_data, es, _initial_batch_size), _initial_batch_size);
          rview1b reject_prev(SNLS_RSETUP(wrkb_data, es, 2 * _initial_batch_size), _initial_batch_size);
 
@@ -310,7 +314,7 @@ class SNLSTrDlDenseG_Batch
                }
                // this breaks out of the internal lambda and is essentially a loop continue
                if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.data[i * _nDim]);
+                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.get_data()[i * _nDim]);
                   res_0(i) = _res(i + offset);
             });
 
@@ -330,18 +334,18 @@ class SNLSTrDlDenseG_Batch
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev(i) ) {
-                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &grad.data[i * _nDim]);
+                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &grad.get_data()[i * _nDim]);
                      {
                         double ntemp[_nDim] ;
-                        snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.data[i * _nXnDim], &grad.data[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
+                        snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &grad.get_data()[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
                         Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
                      }
-                     const bool sol_stat = this->computeNewtonStep( &_Jacobian.data[i * _nXnDim], &_residual.data[i * _nDim], &nrStep.data[i * _nDim] ) ;
+                     const bool sol_stat = this->computeNewtonStep( &_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &nrStep.get_data()[i * _nDim] ) ;
                      if (!sol_stat) {
                         _status[i + offset] = SNLSStatus_t::linearSolveFailure;
                         return;
                      }
-                     nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.data[i * _nDim] );
+                     nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.get_data()[i * _nDim] );
                   }
                }); // end of batch compute kernel 1
                // Computes the batch version of the dogleg code and updates the solution variable x
@@ -418,14 +422,14 @@ class SNLSTrDlDenseG_Batch
                // const int jX  = imod % _nDim;
                // cJ[i] = J(ipt, iX, jX);
                // Alternatively, we can just use the underlying data here.
-               cJ[i] = J.data[i]
+               cJ[i] = J.get_data()[i];
             });
             // Dummy variable since we got rid of using raw pointers
             // The default initialization has a size of 0 which is what we want.
             rview3d J_dummy(nullptr, 0, 0, 0);
             chai::ManagedArray<double> cr_pert = mm.allocManagedArray<double>(_initial_batch_size * _nDim);
             chai::ManagedArray<double> cx_pert = mm.allocManagedArray<double>(_npts * _nDim);
-            const auto es = snls::Device::GetCHAIES();
+            const auto es = snls::Device::GetInstance().GetCHAIES();
             rview2d r_pert(SNLS_RSETUP(cr_pert, es, 0), _initial_batch_size, _nDim);
             rview2d x_pert(SNLS_RSETUP(cx_pert, es, 0), _npts, _nDim);
             rview3d J_FD(SNLS_RSETUP(cJ_FD, es, 0), _initial_batch_size, _nDim, _nDim);
@@ -440,7 +444,7 @@ class SNLSTrDlDenseG_Batch
                   }
                   x_pert(offset, iX) = x_pert(offset, iX) + pert_val;
                });
-               this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, offset, batch_size);
+               this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, _status, offset, batch_size);
                const bool success = reduced_rjSuccess<SNLS_GPU_THREADS>(rJSuccess, batch_size);
                if ( !success ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
@@ -453,14 +457,16 @@ class SNLSTrDlDenseG_Batch
             }
 
             // Terribly inefficient here if running on the GPU...
-            const double* J_FD_data = &cJ_FD.data(chai::ExecutionSpace::CPU);
-            const double* J_data = &cJ.data(chai::ExecutionSpace::CPU);
+            const double* J_FD_data = cJ_FD.data(chai::ExecutionSpace::CPU);
+            const double* J_data = cJ.data(chai::ExecutionSpace::CPU);
+#if defined(__snls_host_only__)
             for (int iBatch = 0; iBatch < batch_size; iBatch++) {
                const int moff = SNLS_MOFF(iBatch, _nXnDim);
                *_os << "Batch item # " << iBatch << std::endl;
-               *_os << "J_an = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_data[moff],    *_os ) ;
-               *_os << "J_fd = " << std::endl ; snls::linalg::printMat<m_nDim>( &J_FD_data[moff], *_os ) ;
+               *_os << "J_an = " << std::endl ; snls::linalg::printMat<_nDim>( &J_data[moff],    *_os ) ;
+               *_os << "J_fd = " << std::endl ; snls::linalg::printMat<_nDim>( &J_FD_data[moff], *_os ) ;
             }
+#endif
 
             // Clean-up the memory these objects use.
             cx_pert.free();
@@ -469,7 +475,7 @@ class SNLSTrDlDenseG_Batch
             cJ.free();
 
             // put things back the way they were ;
-            this->_crj.computeRJ(r, J, _x, rJSuccess, offset, batch_size);
+            this->_crj.computeRJ(r, J, _x, rJSuccess, _status, offset, batch_size);
          } // _os != nullptr
 #endif
       }
@@ -478,7 +484,7 @@ class SNLSTrDlDenseG_Batch
                                       const double* const r,
                                       double* const       newton  ) {
          _nJFact++ ;
-#if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+#if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
 // This version of the Newton solver uses the LAPACK solver DGETRF() and DGETRS()
 // 
 // Note that we can replace this with a custom function if there are performance 
@@ -512,7 +518,7 @@ class SNLSTrDlDenseG_Batch
          }
 
 #else
-// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
+// HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
 
          {
             const int n = _nDim;
@@ -547,13 +553,20 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = offset + batch_size;
-         SNLSStatus_t*  status = _status.data(Device::GetCHAIES());
-         switch(Device::GetBackend()) {
-#ifdef RAJA_ENABLE_CUDA
-            case(ExecutionStrategy::CUDA): {
+         SNLSStatus_t*  status = _status.data(Device::GetInstance().GetCHAIES());
+         switch(Device::GetInstance().GetBackend()) {
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
+            case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-               RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
-               RAJA::forall<RAJA::cuda_exec<512>>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
+#if defined(RAJA_ENABLE_CUDA)
+               using gpu_reduce = RAJA::cuda_reduce;
+               using gpu_policy = RAJA::cuda_exec<512>;
+#else
+               using gpu_reduce = RAJA::hip_reduce;
+               using gpu_policy = RAJA::hip_exec<512>;
+#endif
+               RAJA::ReduceSum<gpu_reduce, int> output(0);
+               RAJA::forall<gpu_policy>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
                   if(!batch_loop) { 
                      if(isConverged(status[i])) output += 1;
                   }
@@ -608,12 +621,19 @@ class SNLSTrDlDenseG_Batch
       {
          bool red_add = false;
          const int end = batch_size;
-         switch(Device::GetBackend()) {
-#ifdef RAJA_ENABLE_CUDA
-            case(ExecutionStrategy::CUDA): {
+         switch(Device::GetInstance().GetBackend()) {
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
+            case(ExecutionStrategy::GPU): {
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
-               RAJA::ReduceSum<RAJA::cuda_reduce, int> output(0);
-               RAJA::forall<RAJA::cuda_exec<512>>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
+#if defined(RAJA_ENABLE_CUDA)
+               using gpu_reduce = RAJA::cuda_reduce;
+               using gpu_policy = RAJA::cuda_exec<512>;
+#else
+               using gpu_reduce = RAJA::hip_reduce;
+               using gpu_policy = RAJA::hip_exec<512>;
+#endif
+               RAJA::ReduceSum<gpu_reduce, int> output(0);
+               RAJA::forall<gpu_policy>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
                   if (rJSuccess(i)) { output += 1; }
                });
                red_add = (output.get() == batch_size) ? true : false;
