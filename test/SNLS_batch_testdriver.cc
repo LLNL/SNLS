@@ -52,7 +52,7 @@ public:
    __snls_host__  Broyden(double lambda )
       : _lambda(lambda)
       {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          std::cout << "Broyden ill-conditioning: lambda = "
                    << std::setw(21) << std::setprecision(11) << _lambda << std::endl;
 #endif
@@ -86,7 +86,7 @@ public:
          // If your batch size is different from your total number of points
          // than your x array will have be offset by some amount >= 0
          const int xoff = offset + ib;
-#ifdef __cuda_host_only__         
+#ifdef __snls_host_only__   
 #if SNLS_DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {
@@ -181,7 +181,7 @@ void setX(snls::batch::SNLSTrDlDenseG_Batch<Broyden> &solver, int npts) {
    // If we pass in a raw pointer like down below we need to make sure the data
    // exists in the same memory location. This is why we're getting the 
    // chai memory location that corresponds to what our Device backend is set to
-   solver.setX(x.data(snls::Device::GetCHAIES()));
+   solver.setX(x.data(snls::Device::GetInstance().GetCHAIES()));
    // Alternatively, since we're using a chai managed array we could have just done the below.
    // Here the chai managed array will automatically transfer the data if need be to the correct
    // location based on our use of the snls_forall macros in setX.

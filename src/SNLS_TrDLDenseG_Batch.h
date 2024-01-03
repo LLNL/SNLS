@@ -459,12 +459,14 @@ class SNLSTrDlDenseG_Batch
             // Terribly inefficient here if running on the GPU...
             const double* J_FD_data = cJ_FD.data(chai::ExecutionSpace::CPU);
             const double* J_data = cJ.data(chai::ExecutionSpace::CPU);
+#if defined(__snls_host_only__)
             for (int iBatch = 0; iBatch < batch_size; iBatch++) {
                const int moff = SNLS_MOFF(iBatch, _nXnDim);
                *_os << "Batch item # " << iBatch << std::endl;
                *_os << "J_an = " << std::endl ; snls::linalg::printMat<_nDim>( &J_data[moff],    *_os ) ;
                *_os << "J_fd = " << std::endl ; snls::linalg::printMat<_nDim>( &J_FD_data[moff], *_os ) ;
             }
+#endif
 
             // Clean-up the memory these objects use.
             cx_pert.free();
