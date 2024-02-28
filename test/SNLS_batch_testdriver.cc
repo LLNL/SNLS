@@ -52,7 +52,7 @@ public:
    __snls_host__  Broyden(double lambda )
       : _lambda(lambda)
       {
-#ifdef __cuda_host_only__
+#ifdef __snls_host_only__
          std::cout << "Broyden ill-conditioning: lambda = "
                    << std::setw(21) << std::setprecision(11) << _lambda << std::endl;
 #endif
@@ -86,7 +86,7 @@ public:
          // If your batch size is different from your total number of points
          // than your x array will have be offset by some amount >= 0
          const int xoff = offset + ib;
-#ifdef __cuda_host_only__         
+#ifdef __snls_host_only__   
 #if SNLS_DEBUG > 1
          std::cout << "Evaluating at x = " ;
          for (int i=1; i<nDim; ++i) {

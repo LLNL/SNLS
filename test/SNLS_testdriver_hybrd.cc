@@ -164,4 +164,3 @@ TEST(snls,broyden_c) // int main(int , char ** )
    EXPECT_EQ( solver.getNFEvals(), 23) << "Expected 23 function evaluations for this case";
    EXPECT_EQ( solver.getNJEvals(), 2) << "Expected 2 jacobian evaluations for this case";
 }
-
