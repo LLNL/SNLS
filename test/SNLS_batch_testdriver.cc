@@ -75,7 +75,7 @@ public:
                                 const int offset,
                                 const int batch_size)
       {
-      snls::forall<SNLS_GPU_THREADS>(0, batch_size, [=] __snls_hdev__ (int ib) {
+      snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int ib) {
          // First check to see the current point is unconverged, and if it
          // isn't then we skip the point all together.
          if (status[ib + offset] != snls::SNLSStatus_t::unConverged) { 

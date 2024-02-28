@@ -236,7 +236,7 @@ namespace snls {
    /// limitation of this wrapper is that the lambda captures can
    /// only capture functions / variables that are publically available
    /// if this is called within a class object.
-   template <const int NUMBLOCKS, const bool async = false, typename DBODY, typename HBODY>
+   template <const int NUMBLOCKS, const bool ASYNC = false, typename DBODY, typename HBODY>
    inline void SNLS_ForallWrap(const int st,
                                const int end,
                                rres  resv,
