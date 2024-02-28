@@ -97,14 +97,14 @@ namespace snls {
    class subview {
    public:
       // Delete the default constructor as that wouldn't be a valid object
-      __host__ __device__
+      __snls_hdev__
       subview() = delete;
       // where we don't want any offset within the subview itself
-      __host__ __device__
+      __snls_hdev__
       subview(const int index, T& view) : m_view(view), m_index(index), m_offset(0) {};
       // sometimes you might want to have an initial offset in your subview when constructing
       // your subview in which everything appears as 0 afterwards
-      __host__ __device__
+      __snls_hdev__
       subview(const int index, const size_t offset, T& view) : m_view(view), m_index(index), m_offset(offset) {};
 
       ~subview() = default;
@@ -117,7 +117,7 @@ namespace snls {
       // so m_index is in the location of the slowest moving index as this is the default
       // for RAJA...
       template <typename... Args>
-      __host__ __device__
+      __snls_hdev__
       inline
       constexpr
       auto&
@@ -131,7 +131,7 @@ namespace snls {
       // If we need to have like a rolling subview/window type class then
       // we'd need some way to update the offset in our slowest moving index
       // in the subview (so not m_view's slowest index)
-      __host__ __device__
+      __snls_hdev__
       inline
       void set_offset(const int offset) const
       {
