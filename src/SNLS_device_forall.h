@@ -8,8 +8,8 @@
 #ifndef SNLS_device_forall_h
 #define SNLS_device_forall_h
 
-#ifndef SNLS_GPU_THREADS
-#define SNLS_GPU_THREADS 256
+#ifndef SNLS_GPU_BLOCKS
+#define SNLS_GPU_BLOCKS 256
 #endif
 
 #include "SNLS_config.h"
@@ -29,22 +29,22 @@
    // An example would be something like:
    // SNLS_FORALL(i, 0, 50, {var[i] = 0;});
    
-/// The SNLS_FORALL wrapper where GPU threads are set to a default value
-#define SNLS_FORALL(i, st, end, ...)           \
-snls::SNLS_ForallWrap<SNLS_GPU_THREADS>(		  \
-st,                                            \
-end,                                           \
-snls::Device::GetInstance().GetRAJAResource(), \
-[=] __snls_device__ (int i) {__VA_ARGS__},     \
+/// The SNLS_FORALL wrapper where GPU blocks are set to a default value
+#define SNLS_FORALL(i, st, end, ...)                  \
+snls::SNLS_ForallWrap<SNLS_GPU_BLOCKS>(		         \
+st,                                                   \
+end,                                                  \
+snls::Device::GetInstance().GetDefaultRAJAResource(), \
+[=] __snls_device__ (int i) {__VA_ARGS__},            \
 [=] (int i) {__VA_ARGS__})
 
-/// The SNLS_FORALL wrapper that allows one to change the number of GPU threads
-#define SNLS_FORALL_T(i, threads, st, end, ...)  \
-snls::SNLS_ForallWrap<threads>(			          \
-st,                                              \
-end,                                             \
-snls::Device::GetInstance().GetRAJAResource(),   \
-[=] __snls_device__ (int i) {__VA_ARGS__},       \
+/// The SNLS_FORALL wrapper that allows one to change the number of GPU blocks
+#define SNLS_FORALL_T(i, threads, st, end, ...)       \
+snls::SNLS_ForallWrap<threads>(			               \
+st,                                                   \
+end,                                                  \
+snls::Device::GetInstance().GetDefaultRAJAResource(), \
+[=] __snls_device__ (int i) {__VA_ARGS__},            \
 [=] (int i) {__VA_ARGS__})
 
 // offset a vector / matrix to correct starting memory location given:
@@ -192,6 +192,11 @@ namespace snls {
          /// Return the default RAJA resource corresponding to the execution strategy
          /// @return a RAJA resource set
          ///
+         rres GetDefaultRAJAResource();
+
+         /// Return a new RAJA resource corresponding to the execution strategy
+         /// @return a RAJA resource set
+         ///
          rres GetRAJAResource();
 
          ///
@@ -231,7 +236,7 @@ namespace snls {
    /// limitation of this wrapper is that the lambda captures can
    /// only capture functions / variables that are publically available
    /// if this is called within a class object.
-   template <const int NUMTHREADS, typename DBODY, typename HBODY>
+   template <const int NUMBLOCKS, const bool async = false, typename DBODY, typename HBODY>
    inline void SNLS_ForallWrap(const int st,
                                const int end,
                                rres  resv,
@@ -250,9 +255,9 @@ namespace snls {
 #if defined(__snls_gpu_active__)
          case(ExecutionStrategy::GPU): {
 #if defined(RAJA_ENABLE_CUDA)
-            using gpu_exec_policy = RAJA::cuda_exec<NUMTHREADS>;
+            using gpu_exec_policy = RAJA::cuda_exec<NUMBLOCKS, ASYNC>;
 #else
-            using gpu_exec_policy = RAJA::hip_exec<NUMTHREADS>;
+            using gpu_exec_policy = RAJA::hip_exec<NUMBLOCKS, ASYNC>;
 #endif
             auto res = std::get<rgpu_res>(resv);
             RAJA::forall<gpu_exec_policy>(res, RAJA::RangeSegment(st, end), std::forward<DBODY>(d_body));
@@ -281,13 +286,27 @@ namespace snls {
    /// MFEM's team alternative design as well. This new formulation should allow for better debug information.
    /// So, it should allow better debug information and also better control over our lambda
    /// functions and what we capture in them.
-   template <const int NUMTHREADS=SNLS_GPU_THREADS, typename BODY>
+   /// Note, under the hood this will make use of whatever is the default resource / stream
+   /// for either the GPU or host.
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
    inline void forall(const int st,
                       const int end,
                       BODY &&body)
    {
-      SNLS_ForallWrap<NUMTHREADS>(st, end, Device::GetInstance().GetRAJAResource(), std::forward<BODY>(body), std::forward<BODY>(body));
+      SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, Device::GetInstance().GetDefaultRAJAResource(), std::forward<BODY>(body), std::forward<BODY>(body));
    }
+
+   /// Essentially the same as the earlier forall(...) call except one can provide
+   /// the desired RAJA::resources::Resource through an SNLS resource variant
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
+   inline void forall(const int st,
+                      const int end,
+                      rres res,
+                      BODY &&body)
+   {
+      SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, res, std::forward<BODY>(body), std::forward<BODY>(body));
+   }
+
 }
 #endif // SNLS_RAJA_PERF_SUITE
 #endif /* SNLS_device_forall_h */

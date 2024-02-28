@@ -40,7 +40,8 @@ namespace snls {
             return chai::ExecutionSpace::CPU;
       }
    }
-   rres Device::GetRAJAResource() {
+
+   rres Device::GetDefaultRAJAResource() {
       switch (m_es) {
 #if defined(__snls_gpu_active__)
          case ExecutionStrategy::GPU:
@@ -56,6 +57,25 @@ namespace snls {
          case ExecutionStrategy::CPU:
          default:
             return rres(m_host_res);
+      }
+   }
+
+   rres Device::GetRAJAResource() {
+      switch (m_es) {
+#if defined(__snls_gpu_active__)
+         case ExecutionStrategy::GPU:
+         {
+            return rres(rgpu_res{});
+
+         }
+#endif
+
+#if defined(OPENMP_ENABLE)
+         case ExecutionStrategy::OPENMP:
+#endif
+         case ExecutionStrategy::CPU:
+         default:
+            return rres(rhost_res{});
       }
    }
 }

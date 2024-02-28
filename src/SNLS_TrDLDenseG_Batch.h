@@ -126,7 +126,7 @@ class SNLSTrDlDenseG_Batch
       offset += _initial_batch_size * CRJ::nDimSys;
       _Jacobian.set_data(SNLS_RSETUP(wrk_data, es, offset));
 
-      snls::forall<SNLS_GPU_THREADS>(0, _npts, [=] __snls_hdev__ (int i) {
+      snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int i) {
          _fevals[i] = 0;
          for (int j = 0; j < CRJ::nDimSys; j++){
             _x(i, j) = 0.0;
@@ -177,7 +177,7 @@ class SNLSTrDlDenseG_Batch
 
       /// setX can be used to set the initial guess for all of the points used in the batch job
       inline void setX( const double* const x) {
-         snls::forall<SNLS_GPU_THREADS>(0, _npts, [=] __snls_hdev__ (int ipts) {
+         snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
             for (int iX = 0; iX < _nDim; ++iX) {
                _x(ipts, iX) = x[ipts * _nDim + iX] ;
             }
@@ -186,7 +186,7 @@ class SNLSTrDlDenseG_Batch
 
       /// setX can be used to set the initial guess for all of the points used in the batch job
       inline void setX(const chai::ManagedArray<double> &x) {
-         snls::forall<SNLS_GPU_THREADS>(0, _npts, [=] __snls_hdev__ (int ipts) {
+         snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
             for (int iX = 0; iX < _nDim; ++iX) {
                _x(ipts, iX) = x[ipts * _nDim + iX] ;
             }
@@ -195,7 +195,7 @@ class SNLSTrDlDenseG_Batch
 
       /// getX can be used to get solution for all of the points used in the batch job
       inline void getX( double* const x) const {
-         snls::forall<SNLS_GPU_THREADS>(0, _npts, [=] __snls_hdev__ (int ipts) {
+         snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
             for (int iX = 0; iX < _nDim; ++iX) {
                x[ipts * _nDim + iX] = _x(ipts, iX);
             }
@@ -204,7 +204,7 @@ class SNLSTrDlDenseG_Batch
 
       /// getX can be used to get solution for all of the points used in the batch job
       inline void getX( chai::ManagedArray<double> &x) const {
-         snls::forall<SNLS_GPU_THREADS>(0, _npts, [=] __snls_hdev__ (int ipts) {
+         snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
             for (int iX = 0; iX < _nDim; ++iX) {
                x[ipts * _nDim + iX] = _x(ipts, iX);
             }
@@ -245,7 +245,7 @@ class SNLSTrDlDenseG_Batch
             SNLS_FAIL("solve", "_deltaControl not set") ;
          }
          
-         snls::forall<SNLS_GPU_THREADS>(0, _npts, [=] __snls_hdev__ (int i) {
+         snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int i) {
             _status[i] = SNLSStatus_t::unConverged;
             _fevals[i] = 0;
          });
@@ -329,7 +329,7 @@ class SNLSTrDlDenseG_Batch
                // up the kernels if we did the above...
                // We  might be able to move some or all of this code to other kernels in the code
                // to reduce number of kernels launches which could help with performance.
-               snls::forall<SNLS_GPU_THREADS>(0, batch_size, [=] __snls_hdev__ (int i)
+               snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int i)
                {  // start of cauchy point calculations
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
@@ -362,7 +362,7 @@ class SNLSTrDlDenseG_Batch
 
                // If this is true then that means all of the batched items
                // either failed or converged, and so we can exit and start the new batched data
-               if(status_exit<true, SNLS_GPU_THREADS>(offset, batch_size)) {
+               if(status_exit<true>(offset, batch_size)) {
                   break;
                }
             } // _nIters < _maxIter
@@ -379,7 +379,7 @@ class SNLSTrDlDenseG_Batch
          _nJFact = m_nJFact;
          _nIters = m_nIters;
 
-         bool converged = status_exit<false, SNLS_GPU_THREADS>(0, _npts);
+         bool converged = status_exit<false>(0, _npts);
          return converged ;
       }
 
@@ -408,7 +408,7 @@ class SNLSTrDlDenseG_Batch
             // chai::managedArray over to host/device
             chai::ManagedArray<double> cJ = mm.allocManagedArray<double>(_initial_batch_size * _nXnDim);
             const int tot_npts = _initial_batch_size * _nXnDim;
-            snls::forall<SNLS_GPU_THREADS>(0, tot_npts, [=] __snls_hdev__ (int i) {
+            snls::forall<SNLS_GPU_BLOCKS>(0, tot_npts, [=] __snls_hdev__ (int i) {
                // If we want to completely avoid inner loops
                // we have to do the following to get the correct
                // indexing into J.
@@ -438,18 +438,18 @@ class SNLSTrDlDenseG_Batch
             const double pert_val_inv = 1.0/pert_val;
 
             for ( int iX = 0; iX < _nDim ; ++iX ) {
-               snls::forall<SNLS_GPU_THREADS>(0, batch_size, [=] __snls_hdev__ (int iBatch) {
+               snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int iBatch) {
                   for ( int jX = 0; jX < _nDim ; ++jX ) {
                      x_pert(offset + iBatch, jX) = _x(offset + iBatch, jX);
                   }
                   x_pert(offset + iBatch, iX) = x_pert(offset + iBatch, iX) + pert_val;
                });
                this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, _status, offset, batch_size);
-               const bool success = reduced_rjSuccess<SNLS_GPU_THREADS>(rJSuccess, batch_size);
+               const bool success = reduced_rjSuccess(rJSuccess, batch_size);
                if ( !success ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
                }
-               snls::forall<SNLS_GPU_THREADS>(0, batch_size, [=] __snls_hdev__ (int iBatch) {
+               snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int iBatch) {
                   for ( int iR = 0; iR < _nDim ; iR++ ) {
                      J_FD(iBatch, iR, iX) = pert_val_inv * ( r_pert(iBatch, iR) - r(iBatch, iR) );
                   }
@@ -547,7 +547,7 @@ class SNLSTrDlDenseG_Batch
 
       /// Performs a bitwise reduction and operation on _status to see if the
       /// current batch can exit.
-      template <const bool batch_loop, const int NUMTHREADS>
+      template <const bool batch_loop, const int NUMBLOCKS=512>
       inline bool status_exit(const int offset,
                               const int batch_size)
       {
@@ -560,10 +560,10 @@ class SNLSTrDlDenseG_Batch
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
 #if defined(RAJA_ENABLE_CUDA)
                using gpu_reduce = RAJA::cuda_reduce;
-               using gpu_policy = RAJA::cuda_exec<512>;
+               using gpu_policy = RAJA::cuda_exec<NUMBLOCKS>;
 #else
                using gpu_reduce = RAJA::hip_reduce;
-               using gpu_policy = RAJA::hip_exec<512>;
+               using gpu_policy = RAJA::hip_exec<NUMBLOCKS>;
 #endif
                RAJA::ReduceSum<gpu_reduce, int> output(0);
                RAJA::forall<gpu_policy>(RAJA::RangeSegment(offset, end), [=] __snls_device__ (int i) {
@@ -615,7 +615,7 @@ class SNLSTrDlDenseG_Batch
 
       /// Performs a bitwise reduction and operation on _status to see if the
       /// FD portion of computeRJ was successful
-      template <const int NUMTHREADS>
+      template <const int NUMBLOCKS=512>
       inline bool reduced_rjSuccess(rview1b &rJSuccess,
                                     const int batch_size)
       {
@@ -627,10 +627,10 @@ class SNLSTrDlDenseG_Batch
                //RAJA::ReduceBitAnd<RAJA::cuda_reduce, bool> output(init_val);
 #if defined(RAJA_ENABLE_CUDA)
                using gpu_reduce = RAJA::cuda_reduce;
-               using gpu_policy = RAJA::cuda_exec<512>;
+               using gpu_policy = RAJA::cuda_exec<NUMBLOCKS>;
 #else
                using gpu_reduce = RAJA::hip_reduce;
-               using gpu_policy = RAJA::hip_exec<512>;
+               using gpu_policy = RAJA::hip_exec<NUMBLOCKS>;
 #endif
                RAJA::ReduceSum<gpu_reduce, int> output(0);
                RAJA::forall<gpu_policy>(RAJA::RangeSegment(0, end), [=] __snls_device__ (int i) {
