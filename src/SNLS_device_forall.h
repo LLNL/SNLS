@@ -89,6 +89,8 @@ namespace snls {
 #endif
    >;
 
+   using rrese = RAJA::resources::Event;
+
    // We really don't care what View class we're using as the sub-view just wraps it up
    // and then allows us to take a slice/window of the original view
    // Should probably work out some form of SFINAE to ensure T that we're templated on
@@ -195,9 +197,22 @@ namespace snls {
          rres GetDefaultRAJAResource();
 
          /// Return a new RAJA resource corresponding to the execution strategy
+         /// Note: When the GPU execution strategy is set, we do not return the default
+         ///       resource set / stream but instead cycle through the 15 other streams that
+         ///       RAJA / camp has created ahead of time.
          /// @return a RAJA resource set
          ///
          rres GetRAJAResource();
+
+         /// Utilizing the provided RAJA resource variant, it waits for the RAJA resource event
+         /// to be completed. Note, a few safety constraints apply here:
+         /// 1.) You must not change the execution space to a different one until all the kernels
+         ///     have finished running.
+         /// 2.) The event supplied to this wait for must correspond to a forallwrap that utilized the
+         ///     same RAJA resource being supplied here.
+         ///     Note: If one did not supply a resource set to the one of the forall calls then it is likely
+         ///     using the default value.
+         void WaitFor(rres& res, rrese* event);
 
          ///
          /// Delete copy constructor
@@ -237,7 +252,7 @@ namespace snls {
    /// only capture functions / variables that are publically available
    /// if this is called within a class object.
    template <const int NUMBLOCKS, const bool ASYNC = false, typename DBODY, typename HBODY>
-   inline void SNLS_ForallWrap(const int st,
+   inline rrese SNLS_ForallWrap(const int st,
                                const int end,
                                rres  resv,
                                DBODY &&d_body,
@@ -260,15 +275,13 @@ namespace snls {
             using gpu_exec_policy = RAJA::hip_exec<NUMBLOCKS, ASYNC>;
 #endif
             auto res = std::get<rgpu_res>(resv);
-            RAJA::forall<gpu_exec_policy>(res, RAJA::RangeSegment(st, end), std::forward<DBODY>(d_body));
-            break;
+            return RAJA::forall<gpu_exec_policy>(res, RAJA::RangeSegment(st, end), std::forward<DBODY>(d_body));
          }
 #endif
 #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
          case(ExecutionStrategy::OPENMP): {
             auto res = std::get<rhost_res>(resv);
-            RAJA::forall<RAJA::omp_parallel_for_exec>(res, RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
-            break;
+            return RAJA::forall<RAJA::omp_parallel_for_exec>(res, RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
          }
 #endif
          case(ExecutionStrategy::CPU):
@@ -276,10 +289,10 @@ namespace snls {
             // Moved from a for loop to raja forall so that the chai ManagedArray
             // would automatically move the memory over
             auto res = std::get<rhost_res>(resv);
-            RAJA::forall<RAJA::seq_exec>(res, RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
-            break;
+            return RAJA::forall<RAJA::seq_exec>(res, RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
          }
       } // End of switch
+      return rrese{};
    } // end of forall wrap
 
    /// An alternative to the macro forall interface and copies more or less the 
@@ -289,22 +302,22 @@ namespace snls {
    /// Note, under the hood this will make use of whatever is the default resource / stream
    /// for either the GPU or host.
    template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
-   inline void forall(const int st,
+   inline rrese forall(const int st,
                       const int end,
                       BODY &&body)
    {
-      SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, Device::GetInstance().GetDefaultRAJAResource(), std::forward<BODY>(body), std::forward<BODY>(body));
+      return SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, Device::GetInstance().GetDefaultRAJAResource(), std::forward<BODY>(body), std::forward<BODY>(body));
    }
 
    /// Essentially the same as the earlier forall(...) call except one can provide
    /// the desired RAJA::resources::Resource through an SNLS resource variant
    template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
-   inline void forall(const int st,
+   inline rrese forall(const int st,
                       const int end,
                       rres res,
                       BODY &&body)
    {
-      SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, res, std::forward<BODY>(body), std::forward<BODY>(body));
+      return SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, res, std::forward<BODY>(body), std::forward<BODY>(body));
    }
 
 }
