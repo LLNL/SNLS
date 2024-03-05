@@ -30,6 +30,21 @@ struct has_valid_computeRJ <
 >: std::true_type { static constexpr bool value = true;};
 
 template<typename CRJ, typename = void>
+struct has_valid_computeRJ_lambda : std::false_type { static constexpr bool value = false;};
+
+template<typename CRJ>
+struct has_valid_computeRJ_lambda <
+   CRJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CRJ>().operator()(std::declval<double* const>(), std::declval<double* const>(),std::declval<const double *>())),
+           bool  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
+template<typename CRJ, typename = void>
 struct has_ndim : std::false_type { static constexpr bool value = false;};
 
 template<typename CRJ>
@@ -38,6 +53,44 @@ struct has_ndim <
        std::is_same<
            decltype(CRJ::nDimSys),
            const int  
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
+
+/** Helper templates to ensure compliant CFJ implementations */
+// Note these are not always perfect as the compiler will automatically convert between types if it can
+// so if you don't have a reference on your type or have something like an int/char/etc the compiler
+// would be quite happy to accept.
+// We could further restrict things if we had access to c++20 and could just use concepts
+// as seen in this example code:
+// https://stackoverflow.com/a/70954691
+template<typename CFJ, typename = void>
+struct has_valid_computeFJ : std::false_type { static constexpr bool value = false;};
+
+template<typename CFJ>
+struct has_valid_computeFJ <
+   CFJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CFJ>().computeFJ(std::declval<double&>(), std::declval<double&>(),std::declval<double>())),
+           bool
+       >::value
+       ,
+       void
+   >::type
+>: std::true_type { static constexpr bool value = true;};
+
+template<typename CFJ, typename = void>
+struct has_valid_computeFJ_lamb : std::false_type { static constexpr bool value = false;};
+
+template<typename CFJ>
+struct has_valid_computeFJ_lamb <
+   CFJ,typename std::enable_if<
+       std::is_same<
+           decltype(std::declval<CFJ>().operator()(std::declval<double&>(), std::declval<double&>(),std::declval<double>())),
+           bool
        >::value
        ,
        void
@@ -170,6 +223,16 @@ void dogleg(const double delta,
       x[iX] += delx[iX];
    }
 }// end non-batch dogleg
+
+// Add a simple swap function for our swapping values
+// if we weren't using these functions on the GPU we could just use
+// std::swap
+template<class T>
+__snls_hdev__
+inline
+void snls_swap(T& v1, T& v2) {
+   const T v3(v1); v1 = v2; v2 = v3;
+}
 
 template<int nDim>
 __snls_hdev__

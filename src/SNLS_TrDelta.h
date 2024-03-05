@@ -46,7 +46,7 @@ public:
          delta = sqrt( tempa*tempb ) ;
       }
       else 
-         delta = delta * _xiDecDelta ;
+         delta *= _xiDecDelta ;
 
       if ( delta < _deltaMin ) 
       {
@@ -70,7 +70,7 @@ public:
    __snls_hdev__
    void incrDelta(void* strm, double  &delta) const
    {
-      delta = delta * _xiIncDelta;
+      delta *= _xiIncDelta;
 
       if ( delta > _deltaMax ) 
       {

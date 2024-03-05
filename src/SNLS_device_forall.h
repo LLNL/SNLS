@@ -8,16 +8,20 @@
 #ifndef SNLS_device_forall_h
 #define SNLS_device_forall_h
 
-#ifndef SNLS_GPU_THREADS
-#define SNLS_GPU_THREADS 256
+#ifndef SNLS_GPU_BLOCKS
+#define SNLS_GPU_BLOCKS 256
 #endif
 
 #include "SNLS_config.h"
 
 #if defined(SNLS_RAJA_PERF_SUITE)
+
+#include "SNLS_gpu_portability.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/config.hpp"
 #include "chai/ExecutionSpaces.hpp"
+
+#include <variant>
 
    // Implementation of SNLS's "parallel for" (forall) device/host kernel
    // interfaces supporting RAJA and sequential backends which is based on
@@ -25,20 +29,22 @@
    // An example would be something like:
    // SNLS_FORALL(i, 0, 50, {var[i] = 0;});
    
-/// The SNLS_FORALL wrapper where GPU threads are set to a default value
-#define SNLS_FORALL(i, st, end, ...)           \
-snls::SNLS_ForallWrap<SNLS_GPU_THREADS>(		  \
-st,                                            \
-end,                                           \
-[=] __snls_device__ (int i) {__VA_ARGS__},     \
+/// The SNLS_FORALL wrapper where GPU blocks are set to a default value
+#define SNLS_FORALL(i, st, end, ...)                  \
+snls::SNLS_ForallWrap<SNLS_GPU_BLOCKS>(		         \
+st,                                                   \
+end,                                                  \
+snls::Device::GetInstance().GetDefaultRAJAResource(), \
+[=] __snls_device__ (int i) {__VA_ARGS__},            \
 [=] (int i) {__VA_ARGS__})
 
-/// The SNLS_FORALL wrapper that allows one to change the number of GPU threads
-#define SNLS_FORALL_T(i, threads, st, end, ...)  \
-snls::SNLS_ForallWrap<threads>(			          \
-st,                                              \
-end,                                             \
-[=] __snls_device__ (int i) {__VA_ARGS__},       \
+/// The SNLS_FORALL wrapper that allows one to change the number of GPU blocks
+#define SNLS_FORALL_T(i, threads, st, end, ...)       \
+snls::SNLS_ForallWrap<threads>(			               \
+st,                                                   \
+end,                                                  \
+snls::Device::GetInstance().GetDefaultRAJAResource(), \
+[=] __snls_device__ (int i) {__VA_ARGS__},            \
 [=] (int i) {__VA_ARGS__})
 
 // offset a vector / matrix to correct starting memory location given:
@@ -50,10 +56,99 @@ end,                                             \
 
 namespace snls {
 
-   typedef RAJA::View<bool, RAJA::Layout<1> > rview1b;
-   typedef RAJA::View<double, RAJA::Layout<1> > rview1d;
-   typedef RAJA::View<double, RAJA::Layout<2> > rview2d;
-   typedef RAJA::View<double, RAJA::Layout<3> > rview3d;
+   // Provide some simple shortcuts in-case people need something beyond the default
+   template<typename T>
+   using rview1 = RAJA::View<T, RAJA::Layout<1>>;
+   template<typename T>
+   using rview2 = RAJA::View<T, RAJA::Layout<2>>;
+   template<typename T>
+   using rview3 = RAJA::View<T, RAJA::Layout<3>>;
+
+   using rview1b = rview1<bool>;
+   using rview1d = rview1<double>;
+   using rview2d = rview2<double>;
+   using rview3d = rview3<double>;
+   using crview1d = rview1<const double>;
+   using crview2d = rview2<const double>;
+   using crview3d = rview3<const double>;
+
+   using rhost_res = RAJA::resources::Host;
+#if defined(__snls_gpu_active__)
+#if defined(RAJA_ENABLE_CUDA)
+         using rgpu_res = RAJA::resources::Cuda;
+#else //defined(RAJA_ENABLE_HIP)
+         using rgpu_res = RAJA::resources::Hip;
+#endif
+#endif
+
+   using rres = std::variant<
+      rhost_res
+#if defined(__snls_gpu_active__)
+      ,
+      rgpu_res
+#endif
+   >;
+
+   using rrese = RAJA::resources::Event;
+
+   // We really don't care what View class we're using as the sub-view just wraps it up
+   // and then allows us to take a slice/window of the original view
+   // Should probably work out some form of SFINAE to ensure T that we're templated on
+   // is an actual View that we can use.
+   template<class T>
+   class subview {
+   public:
+      // Delete the default constructor as that wouldn't be a valid object
+      __snls_hdev__
+      subview() = delete;
+      // where we don't want any offset within the subview itself
+      __snls_hdev__
+      subview(const int index, T& view) : m_view(view), m_index(index), m_offset(0) {};
+      // sometimes you might want to have an initial offset in your subview when constructing
+      // your subview in which everything appears as 0 afterwards
+      __snls_hdev__
+      subview(const int index, const size_t offset, T& view) : m_view(view), m_index(index), m_offset(offset) {};
+
+      ~subview() = default;
+
+      // Could probably add default copy constructors as well here if need be...
+
+      // Let the compiler figure out the correct return type here as the one from
+      // RAJA at least for regular Views is non-trivial
+      // make the assumption here that we're using row-major memory order for views
+      // so m_index is in the location of the slowest moving index as this is the default
+      // for RAJA...
+      template <typename... Args>
+      __snls_hdev__
+      inline
+      constexpr
+      auto&
+      operator()(Args... args) const
+      {
+         // The use of m_offset here provides us the equivalent of a rolling
+         // subview/window if our application needs it
+         return m_view(m_index, m_offset + args...);
+      }
+
+      // If we need to have like a rolling subview/window type class then
+      // we'd need some way to update the offset in our slowest moving index
+      // in the subview (so not m_view's slowest index)
+      __snls_hdev__
+      inline
+      void set_offset(const int offset) const
+      {
+         // Might want an assert in here for debugs to make sure that this is within
+         // the bounds of what m_view expects is a valid offset
+         m_offset = offset;
+      }
+
+   private:
+      // Internally we shouldn't be modifying the view itself so let's make it constant
+      const T& m_view;
+      const int m_index = 0;
+      mutable size_t m_offset = 0;
+   };
+
 
    /// ExecutionStrategy defines how one would like the
    /// computations done.
@@ -64,6 +159,7 @@ namespace snls {
    /// GPU refers to parallel executions of for loops on the Device
    /// using GPU through RAJA forall abstractions
    enum class ExecutionStrategy { CPU, GPU, OPENMP };
+
    /// This has largely been inspired by the MFEM device
    /// class, since they make use of it with their FORALL macro
    /// It's recommended to only have one object for the lifetime
@@ -95,6 +191,29 @@ namespace snls {
          ///
          chai::ExecutionSpace GetCHAIES();
 
+         /// Return the default RAJA resource corresponding to the execution strategy
+         /// @return a RAJA resource set
+         ///
+         rres GetDefaultRAJAResource();
+
+         /// Return a new RAJA resource corresponding to the execution strategy
+         /// Note: When the GPU execution strategy is set, we do not return the default
+         ///       resource set / stream but instead cycle through the 15 other streams that
+         ///       RAJA / camp has created ahead of time.
+         /// @return a RAJA resource set
+         ///
+         rres GetRAJAResource();
+
+         /// Utilizing the provided RAJA resource variant, it waits for the RAJA resource event
+         /// to be completed. Note, a few safety constraints apply here:
+         /// 1.) You must not change the execution space to a different one until all the kernels
+         ///     have finished running.
+         /// 2.) The event supplied to this wait for must correspond to a forallwrap that utilized the
+         ///     same RAJA resource being supplied here.
+         ///     Note: If one did not supply a resource set to the one of the forall calls then it is likely
+         ///     using the default value.
+         void WaitFor(rres& res, rrese* event);
+
          ///
          /// Delete copy constructor
          ///
@@ -111,6 +230,12 @@ namespace snls {
          ///
          ExecutionStrategy m_es;
 
+         /// Default host resource set
+         rhost_res m_host_res;
+#if defined(__snls_gpu_active__)
+         /// Default GPU resource set
+         rgpu_res m_gpu_res;
+#endif
          ///
          /// Default constructor
          ///
@@ -126,9 +251,10 @@ namespace snls {
    /// limitation of this wrapper is that the lambda captures can
    /// only capture functions / variables that are publically available
    /// if this is called within a class object.
-   template <const int NUMTHREADS, typename DBODY, typename HBODY>
-   inline void SNLS_ForallWrap(const int st,
+   template <const int NUMBLOCKS, const bool ASYNC = false, typename DBODY, typename HBODY>
+   inline rrese SNLS_ForallWrap(const int st,
                                const int end,
+                               rres  resv,
                                DBODY &&d_body,
                                HBODY &&h_body)
    {
@@ -141,32 +267,78 @@ namespace snls {
       // the backend things should just work no matter where this
       // is used.
       switch(Device::GetInstance().GetBackend()) {
-#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
+#if defined(__snls_gpu_active__)
          case(ExecutionStrategy::GPU): {
 #if defined(RAJA_ENABLE_CUDA)
-            using gpu_policy = RAJA::cuda_exec<NUMTHREADS>;
+            using gpu_exec_policy = RAJA::cuda_exec<NUMBLOCKS, ASYNC>;
 #else
-            using gpu_policy = RAJA::hip_exec<NUMTHREADS>;
+            using gpu_exec_policy = RAJA::hip_exec<NUMBLOCKS, ASYNC>;
 #endif
-            RAJA::forall<gpu_policy>(RAJA::RangeSegment(st, end), d_body);
-            break;
+            auto res = std::get<rgpu_res>(resv);
+            return RAJA::forall<gpu_exec_policy>(res, RAJA::RangeSegment(st, end), std::forward<DBODY>(d_body));
          }
 #endif
 #if defined(RAJA_ENABLE_OPENMP) && defined(OPENMP_ENABLE)
          case(ExecutionStrategy::OPENMP): {
-            RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(st, end), h_body);
-            break;
+            auto res = std::get<rhost_res>(resv);
+            return RAJA::forall<RAJA::omp_parallel_for_exec>(res, RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
          }
 #endif
          case(ExecutionStrategy::CPU):
          default: {
             // Moved from a for loop to raja forall so that the chai ManagedArray
             // would automatically move the memory over
-            RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(st, end), h_body);
-            break;
+            auto res = std::get<rhost_res>(resv);
+            return RAJA::forall<RAJA::seq_exec>(res, RAJA::RangeSegment(st, end), std::forward<HBODY>(h_body));
          }
       } // End of switch
+      return rrese{};
    } // end of forall wrap
+
+   /// An alternative to the macro forall interface and copies more or less the 
+   /// MFEM's team alternative design as well. This new formulation should allow for better debug information.
+   /// So, it should allow better debug information and also better control over our lambda
+   /// functions and what we capture in them.
+   /// One is required to provide the desired RAJA::resources::Resource through an SNLS resource variant
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
+   inline rrese forall(const int st,
+                      const int end,
+                      rres res,
+                      BODY &&body)
+   {
+      return SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, res, std::forward<BODY>(body), std::forward<BODY>(body));
+   }
+
+   /// This is essentially the same as forall variant that uses the resource set, but it
+   /// uses whatever is the default resource / stream for either the GPU or host.
+   /// Note, under the hood it calls the forall variant that uses the resource set but provides the
+   /// default resource / stream for either the GPU or host.
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
+   inline rrese forall(const int st,
+                      const int end,
+                      BODY &&body)
+   {
+      return forall(st, end, Device::GetInstance().GetDefaultRAJAResource(), std::forward<BODY>(body));
+   }
+
+   /// This method allows one to pass in an execution strategy so which the forall will swap over to
+   /// only for this one call. Once the forall call finishes, it will revert back to the original
+   /// execution strategy. 
+   /// Note, under the hood, it makes a call to the forall call that uses the default resource set.
+   /// Note 2, this method does not allow for async calls and does not return a RAJA resource event
+   /// that one can check. Since, we can't later on easily wait on the resource event...
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, typename BODY>
+   inline void forall_strat(const int st,
+                            const int end,
+                            ExecutionStrategy strat,
+                            BODY &&body)
+   {
+      auto prev_strat = Device::GetInstance().GetBackend();
+      Device::GetInstance().SetBackend(strat);
+      forall(st, end, std::forward<BODY>(body));
+      Device::GetInstance().SetBackend(prev_strat);
+   }
+
 }
 #endif // SNLS_RAJA_PERF_SUITE
 #endif /* SNLS_device_forall_h */

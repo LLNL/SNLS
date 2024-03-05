@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef __SNLS_CUDA_PORTABILITY_H
-#define __SNLS_CUDA_PORTABILITY_H
-
 #include <stdlib.h>
 
 #ifdef __CUDACC__
@@ -44,5 +41,3 @@
 #else
 #define __snls_host_only__      
 #endif
-
-#endif  // __SNLS_CUDA_PORTABILITY_H

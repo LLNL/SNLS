@@ -1,5 +1,6 @@
 blt_add_executable(NAME       snlstest
                    SOURCES    SNLS_testdriver.cc
+                   HEADERS    SNLS_testmodels.h
                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
                    DEPENDS_ON gtest snls)
 blt_add_test(NAME    snlstest
@@ -7,6 +8,7 @@ blt_add_test(NAME    snlstest
 
 blt_add_executable(NAME       snlsNLS
                    SOURCES    SNLS_testdriver_hybrd.cc
+                   HEADERS    SNLS_testmodels.h
                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
                    DEPENDS_ON gtest snls)
 
@@ -31,3 +33,15 @@ blt_add_executable(NAME       snlstest_batch
                    DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
 blt_add_test(NAME    snlstest_batch
              COMMAND snlstest_batch)
+
+
+if(ENABLE_BENCHMARKS)
+    blt_add_executable(NAME    snls_benchmark
+                    SOURCES    SNLS_benchmark.cc
+                    HEADERS    SNLS_testmodels.h
+                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                    DEPENDS_ON gbenchmark snls ${SNLS_TEST_DEPENDS})
+
+    blt_add_benchmark(NAME    snls_benchmark
+                    COMMAND snls_benchmark "--benchmark_time_unit=us")
+endif(ENABLE_BENCHMARKS)
