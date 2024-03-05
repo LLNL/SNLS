@@ -299,18 +299,7 @@ namespace snls {
    /// MFEM's team alternative design as well. This new formulation should allow for better debug information.
    /// So, it should allow better debug information and also better control over our lambda
    /// functions and what we capture in them.
-   /// Note, under the hood this will make use of whatever is the default resource / stream
-   /// for either the GPU or host.
-   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
-   inline rrese forall(const int st,
-                      const int end,
-                      BODY &&body)
-   {
-      return SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, Device::GetInstance().GetDefaultRAJAResource(), std::forward<BODY>(body), std::forward<BODY>(body));
-   }
-
-   /// Essentially the same as the earlier forall(...) call except one can provide
-   /// the desired RAJA::resources::Resource through an SNLS resource variant
+   /// One is required to provide the desired RAJA::resources::Resource through an SNLS resource variant
    template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
    inline rrese forall(const int st,
                       const int end,
@@ -318,6 +307,36 @@ namespace snls {
                       BODY &&body)
    {
       return SNLS_ForallWrap<NUMBLOCKS, ASYNC>(st, end, res, std::forward<BODY>(body), std::forward<BODY>(body));
+   }
+
+   /// This is essentially the same as forall variant that uses the resource set, but it
+   /// uses whatever is the default resource / stream for either the GPU or host.
+   /// Note, under the hood it calls the forall variant that uses the resource set but provides the
+   /// default resource / stream for either the GPU or host.
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, const bool ASYNC=false, typename BODY>
+   inline rrese forall(const int st,
+                      const int end,
+                      BODY &&body)
+   {
+      return forall(st, end, Device::GetInstance().GetDefaultRAJAResource(), std::forward<BODY>(body));
+   }
+
+   /// This method allows one to pass in an execution strategy so which the forall will swap over to
+   /// only for this one call. Once the forall call finishes, it will revert back to the original
+   /// execution strategy. 
+   /// Note, under the hood, it makes a call to the forall call that uses the default resource set.
+   /// Note 2, this method does not allow for async calls and does not return a RAJA resource event
+   /// that one can check. Since, we can't later on easily wait on the resource event...
+   template <const int NUMBLOCKS=SNLS_GPU_BLOCKS, typename BODY>
+   inline void forall_strat(const int st,
+                            const int end,
+                            ExecutionStrategy strat,
+                            BODY &&body)
+   {
+      auto prev_strat = Device::GetInstance().GetBackend();
+      Device::GetInstance().SetBackend(strat);
+      forall(st, end, std::forward<BODY>(body));
+      Device::GetInstance().SetBackend(prev_strat);
    }
 
 }
