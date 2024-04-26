@@ -16,18 +16,14 @@ endforeach()
 # Only search for these if the batch solver is enabled
 if(USE_BATCH_SOLVERS)
 
-message("Use SNLS batch solvers...")
-
 ################################
 # camp
 ################################
 
-if (CAMP_DIR)
-   find_package(camp REQUIRED CONFIG PATHS ${CAMP_DIR})
-   find_package_handle_standard_args(camp REQUIRED)
-   message("camp found?")
+if (camp_DIR)
+   find_package(camp REQUIRED CONFIG PATHS ${camp_DIR})
 else()
-    message(FATAL_ERROR "CAMP_DIR was not provided. It is needed to find CAMP.")
+    message(FATAL_ERROR "camp_DIR was not provided. It is needed to find CAMP.")
 endif()
 
 
@@ -35,24 +31,31 @@ endif()
 # chai
 ################################
 
-if (DEFINED CHAI_DIR)
-   find_package(chai REQUIRED CONFIG PATHS ${CHAI_DIR})
-   find_package_handle_standard_args(chai REQUIRED)
-   message("chai found?")
+if (DEFINED chai_DIR)
+   find_package(chai REQUIRED CONFIG PATHS ${chai_DIR})
 else()
-    message(FATAL_ERROR "CHAI_DIR was not provided. It is needed to find CHAI.")
+    message(FATAL_ERROR "chai_DIR was not provided. It is needed to find CHAI.")
+  endif()
+
+################################
+# fmt
+################################
+
+if (fmt_DIR)
+   find_package(fmt REQUIRED CONFIG PATHS ${fmt_DIR})
+else()
+    message(FATAL_ERROR "fmt_DIR was not provided. It is needed to find CAMP.")
 endif()
+  
 
 ################################
 # RAJA
 ################################
 
-if (DEFINED RAJA_DIR)
-   find_package(RAJA REQUIRED CONFIG PATHS ${RAJA_DIR})
-   find_package_handle_standard_args(RAJA REQUIRED)
-   message("raja found?")
+if (DEFINED raja_DIR)
+   find_package(RAJA REQUIRED CONFIG PATHS ${raja_DIR})
 else()
-    message(FATAL_ERROR "RAJA_DIR was not provided. It is needed to find RAJA.")
+    message(FATAL_ERROR "raja_DIR was not provided. It is needed to find RAJA.")
 endif()
 
 
@@ -60,12 +63,10 @@ endif()
 # UMPIRE
 ################################
 
-if (DEFINED UMPIRE_DIR)
-   find_package(umpire REQUIRED CONFIG PATHS ${UMPIRE_DIR})
-   find_package_handle_standard_args(umpire REQUIRED)
-   message("umpire found?")
+if (DEFINED umpire_DIR)
+   find_package(umpire REQUIRED CONFIG PATHS ${umpire_DIR})
 else()
-    message(FATAL_ERROR "UMPIRE_DIR was not provided. It is needed to find UMPIRE.")
+    message(FATAL_ERROR "umpire_DIR was not provided. It is needed to find UMPIRE.")
 endif()
 
 endif() # end of enable batch solvers
