@@ -42,9 +42,9 @@ else()
 ################################
 
 if (fmt_DIR)
-   find_package(fmt REQUIRED CONFIG PATHS ${fmt_DIR})
+   find_package(fmt CONFIG PATHS ${fmt_DIR})
 else()
-    message(FATAL_ERROR "fmt_DIR was not provided. It is needed to find CAMP.")
+    message(WARNING "fmt_DIR was not provided. This is a requirement for camp as of v2024.02.0. Ignore this warning if using older versions of the RAJA Portability Suite")
 endif()
   
 
