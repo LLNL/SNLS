@@ -12,6 +12,7 @@ using namespace std;
 
 #include "SNLS_TrDLDenseG_Batch.h"
 #include "SNLS_device_forall.h"
+#include "SNLS_view_types.h"
 #include "SNLS_memory_manager.h"
 
 #include "chai/ManagedArray.hpp"

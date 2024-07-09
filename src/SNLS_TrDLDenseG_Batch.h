@@ -12,6 +12,7 @@
 #include "SNLS_kernels_batch.h"
 
 #include "SNLS_device_forall.h"
+#include "SNLS_view_types.h"
 #include "SNLS_memory_manager.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"

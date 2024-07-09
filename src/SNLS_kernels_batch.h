@@ -15,6 +15,7 @@
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"
 #include "SNLS_device_forall.h"
+#include "SNLS_view_types.h"
 #include "SNLS_memory_manager.h"
 #include "SNLS_TrDelta.h"
 

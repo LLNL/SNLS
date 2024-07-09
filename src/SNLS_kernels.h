@@ -2,6 +2,7 @@
 
 #include "SNLS_base.h"
 #include "SNLS_TrDelta.h"
+#include "SNLS_linalg.h"
 
 #include <stdlib.h>
 #include <iostream>

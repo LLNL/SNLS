@@ -49,7 +49,9 @@ if(ENABLE_BENCHMARKS)
 endif(ENABLE_BENCHMARKS)
 
 include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
-
+if (${BLT_VERSION} VERSION_GREATER_EQUAL 0.6.0)
+    blt_install_tpl_setups(DESTINATION share/snls/cmake/)
+endif()
 # turn off testing if building under MSLib, so that do not have to link ms to have MS_Fail
 if (DEFINED MSLIB_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
