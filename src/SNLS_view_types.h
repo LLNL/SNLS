@@ -91,18 +91,18 @@ namespace snls
       }
 
       // Needed another operator() overload where we don't supply any arguments as the
-      // above does not work for more complex cases
-      template<typename... Args>
+      // generic version doesn't work when we are working with 1D m_views and have the
+      // equivalent 0D view type
       __snls_hdev__
       constexpr
       auto&
-      operator()(Args... args) const
+      operator()() const
       {
          if constexpr( std::is_pointer_v<T>) {
-            return (*m_view)(m_index, m_offset + args...);
+            return (*m_view)(m_index);
          }
          else {
-            return (m_view)(m_index, m_offset + args...);
+            return (m_view)(m_index);
          }
       }
 

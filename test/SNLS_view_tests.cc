@@ -77,10 +77,10 @@ int main(int argc, char *argv[]) {
     #endif
         // We can still modify the internal data but the class itself is constant
         // which should hopefully let the compiler optimize more...
-        const snls::subview sv(global_index, v2d);
+        snls::SubView sv(global_index, v2d);
         const snls::SubView svp(global_index, &v2d);
         sv.set_offset(0);
-        const snls::subview sv1d(global_index, v1d);
+        const snls::SubView sv1d(global_index, v1d);
         sv1d() = double(bindex);
         // This is a bit messed up though that even though the class and internal
         // member variable are constants we can still modify things...
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 
         /*
         // This will fail compile as the assignment operator only
-        // works for subviews that use a pointer type View
+        // works for SubViews that use a pointer type View
         {
             auto v2ds0 = snls::SubView(i, 0, v2d_cpu);
             auto v2ds1 = snls::SubView(i, 1, v2d_cpu);
@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
         // the offsets are now reversed from what they used to be
         output &= (v2ds(1) == v2ds0p(0));
         output &= (v2ds(0) == v2ds1p(0));
-        // Finally checking to make sure that the subview and view values are the same
+        // Finally checking to make sure that the SubView and view values are the same
         output &= (v1d_cpu(i) == v1ds());
 #endif
     });
