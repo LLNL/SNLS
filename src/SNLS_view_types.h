@@ -27,66 +27,6 @@ namespace snls
    // Should probably work out some form of SFINAE to ensure T that we're templated on
    // is an actual View that we can use.
    template<class T>
-   class subview {
-   public:
-      // Delete the default constructor as that wouldn't be a valid object
-      __snls_hdev__
-      subview() = delete;
-      // where we don't want any offset within the subview itself
-      __snls_hdev__
-      subview(const int index, T& view) : m_view(view), m_index(index), m_offset(0) {};
-      // sometimes you might want to have an initial offset in your subview when constructing
-      // your subview in which everything appears as 0 afterwards
-      __snls_hdev__
-      subview(const int index, const size_t offset, T& view) : m_view(view), m_index(index), m_offset(offset) {};
-
-      ~subview() = default;
-
-      // Could probably add default copy constructors as well here if need be...
-
-      // Let the compiler figure out the correct return type here as the one from
-      // RAJA at least for regular Views is non-trivial
-      // make the assumption here that we're using row-major memory order for views
-      // so m_index is in the location of the slowest moving index as this is the default
-      // for RAJA...
-      template <typename... Args>
-      __snls_hdev__
-      inline
-      constexpr
-      auto&
-      operator()(Args... args) const
-      {
-         // The use of m_offset here provides us the equivalent of a rolling
-         // subview/window if our application needs it
-         return m_view(m_index, m_offset + args...);
-      }
-
-      // If we need to have like a rolling subview/window type class then
-      // we'd need some way to update the offset in our slowest moving index
-      // in the subview (so not m_view's slowest index)
-      __snls_hdev__
-      inline
-      void set_offset(const int offset) const
-      {
-         // Might want an assert in here for debugs to make sure that this is within
-         // the bounds of what m_view expects is a valid offset
-         m_offset = offset;
-      }
-
-   private:
-      // Internally we shouldn't be modifying the view itself so let's make it constant
-      const T& m_view;
-      const int m_index = 0;
-      mutable size_t m_offset = 0;
-   };
-
-
-
-   // We really don't care what View class we're using as the sub-view just wraps it up
-   // and then allows us to take a slice/window of the original view
-   // Should probably work out some form of SFINAE to ensure T that we're templated on
-   // is an actual View that we can use.
-   template<class T>
    class SubView {
    public:
 
