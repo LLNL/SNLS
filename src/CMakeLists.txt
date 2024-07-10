@@ -3,6 +3,7 @@ set(SNLS_HEADERS
     SNLS_base.h
     SNLS_gpu_portability.h
     SNLS_port.h
+    SNLS_unused.h
     SNLS_lup_solve.h
     SNLS_TrDelta.h
     SNLS_HybrdTrDLDenseG.h

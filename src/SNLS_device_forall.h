@@ -17,6 +17,7 @@
 #if defined(SNLS_RAJA_PERF_SUITE)
 
 #include "SNLS_gpu_portability.h"
+#include "SNLS_unused.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/config.hpp"
 #include "chai/ExecutionSpaces.hpp"
@@ -180,7 +181,7 @@ namespace snls {
    inline rrese SNLS_ForallWrap(const int st,
                                const int end,
                                rres  resv,
-                               DBODY &&d_body,
+                               DBODY && UNUSED_GPU(d_body),
                                HBODY &&h_body)
    {
       // Additional backends can be added as seen within the MFEM_FORALL
