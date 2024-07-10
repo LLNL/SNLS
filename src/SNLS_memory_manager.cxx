@@ -5,6 +5,7 @@
  ***************************************************************************/
 
 #include "SNLS_memory_manager.h"
+#include "SNLS_unused.h"
 #include "SNLS_port.h"
 #include <cstring>
 
@@ -65,7 +66,7 @@ namespace snls {
     *  due to performance reasons.
     */
    __snls_host__
-   void memoryManager::setDeviceAllocator(int id)
+   void memoryManager::setDeviceAllocator(int UNUSED_GPU(id))
    {
 #ifdef __snls_gpu_active__
       // We don't want to disassociate our default device allocator from

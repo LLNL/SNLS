@@ -6,6 +6,7 @@
  ***************************************************************************/
 
 #include "SNLS_device_forall.h"
+#include "SNLS_unused.h"
 #if defined(SNLS_RAJA_PERF_SUITE)
 namespace snls {
    Device& Device::GetInstance() {
@@ -64,7 +65,7 @@ namespace snls {
       // We should keep track of which stream we're on so we don't pass in the default by accident.
       // camp seems to only have 16 streams total and rotates through them unless we supply
       // an int value and then it goes with that choice
-      static int stream = 0;
+      static int UNUSED_GPU(stream) = 0;
       switch (m_es) {
 #if defined(__snls_gpu_active__)
          case ExecutionStrategy::GPU:
