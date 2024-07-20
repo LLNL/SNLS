@@ -28,27 +28,7 @@ set(SNLS_SOURCES
 set(SNLS_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
-                       DEPENDS_ON chai RAJA umpire camp)
-
-if (${BLT_VERSION} VERSION_GREATER_EQUAL 0.6.0)
-  if(ENABLE_CUDA)
-    list(APPEND SNLS_DEPENDS blt::cuda_runtime blt::cuda) 
-  endif()
-  if(ENABLE_OPENMP)
-    list(APPEND SNLS_DEPENDS blt::openmp) 
-  endif()
-else()
-  if(ENABLE_CUDA)
-    list(APPEND SNLS_DEPENDS cuda cuda_runtime) 
-  endif()
-  if(ENABLE_OPENMP)
-    list(APPEND SNLS_DEPENDS openmp) 
-  endif()
-endif()
-
-if(ENABLE_HIP)
-  list(APPEND SNLS_DEPENDS blt::hip blt::hip_runtime)
-endif()
+                       DEPENDS_ON chai RAJA umpire camp openmp cuda_runtime cuda blt::hip blt::hip_runtime)
 
 message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 
