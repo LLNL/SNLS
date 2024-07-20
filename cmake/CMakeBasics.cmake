@@ -5,7 +5,7 @@ set(PACKAGE_BUGREPORT "barton22@llnl.gov")
 
 set(SNLS_VERSION_MAJOR 0)
 set(SNLS_VERSION_MINOR 3)
-set(SNLS_VERSION_PATCH \"3\")
+set(SNLS_VERSION_PATCH \"0\")
 
 set(SNLS_HEADER_INCLUDE_DIR
     ${PROJECT_BINARY_DIR}/include/snls
@@ -71,7 +71,7 @@ macro(snls_fill_depends_list)
     foreach( _dep ${arg_DEPENDS_ON})
         string(TOUPPER ${_dep} _ucdep)
 
-        if (ENABLE_${_ucdep} OR ${_ucdep}_FOUND)
+        if (ENABLE_${_ucdep} OR ${_ucdep}_FOUND OR ${_dep}_FOUND)
             list(APPEND ${arg_LIST_NAME} ${_dep})
         endif()
     endforeach()
