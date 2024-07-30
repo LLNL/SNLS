@@ -26,7 +26,7 @@ set(SNLS_SOURCES
 set(SNLS_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
-                       DEPENDS_ON chai raja umpire camp openmp cuda_runtime cuda blt::hip blt::hip_runtime)
+                       DEPENDS_ON chai RAJA umpire camp openmp cuda_runtime cuda blt::hip blt::hip_runtime)
 
 message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 
