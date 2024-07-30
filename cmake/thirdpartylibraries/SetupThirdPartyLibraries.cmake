@@ -20,10 +20,10 @@ if(USE_BATCH_SOLVERS)
 # camp
 ################################
 
-if (camp_DIR)
-   find_package(camp REQUIRED CONFIG PATHS ${camp_DIR})
+if (CAMP_DIR)
+   find_package(camp REQUIRED CONFIG PATHS ${CAMP_DIR})
 else()
-    message(FATAL_ERROR "camp_DIR was not provided. It is needed to find CAMP.")
+   message(FATAL_ERROR "CAMP_DIR was not provided. It is needed to find CAMP.")
 endif()
 
 
@@ -31,20 +31,23 @@ endif()
 # chai
 ################################
 
-if (DEFINED chai_DIR)
-   find_package(chai REQUIRED CONFIG PATHS ${chai_DIR})
+if (CHAI_DIR)
+   set(umpire_DIR ${UMPIRE_DIR})
+   set(raja_DIR ${RAJA_DIR})
+   set(fmt_DIR ${FMT_DIR})
+   find_package(chai REQUIRED CONFIG PATHS ${CHAI_DIR})
 else()
-    message(FATAL_ERROR "chai_DIR was not provided. It is needed to find CHAI.")
-  endif()
+   message(FATAL_ERROR "CHAI_DIR was not provided. It is needed to find CHAI.")
+endif()
 
 ################################
 # fmt
 ################################
 
-if (fmt_DIR)
-   find_package(fmt CONFIG PATHS ${fmt_DIR})
+if (FMT_DIR)
+   find_package(fmt CONFIG PATHS ${FMT_DIR})
 else()
-    message(WARNING "fmt_DIR was not provided. This is a requirement for camp as of v2024.02.0. Ignore this warning if using older versions of the RAJA Portability Suite")
+   message(WARNING "FMT_DIR was not provided. This is a requirement for camp as of v2024.02.0. Ignore this warning if using older versions of the RAJA Portability Suite")
 endif()
   
 
@@ -52,10 +55,10 @@ endif()
 # RAJA
 ################################
 
-if (DEFINED raja_DIR)
-   find_package(RAJA REQUIRED CONFIG PATHS ${raja_DIR})
+if (RAJA_DIR)
+   find_package(raja REQUIRED CONFIG PATHS ${RAJA_DIR})
 else()
-    message(FATAL_ERROR "raja_DIR was not provided. It is needed to find RAJA.")
+   message(FATAL_ERROR "RAJA_DIR was not provided. It is needed to find RAJA.")
 endif()
 
 
@@ -63,10 +66,10 @@ endif()
 # UMPIRE
 ################################
 
-if (DEFINED umpire_DIR)
-   find_package(umpire REQUIRED CONFIG PATHS ${umpire_DIR})
+if (DEFINED UMPIRE_DIR)
+   find_package(umpire REQUIRED CONFIG PATHS ${UMPIRE_DIR})
 else()
-    message(FATAL_ERROR "umpire_DIR was not provided. It is needed to find UMPIRE.")
+   message(FATAL_ERROR "UMPIRE_DIR was not provided. It is needed to find UMPIRE.")
 endif()
 
 endif() # end of enable batch solvers
