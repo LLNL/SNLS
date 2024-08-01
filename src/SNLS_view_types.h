@@ -86,7 +86,6 @@ namespace snls
          return m_view->get_data();
       }
 
-   protected:
       T* m_view;
       size_t m_index;
       size_t m_offset;
