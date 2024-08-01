@@ -73,14 +73,12 @@ struct has_valid_computeFJ : std::false_type { static constexpr bool value = fal
 
 template<typename CFJ>
 struct has_valid_computeFJ <
-   CFJ,typename std::enable_if<
-       std::is_same<
+   CFJ,typename std::enable_if_t<
+       std::is_same_v<
            decltype(std::declval<CFJ>().computeFJ(std::declval<double&>(), std::declval<double&>(),std::declval<double>())),
            bool
-       >::value
-       ,
-       void
-   >::type
+       >
+   >
 >: std::true_type { static constexpr bool value = true;};
 
 template<typename CFJ, typename = void>
@@ -88,14 +86,12 @@ struct has_valid_computeFJ_lamb : std::false_type { static constexpr bool value 
 
 template<typename CFJ>
 struct has_valid_computeFJ_lamb <
-   CFJ,typename std::enable_if<
-       std::is_same<
+   CFJ,typename std::enable_if_t<
+       std::is_same_v<
            decltype(std::declval<CFJ>().operator()(std::declval<double&>(), std::declval<double&>(),std::declval<double>())),
            bool
-       >::value
-       ,
-       void
-   >::type
+       >
+   >
 >: std::true_type { static constexpr bool value = true;};
 
 template<int nDim>

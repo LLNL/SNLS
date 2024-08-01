@@ -20,7 +20,7 @@ namespace snls
    using rview3d = rview3<double>;
    using crview1d = rview1<const double>;
    using crview2d = rview2<const double>;
-   using crview3d = rview3<const double>;
+   using crview3d = rview3<const double>; 
 
    // We really don't care what View class we're using as the sub-view just wraps it up
    // and then allows us to take a slice/window of the original view
@@ -30,44 +30,15 @@ namespace snls
    class SubView {
    public:
 
-      __snls_hdev__
-      SubView() = delete;
+      constexpr SubView() = delete;
 
-      SubView(const SubView& ) = default;
-
-      SubView(SubView&&) = default;
-
-      // SubView& operator=(const SubView&) = default;
+      constexpr SubView& operator=(const SubView& other) = delete;
 
       __snls_hdev__
-      SubView& operator=(const SubView& other) {
-         static_assert(std::is_pointer_v<T>,
-         "Subview operator= requires the original view type passed in to be a pointer type and not reference type");
-         m_view = other.m_view;
-         m_index = other.m_index;
-         m_offset = other.m_offset;
-         return *this;
-      }
+      constexpr SubView(const int index, T& view) : m_view(&view), m_index(index), m_offset(0) {};
 
-      SubView& operator=(SubView&&) = default;
-
-      // Various constructors for when we want a reference type
-      template <typename U = T, std::enable_if_t<!std::is_pointer_v<U>,bool> = true>
       __snls_hdev__
-      constexpr SubView(const int index, T& view) : m_view(view), m_index(index), m_offset(0) {};
-
-      template <typename U = T, std::enable_if_t<!std::is_pointer_v<U>,bool> = true>
-      __snls_hdev__
-      constexpr SubView(const int index, const size_t offset, T& view) : m_view(view), m_index(index), m_offset(offset) {};
-
-      // Various constructors for when we want a pointer type
-      template <typename U = T, std::enable_if_t<std::is_pointer_v<U>,bool> = true>
-      __snls_hdev__
-      constexpr SubView(const int index, T view) : m_view(view), m_index(index), m_offset(0) {};
-
-      template <typename U = T, std::enable_if_t<std::is_pointer_v<U>,bool> = true>
-      __snls_hdev__
-      constexpr SubView(const int index, const size_t offset, T view) : m_view(view), m_index(index), m_offset(offset) {};
+      constexpr SubView(const int index, const size_t offset, T& view) : m_view(&view), m_index(index), m_offset(offset) {};
 
       ~SubView() = default;
 
@@ -82,12 +53,7 @@ namespace snls
       auto&
       operator()(Arg0 arg0, Args... args) const
       {
-         if constexpr( std::is_pointer_v<T>) {
-               return (*m_view)(m_index, m_offset + arg0, args...);
-         }
-         else {
-               return (m_view)(m_index, m_offset + arg0, args...);
-         }
+         return (*m_view)(m_index, m_offset + arg0, args...);
       }
 
       // Needed another operator() overload where we don't supply any arguments as the
@@ -98,12 +64,7 @@ namespace snls
       auto&
       operator()() const
       {
-         if constexpr( std::is_pointer_v<T>) {
-            return (*m_view)(m_index);
-         }
-         else {
-            return (m_view)(m_index);
-         }
+         return (*m_view)(m_index);
       }
 
       // If we need to have like a rolling subview/window type class then
@@ -118,8 +79,15 @@ namespace snls
          m_offset = offset;
       }
 
-   private:
-      T m_view;
+      __snls_hdev__
+      constexpr
+      auto*
+      get_data() const {
+         return m_view->get_data();
+      }
+
+   protected:
+      T* m_view;
       size_t m_index;
       size_t m_offset;
    };
