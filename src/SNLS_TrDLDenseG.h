@@ -84,7 +84,7 @@ class SNLSTrDlDenseG
       __snls_hdev__ double  getRhoLast() const { return(_rhoLast); };
       __snls_hdev__ double  getDelta  () const { return(_delta  ); };
       __snls_hdev__ double  getRes    () const { return(_res    ); };
-      __snls_hdev__ SNLSStatus_t getStatus() const { return(_status); };
+      __snls_hdev__ SNLSStatus_t getStatus() const { return _status; }
 
       // setX can be used to set the initial guess
       __snls_hdev__ inline void setX( const double* const x ) {

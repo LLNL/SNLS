@@ -74,7 +74,7 @@ class SNLSHybrdTrDLDenseG
     __snls_hdev__ 
     double getRes() const { return m_res; }
     __snls_hdev__
-    SNLSStatus_t getStatus() const { return m_status; };
+    SNLSStatus_t getStatus() const { return m_status; }
 
 
     // setX can be used to set the initial guess
