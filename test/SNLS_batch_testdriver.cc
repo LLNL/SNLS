@@ -8,7 +8,7 @@ using namespace std;
 
 #include "SNLS_config.h"
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 
 #include "SNLS_TrDLDenseG_Batch.h"
 #include "SNLS_device_forall.h"

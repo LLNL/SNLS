@@ -11,7 +11,7 @@
 #include "SNLS_gpu_portability.h"
 #include "SNLS_device_forall.h"
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 #include <umpire/Allocator.hpp>
 #include <umpire/ResourceManager.hpp>
 #include <umpire/strategy/QuickPool.hpp>

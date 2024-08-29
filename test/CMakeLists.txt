@@ -40,27 +40,38 @@ if(ENABLE_HIP)
   list(APPEND SNLS_TEST_DEPENDS blt::hip blt::hip_runtime)
 endif()
 
-blt_add_executable(NAME       snls_mm
-                   SOURCES    SNLS_mm.cxx
-                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                   DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
-blt_add_test(NAME    snls_mm
-             COMMAND snls_mm)
+blt_add_executable(NAME       snls_forall_subviews
+                  SOURCES    SNLS_forall_subviews.cxx
+                  OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                  DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
+blt_add_test(NAME    snls_forall_subviews
+             COMMAND snls_forall_subviews)
 
-blt_add_executable(NAME       snlstest_batch
-                   SOURCES    SNLS_batch_testdriver.cc
-                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                   DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
-blt_add_test(NAME    snlstest_batch
-             COMMAND snlstest_batch)
+if(USE_BATCH_SOLVERS)
 
-blt_add_executable(NAME snls_view_tests
-                   SOURCES    SNLS_view_tests.cc
-                   OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-                   DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
+  blt_add_executable(NAME       snls_mm
+                    SOURCES    SNLS_mm.cxx
+                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                    DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
+  blt_add_test(NAME    snls_mm
+              COMMAND snls_mm)
 
-blt_add_test(NAME    snls_view_tests
-             COMMAND snls_view_tests)
+  blt_add_executable(NAME       snlstest_batch
+                    SOURCES    SNLS_batch_testdriver.cc
+                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                    DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
+  blt_add_test(NAME    snlstest_batch
+              COMMAND snlstest_batch)
+
+  blt_add_executable(NAME snls_view_tests
+                    SOURCES    SNLS_view_tests.cc
+                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                    DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
+
+  blt_add_test(NAME    snls_view_tests
+              COMMAND snls_view_tests)
+
+endif()
 
 if(ENABLE_BENCHMARKS)
   blt_add_executable(NAME    snls_benchmark

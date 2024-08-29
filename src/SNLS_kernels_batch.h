@@ -10,7 +10,7 @@
 #include <iomanip>
 #endif
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 #include "SNLS_linalg.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"

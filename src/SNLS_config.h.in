@@ -5,6 +5,7 @@
 #if !defined(HAVE_SNLS)
 #cmakedefine HAVE_SNLS
 #endif
-#cmakedefine SNLS_RAJA_PERF_SUITE
+#cmakedefine SNLS_RAJA_ONLY
+#cmakedefine SNLS_RAJA_PORT_SUITE
 #cmakedefine SNLS_USE_LAPACK
 #cmakedefine SNLS_DEBUG

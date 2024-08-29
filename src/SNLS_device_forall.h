@@ -14,13 +14,18 @@
 
 #include "SNLS_config.h"
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE) || defined(SNLS_RAJA_ONLY)
 
 #include "SNLS_gpu_portability.h"
 #include "SNLS_unused.h"
 #include "RAJA/RAJA.hpp"
+
+#if defined(SNLS_RAJA_PORT_SUITE)
+
 #include "chai/config.hpp"
 #include "chai/ExecutionSpaces.hpp"
+
+#endif
 
 #include <variant>
 
@@ -54,6 +59,15 @@ snls::Device::GetInstance().GetDefaultRAJAResource(), \
 #define SNLS_TOFF(ielem, offset, ndim) (offset * ndim) + (ielem * ndim)
 #define SNLS_VOFF(ielem, ndim) (ielem * ndim)
 #define SNLS_MOFF(ielem, ndim2) (ielem * ndim2)
+
+#if defined(SNLS_RAJA_PORT_SUITE)
+using ches = chai::ExecutionSpace;
+#else
+namespace chai_fake {
+   enum class ExecutionSpace {CPU, GPU};
+}
+using ches = chai_fake::ExecutionSpace;
+#endif
 
 namespace snls {
 
@@ -115,7 +129,7 @@ namespace snls {
          ///
          /// @return   the current CHAI execution space
          ///
-         chai::ExecutionSpace GetCHAIES();
+         ches GetCHAIES();
 
          /// Return the default RAJA resource corresponding to the execution strategy
          /// @return a RAJA resource set
@@ -266,5 +280,5 @@ namespace snls {
    }
 
 }
-#endif // SNLS_RAJA_PERF_SUITE
+#endif // SNLS_RAJA_PORT_SUITE || SNLS_RAJA_ONLY
 #endif /* SNLS_device_forall_h */

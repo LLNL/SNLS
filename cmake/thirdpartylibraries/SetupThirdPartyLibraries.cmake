@@ -14,6 +14,21 @@ foreach(_tpl ${_tpls})
 endforeach()
 
 # Only search for these if the batch solver is enabled
+
+if(USE_RAJA_ONLY OR USE_BATCH_SOLVERS)
+
+################################
+# RAJA
+################################
+
+if (RAJA_DIR)
+   find_package(RAJA REQUIRED CONFIG PATHS ${RAJA_DIR})
+else()
+   message(FATAL_ERROR "RAJA_DIR was not provided. It is needed to find RAJA.")
+endif()
+
+endif()
+
 if(USE_BATCH_SOLVERS)
 
 ################################

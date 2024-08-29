@@ -7,7 +7,7 @@
 
 #include "SNLS_device_forall.h"
 #include "SNLS_unused.h"
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE) || defined(SNLS_RAJA_ONLY)
 namespace snls {
    Device& Device::GetInstance() {
       static Device s_device;
@@ -26,11 +26,11 @@ namespace snls {
    {
    }
 
-   chai::ExecutionSpace Device::GetCHAIES() {
+   ches Device::GetCHAIES() {
       switch (m_es) {
 #if defined(__snls_gpu_active__)
          case ExecutionStrategy::GPU:
-            return chai::ExecutionSpace::GPU;
+            return ches::GPU;
 #endif
 
 #if defined(OPENMP_ENABLE)
@@ -38,7 +38,7 @@ namespace snls {
 #endif
          case ExecutionStrategy::CPU:
          default:
-            return chai::ExecutionSpace::CPU;
+            return ches::CPU;
       }
    }
 

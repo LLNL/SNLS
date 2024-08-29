@@ -5,7 +5,7 @@
 
 // SNLS_base includes the type defs of the raja views
 #include "SNLS_base.h"
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 #include "SNLS_linalg.h"
 #include "SNLS_lup_solve.h"
 #include "SNLS_TrDelta.h"
@@ -706,5 +706,5 @@ class SNLSTrDlDenseG_Batch
   } // namespace batch
 } // namespace snls
 
-#endif //SNLS_RAJA_PERF_SUITE
+#endif //SNLS_RAJA_PORT_SUITE
 #endif  // SNLS_TRDLDG_BATCH_H

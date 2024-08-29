@@ -3,9 +3,14 @@
 #include "SNLS_config.h"
 #include "SNLS_gpu_portability.h"
 
+#if defined(SNLS_RAJA_PORT_SUITE) || defined(SNLS_RAJA_ONLY)
+#include "RAJA/RAJA.hpp"
+#endif
+
 namespace snls
 {
 
+#if defined(SNLS_RAJA_PORT_SUITE) || defined(SNLS_RAJA_ONLY)
    // Provide some simple shortcuts in-case people need something beyond the default
    template<typename T>
    using rview1 = RAJA::View<T, RAJA::Layout<1>>;
@@ -20,7 +25,8 @@ namespace snls
    using rview3d = rview3<double>;
    using crview1d = rview1<const double>;
    using crview2d = rview2<const double>;
-   using crview3d = rview3<const double>; 
+   using crview3d = rview3<const double>;
+#endif
 
    // We really don't care what View class we're using as the sub-view just wraps it up
    // and then allows us to take a slice/window of the original view
@@ -29,10 +35,9 @@ namespace snls
    template<class T>
    class SubView {
    public:
-
       constexpr SubView() = delete;
 
-      constexpr SubView& operator=(const SubView& other) = delete;
+      constexpr SubView& operator=(const SubView& other) = default;
 
       __snls_hdev__
       constexpr SubView(const int index, T& view) : m_view(&view), m_index(index), m_offset(0) {};

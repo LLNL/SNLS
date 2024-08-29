@@ -5,5 +5,5 @@
 #if !defined(HAVE_SNLS)
 #define HAVE_SNLS
 #endif
-/* #undef SNLS_RAJA_PERF_SUITE */
+/* #undef SNLS_RAJA_PORT_SUITE */
 /* #undef SNLS_USE_LAPACK */

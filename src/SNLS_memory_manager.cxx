@@ -9,7 +9,7 @@
 #include "SNLS_port.h"
 #include <cstring>
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 
 namespace snls {
   
