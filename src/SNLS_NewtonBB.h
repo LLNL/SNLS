@@ -22,7 +22,7 @@ const double mulTolXDefault = 1e-4 ;
 
 // 1D Newton solver, with bounding/bisection checks
 //
-template< typename CFJ, bool unbounded >
+template< typename CFJ >
 class NewtonBB
 {
 public:
@@ -31,8 +31,9 @@ public:
    static_assert(has_valid_computeFJ<CFJ>::value || has_valid_computeFJ_lamb<CFJ>::value, "The CFJ implementation in SNLSNewtonBB needs to implement bool computeFJ( double &f, double &J, double x ) or a lambda function with same types");
    
    // constructor
-   __snls_hdev__ NewtonBB( CFJ &cfj ) :
+   __snls_hdev__ NewtonBB( CFJ &cfj, bool unbounded) :
       _cfj(cfj),
+      _unbounded(unbounded),
       _boundStepGrowthFactor(1.2),
       _boundOvershootFactor(1.2),
       _tol(1e-8),
@@ -268,7 +269,7 @@ public:
       if ( fl * fh > 0 ) {
          // root is not bracketed
 
-         if ( unbounded ) {
+         if ( _unbounded ) {
             bool success = doBoundA(xl, xh, fl, fh) ;
             if ( !success ) {
                status = bracketFailure ;
@@ -291,7 +292,7 @@ public:
       double dxold = fabs( xh - xl ) ;
       double dx = dxold ;
 
-      if ( fun < 0.0 && fun > fl ) {
+      if ( fun < 0.0 && fun > fl) {
          xl = x ;
       }
       else if ( fun > 0.0 && fun < fh ) {
@@ -374,6 +375,7 @@ public:
 
 public:
    CFJ     &_cfj ;
+   bool    _unbounded;
    double  _boundStepGrowthFactor ;
    double  _boundOvershootFactor ;
    
