@@ -12,11 +12,40 @@
 
 namespace snls {
 
+struct TrDeltaInput {
+   double xiLG = 0.75;
+   double xiUG = 1.4;
+   double xiIncDelta = 1.5;
+   double xiLO = 0.35;
+   double xiUO = 5.0;
+   double xiDecDelta = 0.25;
+   double xiForcedIncDelta = 1.2;
+   double deltaInit = 1.0;
+   double deltaMin = 1e-12;
+   double deltaMax = 1e4;
+};
+
 class TrDeltaControl
 {
 public:
-   
-   __snls_hdev__ TrDeltaControl() :
+   __snls_hdev__
+   TrDeltaControl(TrDeltaInput& tdi) :
+      _xiLG(tdi.xiLG),
+      _xiUG(tdi.xiUG),
+      _xiIncDelta(tdi.xiIncDelta),
+      _xiLO(tdi.xiLO),
+      _xiUO(tdi.xiUO),
+      _xiDecDelta(tdi.xiDecDelta),
+      _xiForcedIncDelta(tdi.xiForcedIncDelta),
+      _deltaInit(tdi.deltaInit),
+      _deltaMin(tdi.deltaMin),
+      _deltaMax(tdi.deltaMax),
+      _rejectResIncrease(true)
+   {
+      this->checkParams() ;
+   }
+   __snls_hdev__
+   TrDeltaControl() :
       _xiLG(0.75),
       _xiUG(1.4),
       _xiIncDelta(1.5),

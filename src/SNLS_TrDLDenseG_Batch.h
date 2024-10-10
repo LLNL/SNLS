@@ -217,13 +217,13 @@ class SNLSTrDlDenseG_Batch
        */
       void setupSolver(int maxIter,
                          double tolerance,
-                         TrDeltaControl * deltaControl,
+                         TrDeltaInput& tdi
                          int outputLevel=0) {
 
          _maxIter = maxIter ;
          _tolerance = tolerance ;
-
-         _deltaControl = deltaControl ;
+         // Need to see if this will actually work at all...
+         _deltaControl = chai::make_managed<snls::TrDeltaControl>(tdi) ;
 
          this->setOutputlevel( outputLevel ) ;
 
@@ -690,7 +690,7 @@ class SNLSTrDlDenseG_Batch
       chai::ManagedArray<double> wrk_data;
 
    private:
-      TrDeltaControl* _deltaControl ;
+      chai::managed_ptr<TrDeltaControl> _deltaControl ;
 
       int    _offset_work;
       int    _maxIter ;
