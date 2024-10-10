@@ -65,7 +65,7 @@ public:
       
       _maxIter = maxIter ;
       _tol     = tolerance ;
-      _tolx    = _tol * mulTolXDefault ;
+      _tolx    = _tol * mulTolX;
       this->setOutputlevel( outputLevel ) ;
       
    } ;

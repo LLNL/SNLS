@@ -35,7 +35,7 @@ public:
    __snls_hdev__ double getDeltaInit() const { return _deltaInit;} ;
 
    __snls_hdev__   
-   bool decrDelta(void *strm, double &delta, double normfull, bool took_full) const
+   bool decrDelta([[maybe_unused]] void *strm, double &delta, double normfull, bool took_full) const
    {
       bool success = true ;
       
@@ -68,7 +68,7 @@ public:
    }
 
    __snls_hdev__
-   void incrDelta(void* strm, double  &delta) const
+   void incrDelta([[maybe_unused]] void* strm, double  &delta) const
    {
       delta *= _xiIncDelta;
 

@@ -179,7 +179,7 @@ class SNLSHybrdTrDLDenseG
         }
 #ifdef SNLS_DEBUG
 #ifdef __snls_host_only__
-         if ( m_outputLevel > 2 && m_os != nullptr ) {
+         if ( m_outputLevel > 2 && m_os != nullptr && J != nullptr) {
             // do finite differencing
             // assume system is scaled such that perturbation size can be standard
 

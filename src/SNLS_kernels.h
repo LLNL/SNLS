@@ -110,6 +110,7 @@ void dogleg(const double delta,
             #ifdef __snls_host_only__
             std::ostream* _os
             #else
+            [[maybe_unused]]
             char* _os // do not use
             #endif
             ) {
