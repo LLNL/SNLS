@@ -14,6 +14,7 @@
 #include "SNLS_linalg.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"
+#include "chai/managed_ptr.hpp"
 #include "SNLS_device_forall.h"
 #include "SNLS_view_types.h"
 #include "SNLS_memory_manager.h"
@@ -179,7 +180,7 @@ inline
 void updateDelta(const int offset,
                  const int batch_size,
                  const int mfevals,
-                 const TrDeltaControl* const deltaControl, // makes use of offset
+                 chai::managed_ptr<TrDeltaControl>& deltaControl, // makes use of offset
                  const rview2d &residual,
                  const rview1d &pred_resid,
                  const rview1d &nr_norm,

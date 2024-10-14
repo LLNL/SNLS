@@ -1,8 +1,5 @@
 // -*-c++-*-
-
-#ifndef SNLS_TRDLDG_BATCH_H
-#define SNLS_TRDLDG_BATCH_H
-
+#pragma once
 // SNLS_base includes the type defs of the raja views
 #include "SNLS_base.h"
 #if defined(SNLS_RAJA_PORT_SUITE)
@@ -16,6 +13,7 @@
 #include "SNLS_memory_manager.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"
+#include "chai/managed_ptr.hpp"
 
 #include <stdlib.h>
 #include <iostream>
@@ -127,14 +125,20 @@ class SNLSTrDlDenseG_Batch
       offset += _initial_batch_size * CRJ::nDimSys;
       _Jacobian.set_data(SNLS_RSETUP(wrk_data, es, offset));
 
+      auto& x = _x;
+      auto& delta = _delta;
+      auto& res = _res;
+      auto& status = _status;
+      auto& fevals = _fevals;
+
       snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int i) {
-         _fevals[i] = 0;
+         fevals[i] = 0;
          for (int j = 0; j < CRJ::nDimSys; j++){
-            _x(i, j) = 0.0;
+            x(i, j) = 0.0;
          }
-         _delta(i) = 1e8;
-         _res(i) = 1e20;
-         _status[i] = SNLSStatus_t::unConverged;
+         delta(i) = 1e8;
+         res(i) = 1e20;
+         status[i] = SNLSStatus_t::unConverged;
       });
    };
    /// destructor needs to dealloc the wrk_data, wrkb_data, _feval, and _status variables
@@ -178,36 +182,44 @@ class SNLSTrDlDenseG_Batch
 
       /// setX can be used to set the initial guess for all of the points used in the batch job
       inline void setX( const double* const x) {
+         auto& lx = _x;
+         constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < _nDim; ++iX) {
-               _x(ipts, iX) = x[ipts * _nDim + iX] ;
+            for (int iX = 0; iX < nDim; ++iX) {
+               lx(ipts, iX) = x[ipts * nDim + iX] ;
             }
          });
       }
 
       /// setX can be used to set the initial guess for all of the points used in the batch job
       inline void setX(const chai::ManagedArray<double> &x) {
+         auto& lx = _x;
+         constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < _nDim; ++iX) {
-               _x(ipts, iX) = x[ipts * _nDim + iX] ;
+            for (int iX = 0; iX < nDim; ++iX) {
+               lx(ipts, iX) = x[ipts * nDim + iX] ;
             }
          });
       }
 
       /// getX can be used to get solution for all of the points used in the batch job
       inline void getX( double* const x) const {
+         auto& lx = _x;
+         constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < _nDim; ++iX) {
-               x[ipts * _nDim + iX] = _x(ipts, iX);
+            for (int iX = 0; iX < nDim; ++iX) {
+               x[ipts * nDim + iX] = lx(ipts, iX);
             }
          });
       };
 
       /// getX can be used to get solution for all of the points used in the batch job
       inline void getX( chai::ManagedArray<double> &x) const {
+         auto& lx = _x;
+         constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < _nDim; ++iX) {
-               x[ipts * _nDim + iX] = _x(ipts, iX);
+            for (int iX = 0; iX < nDim; ++iX) {
+               x[ipts * nDim + iX] = x(ipts, iX);
             }
          });
       };
@@ -217,13 +229,16 @@ class SNLSTrDlDenseG_Batch
        */
       void setupSolver(int maxIter,
                          double tolerance,
-                         TrDeltaInput& tdi
+                         TrDeltaInput& tdi,
                          int outputLevel=0) {
 
          _maxIter = maxIter ;
          _tolerance = tolerance ;
          // Need to see if this will actually work at all...
-         _deltaControl = chai::make_managed<snls::TrDeltaControl>(tdi) ;
+         chai::ManagedArray<snls::TrDeltaInput> temp(1);
+         temp.data(chai::ExecutionSpace::CPU);
+         temp[0] = tdi;
+         _deltaControl = chai::make_managed<snls::TrDeltaControl>(chai::unpack(temp));
 
          this->setOutputlevel( outputLevel ) ;
 
@@ -245,10 +260,23 @@ class SNLSTrDlDenseG_Batch
          if ( _deltaControl == nullptr ) {
             SNLS_FAIL("solve", "_deltaControl not set") ;
          }
-         
+
+         auto& rjSuccess = _rjSuccess;
+         auto& status = _status;
+         auto& res = _res;
+         auto& residual = _residual;
+         auto deltaControl = _deltaControl;
+         auto& delta = _delta;
+         auto& fevals = _fevals;
+         auto& Jacobian = _Jacobian;
+         auto& x = _x;
+         auto& tolerance = _tolerance;
+         constexpr size_t nXnDim = _nXnDim;
+         constexpr size_t nDim = _nDim;
+
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int i) {
-            _status[i] = SNLSStatus_t::unConverged;
-            _fevals[i] = 0;
+            status[i] = SNLSStatus_t::unConverged;
+            fevals[i] = 0;
          });
 
          const int numblks = (_npts + _initial_batch_size - 1)/ _initial_batch_size;
@@ -298,25 +326,25 @@ class SNLSTrDlDenseG_Batch
 
             // Reinitialize all of our data back to these values
             snls::forall<512>(0, batch_size, [=] __snls_hdev__ (int i) {
-               _rjSuccess(i) = true;
+               rjSuccess(i) = true;
                reject_prev(i) = false;
                use_nr(i) = false;
                nr_norm(i) = 0.0;
                Jg_2(i) = 0.0;
 
-               _delta(i + offset) = _deltaControl->getDeltaInit();
+               delta(i + offset) = deltaControl->getDeltaInit();
             });
 
-            this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size); // at _x
+            this->computeRJ(residual, Jacobian, rjSuccess, offset, batch_size); // at _x
 
             snls::forall<512>(0, batch_size, [=] __snls_hdev__ (int i) {
-               if ( !(_rjSuccess(i)) ) {
-                  _status[i + offset] = SNLSStatus_t::initEvalFailure ;
+               if ( !(rjSuccess(i)) ) {
+                  status[i + offset] = SNLSStatus_t::initEvalFailure ;
                }
                // this breaks out of the internal lambda and is essentially a loop continue
-               if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  _res(i + offset) = snls::linalg::norm<_nDim>(&_residual.get_data()[i * _nDim]);
-                  res_0(i) = _res(i + offset);
+               if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
+                  res(i + offset) = snls::linalg::norm<nDim>(&residual.get_data()[i * nDim]);
+                  res_0(i) = res(i + offset);
             });
 
             while ( _nIters < _maxIter ) {
@@ -330,36 +358,39 @@ class SNLSTrDlDenseG_Batch
                // up the kernels if we did the above...
                // We  might be able to move some or all of this code to other kernels in the code
                // to reduce number of kernels launches which could help with performance.
+               bool newton_jacob = false;
                snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int i)
                {  // start of cauchy point calculations
                   // this breaks out of the internal lambda and is essentially a loop continue
-                  if( _status[i + offset] != SNLSStatus_t::unConverged){ return; }
+                  if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev(i) ) {
-                     snls::linalg::matTVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &grad.get_data()[i * _nDim]);
+                     newton_jacob = true;
+                     snls::linalg::matTVecMult<nDim, nDim>(&Jacobian.get_data()[i * nXnDim], &residual.get_data()[i * nDim], &grad.get_data()[i * nDim]);
                      {
-                        double ntemp[_nDim] ;
-                        snls::linalg::matVecMult<_nDim, _nDim>(&_Jacobian.get_data()[i * _nXnDim], &grad.get_data()[i * _nDim], ntemp); // was -grad in previous implementation, but sign does not matter
-                        Jg_2(i) = snls::linalg::dotProd<_nDim>(ntemp, ntemp);
+                        double ntemp[nDim] ;
+                        snls::linalg::matVecMult<nDim, nDim>(&Jacobian.get_data()[i * nXnDim], &grad.get_data()[i * nDim], ntemp); // was -grad in previous implementation, but sign does not matter
+                        Jg_2(i) = snls::linalg::dotProd<nDim>(ntemp, ntemp);
                      }
-                     const bool sol_stat = this->computeNewtonStep( &_Jacobian.get_data()[i * _nXnDim], &_residual.get_data()[i * _nDim], &nrStep.get_data()[i * _nDim] ) ;
+                     const bool sol_stat = this->computeNewtonStep( &Jacobian.get_data()[i * nXnDim], &residual.get_data()[i * nDim], &nrStep.get_data()[i * nDim] ) ;
                      if (!sol_stat) {
-                        _status[i + offset] = SNLSStatus_t::linearSolveFailure;
+                        status[i + offset] = SNLSStatus_t::linearSolveFailure;
                         return;
                      }
-                     nr_norm(i) = snls::linalg::norm<_nDim>( &nrStep.get_data()[i * _nDim] );
+                     nr_norm(i) = snls::linalg::norm<nDim>( &nrStep.get_data()[i * nDim] );
                   }
                }); // end of batch compute kernel 1
+               if (newton_jacob) { _nJFact++; }
                // Computes the batch version of the dogleg code and updates the solution variable x
-               snls::batch::dogleg<_nDim>(offset, batch_size, _status, _delta, res_0, nr_norm, Jg_2, grad, nrStep,
-                                          delx, _x, pred_resid, use_nr);
+               snls::batch::dogleg<nDim>(offset, batch_size, status, delta, res_0, nr_norm, Jg_2, grad, nrStep,
+                                          delx, x, pred_resid, use_nr);
                // This calculates the new residual and jacobian given the updated x value
-               this->computeRJ(_residual, _Jacobian, _rjSuccess, offset, batch_size) ; // at _x
+               this->computeRJ(residual, Jacobian, rjSuccess, offset, batch_size) ; // at _x
 
                // updates delta based on a trust region
                // if the solution is rejected than x is also returned to its previous value
-               snls::batch::updateDelta<_nDim>(offset, batch_size, _mfevals, _deltaControl,
-                                               _residual, pred_resid, nr_norm, use_nr, _rjSuccess, _tolerance,
-                                               delx, _x, res_0, _res, _delta, reject_prev, _fevals, _status);
+               snls::batch::updateDelta<nDim>(offset, batch_size, _mfevals, deltaControl,
+                                               residual, pred_resid, nr_norm, use_nr, rjSuccess, tolerance,
+                                               delx, x, res_0, res, delta, reject_prev, fevals, status);
 
                // If this is true then that means all of the batched items
                // either failed or converged, and so we can exit and start the new batched data
@@ -396,7 +427,9 @@ class SNLSTrDlDenseG_Batch
                             const int batch_size) {
          
          _mfevals++ ;
-         this->_crj.computeRJ(r, J, _x, rJSuccess, _status, offset, batch_size);
+         auto& x = _x;
+         auto& status = _status;
+         this->_crj.computeRJ(r, J, x, rJSuccess, status, offset, batch_size);
 #ifdef SNLS_DEBUG
          // This is not efficient at all but it'll work for debugging cases
          if ( _outputLevel > 2 && _os != nullptr ) {
@@ -441,11 +474,11 @@ class SNLSTrDlDenseG_Batch
             for ( int iX = 0; iX < _nDim ; ++iX ) {
                snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int iBatch) {
                   for ( int jX = 0; jX < _nDim ; ++jX ) {
-                     x_pert(offset + iBatch, jX) = _x(offset + iBatch, jX);
+                     x_pert(offset + iBatch, jX) = x(offset + iBatch, jX);
                   }
                   x_pert(offset + iBatch, iX) = x_pert(offset + iBatch, iX) + pert_val;
                });
-               this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, _status, offset, batch_size);
+               this->_crj.computeRJ(r_pert, J_dummy, x_pert, rJSuccess, status, offset, batch_size);
                const bool success = reduced_rjSuccess(rJSuccess, batch_size);
                if ( !success ) {
                   SNLS_FAIL(__func__, "Problem while finite-differencing");
@@ -476,7 +509,7 @@ class SNLSTrDlDenseG_Batch
             cJ.free();
 
             // put things back the way they were ;
-            this->_crj.computeRJ(r, J, _x, rJSuccess, _status, offset, batch_size);
+            this->_crj.computeRJ(r, J, x, rJSuccess, status, offset, batch_size);
          } // _os != nullptr
 #endif
       }
@@ -484,7 +517,6 @@ class SNLSTrDlDenseG_Batch
      __snls_hdev__ inline bool  computeNewtonStep (double* const       J,
                                       const double* const r,
                                       double* const       newton  ) {
-         _nJFact++ ;
 #if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
          // This version of the Newton solver uses the LAPACK solver DGETRF() and DGETRS()
          // 
@@ -535,15 +567,6 @@ class SNLSTrDlDenseG_Batch
          return true;
 // HAVE_LAPACK && SNLS_USE_LAPACK && defined(__cuda_host_only__)
       }
-      // Reject the updated x using a provided delta x
-      __snls_hdev__ inline void  reject(const double* const delX, const int ielem, const int offset ) {
-         const int toffset = ielem + offset;
-         // delX is already offset
-         for (int iX = 0; iX < _nDim; ++iX) {
-            _x(toffset, iX) = _x(toffset, iX) - delX[iX] ;
-         }
-      }
-      
    public:
 
       /// Performs a bitwise reduction and operation on _status to see if the
@@ -703,8 +726,7 @@ class SNLSTrDlDenseG_Batch
 
       chai::ManagedArray<SNLSStatus_t> _status;
 };
-  } // namespace batch
+} // namespace batch
 } // namespace snls
 
 #endif //SNLS_RAJA_PORT_SUITE
-#endif  // SNLS_TRDLDG_BATCH_H

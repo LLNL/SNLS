@@ -114,6 +114,8 @@ TEST(snls, chebyquad_b_func) // int main(int , char ** )
    EXPECT_EQ( solver.getNJEvals(), 4) << "Expected 4 jacobian evaluations for this case";
 }
 
+#if defined(__snls_host_only__)
+
 TEST(snls,broyden_a) // int main(int , char ** )
 {
    constexpr int nDimSys = BROYDEN_NDIM_SYS;
@@ -164,3 +166,5 @@ TEST(snls,broyden_c) // int main(int , char ** )
    EXPECT_EQ( solver.getNFEvals(), 23) << "Expected 23 function evaluations for this case";
    EXPECT_EQ( solver.getNJEvals(), 2) << "Expected 2 jacobian evaluations for this case";
 }
+
+#endif

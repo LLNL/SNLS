@@ -29,22 +29,6 @@ class TrDeltaControl
 {
 public:
    __snls_hdev__
-   TrDeltaControl(TrDeltaInput& tdi) :
-      _xiLG(tdi.xiLG),
-      _xiUG(tdi.xiUG),
-      _xiIncDelta(tdi.xiIncDelta),
-      _xiLO(tdi.xiLO),
-      _xiUO(tdi.xiUO),
-      _xiDecDelta(tdi.xiDecDelta),
-      _xiForcedIncDelta(tdi.xiForcedIncDelta),
-      _deltaInit(tdi.deltaInit),
-      _deltaMin(tdi.deltaMin),
-      _deltaMax(tdi.deltaMax),
-      _rejectResIncrease(true)
-   {
-      this->checkParams() ;
-   }
-   __snls_hdev__
    TrDeltaControl() :
       _xiLG(0.75),
       _xiUG(1.4),
@@ -56,6 +40,23 @@ public:
       _deltaInit(1.0),
       _deltaMin(1e-12),
       _deltaMax(1e4),
+      _rejectResIncrease(true)
+   {
+      this->checkParams() ;
+   }
+
+   __snls_hdev__
+   TrDeltaControl(const TrDeltaInput* tdi) :
+      _xiLG(tdi->xiLG),
+      _xiUG(tdi->xiUG),
+      _xiIncDelta(tdi->xiIncDelta),
+      _xiLO(tdi->xiLO),
+      _xiUO(tdi->xiUO),
+      _xiDecDelta(tdi->xiDecDelta),
+      _xiForcedIncDelta(tdi->xiForcedIncDelta),
+      _deltaInit(tdi->deltaInit),
+      _deltaMin(tdi->deltaMin),
+      _deltaMax(tdi->deltaMax),
       _rejectResIncrease(true)
    {
       this->checkParams() ;

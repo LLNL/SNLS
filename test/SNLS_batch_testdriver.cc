@@ -76,7 +76,8 @@ public:
                                 const int offset,
                                 const int batch_size)
       {
-      snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int ib) {
+         auto lambda = _lambda;
+         snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int ib) {
          // First check to see the current point is unconverged, and if it
          // isn't then we skip the point all together.
          if (status[ib + offset] != snls::SNLSStatus_t::unConverged) { 
@@ -115,7 +116,7 @@ public:
             r(ib, i) = (3-2*x(xoff, i))*x(xoff, i) - x(xoff, i-1) - 2*x(xoff, i+1) + 1;
 
          fn = (3-2*x(xoff, nDim-1))*x(xoff, nDim-1) - x(xoff, nDim-2) + 1;
-         r(ib, nDim-1) = (1-_lambda)*fn + _lambda*(fn*fn);
+         r(ib, nDim-1) = (1-lambda)*fn + lambda*(fn*fn);
 
          if ( doComputeJ ) {
             // F(0) = (3-2*x[0])*x[0] - 2*x[1] + 1;
@@ -132,8 +133,8 @@ public:
             // F(n-1) = ((3-2*x[n-1])*x[n-1] - x[n-2] + 1)^2;
             fn = (3-2*x(xoff, nDim-1))*x(xoff, nDim-1) - x(xoff, nDim-2) + 1;
             double dfndxn = 3-4*x(xoff, nDim-1);
-            J(ib, nDim-1, nDim-1) = (1-_lambda)*(dfndxn) + _lambda*(2*dfndxn*fn);
-            J(ib, nDim-1, nDim-2) = (1-_lambda)*(-1) + _lambda*(-2*fn);
+            J(ib, nDim-1, nDim-1) = (1-lambda)*(dfndxn) + lambda*(2*dfndxn*fn);
+            J(ib, nDim-1, nDim-2) = (1-lambda)*(-1) + lambda*(-2*fn);
          }
 
          rJSuccess(ib) = true ;
@@ -202,9 +203,9 @@ TEST(snls,broyden_a) // int main(int , char ** )
    // Here we're setting our batch size to be the same size as the number systems
    // we want to solve for.
    snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch, nBatch);
-   snls::TrDeltaControl deltaControlBroyden ;
-   deltaControlBroyden._deltaInit = 1e0 ;
-   solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0);
+   snls::TrDeltaInput deltaControlBroyden;
+   deltaControlBroyden.deltaInit = 1.0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, deltaControlBroyden, 0);
    setX(solver, nDim * nBatch);
    //
    {
