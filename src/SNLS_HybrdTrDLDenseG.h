@@ -583,12 +583,14 @@ class SNLSHybrdTrDLDenseG
 
     // Class member variables
     public:
-    static const int m_nDim = nDimSys;
+    static constexpr int m_nDim = nDimSys;
+    static constexpr int _nDim = nDimSys;
+
     CRJ & m_crj ;
     double m_x[m_nDim];
 
     private:
-    static const int m_nXnDim = m_nDim * m_nDim;
+    static constexpr int m_nXnDim = m_nDim * m_nDim;
     TrDeltaControl* m_deltaControl;
     int m_fevals, m_nIters, m_jevals;
     int m_maxfev,  m_outputLevel, m_maxIter;

@@ -16,11 +16,11 @@ hybrid_broyden_solver(T& solver) {
    deltaControl._xiDecDelta = 0.6;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 0);
 
-   for (int iX = 0; iX < solver.getNDim(); ++iX) {
+   for (int iX = 0; iX < T::_nDim; ++iX) {
       solver.m_x[iX] = 0e0 ;
    }
-   double r[solver.getNDim()], J[solver.getNDim() * solver.getNDim()] ; 
-   solver.computeRJ(r, J); 
+   double r[T::_nDim], J[T::_nDim * T::_nDim] ;
+   solver.computeRJ(r, J);
 
    snls::SNLSStatus_t status = solver.solve();
    if ( status != snls::converged ){
@@ -41,13 +41,13 @@ hybrid_chebyq_solver(T& solver) {
    deltaControl._xiDecDelta = 0.75;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 0);
 
-   double h = 1.0 / (((double) solver.getNDim()) + 1.0);
-   for (int j = 0; j < solver.getNDim(); j++){
+   double h = 1.0 / (((double) T::_nDim) + 1.0);
+   for (int j = 0; j < T::_nDim; j++){
       solver.m_x[j] = (((double) j) + 1.0) * h;
    }
 
-   double r[solver.getNDim()], J[solver.getNDim() * solver.getNDim()] ; 
-   solver.computeRJ(r, J); 
+   double r[T::_nDim], J[T::_nDim * T::_nDim] ;
+   solver.computeRJ(r, J);
 
    snls::SNLSStatus_t status = solver.solve();
    if ( status != snls::converged ){

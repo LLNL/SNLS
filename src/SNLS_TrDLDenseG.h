@@ -76,7 +76,7 @@ class SNLSTrDlDenseG
 
    public:
       CRJ &_crj ;
-      static const int _nDim = nDimSys;
+      static constexpr int _nDim = nDimSys;
                
       __snls_hdev__ int     getNDim   () const { return(_nDim   ); };
       __snls_hdev__ int     getNFEvals() const { return(_fevals ); };
@@ -371,7 +371,7 @@ class SNLSTrDlDenseG
       double _x[_nDim] ;
 
    protected:
-      static const int _nXnDim = _nDim * _nDim ;
+      static constexpr int _nXnDim = _nDim * _nDim ;
       
       int _fevals, _nIters, _nJFact ;
       double _delta, _res ;

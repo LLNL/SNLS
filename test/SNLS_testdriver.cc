@@ -19,12 +19,12 @@ broyden_solver(T& solver, const double delta_init = 1.0) {
    deltaControlBroyden._deltaInit = delta_init;
    solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControlBroyden, 0);
 
-   for (int iX = 0; iX < solver.getNDim(); ++iX) {
+   for (int iX = 0; iX < T::_nDim; ++iX) {
       solver._x[iX] = 0e0 ;
    }
    //
-   double r[solver.getNDim()], J[solver.getNDim() * solver.getNDim()] ;
-   solver.computeRJ(r, J); 
+   double r[T::_nDim], J[T::_nDim * T::_nDim] ;
+   solver.computeRJ(r, J);
 
    snls::SNLSStatus_t status = solver.solve( ) ;
    if ( status != snls::converged ){

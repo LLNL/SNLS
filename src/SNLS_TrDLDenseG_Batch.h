@@ -151,7 +151,7 @@ class SNLSTrDlDenseG_Batch
 
    public:
       CRJ &_crj ;
-      static const int _nDim = CRJ::nDimSys ;
+      static constexpr int _nDim = CRJ::nDimSys ;
       /// The size of the nonlinear system of equations being solved for
       int     getNDim   () const { return(_nDim   ); };
       /// Returns the maximum of function evaluations across all the nonlinear system solves
@@ -700,7 +700,7 @@ class SNLSTrDlDenseG_Batch
       rview2d _x;
 
    protected:
-      static const int _nXnDim = _nDim * _nDim ;
+      static constexpr int _nXnDim = _nDim * _nDim ;
       
       int _mfevals, _nIters, _nJFact ;
       chai::ManagedArray<int> _fevals;
