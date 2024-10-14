@@ -93,7 +93,7 @@ TEST(snls,newtonbb_a)
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    FunA fun(5.0, fun_a_lambda(alpha, xsoln));
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB solver(fun, true);
 
    double x = 0.0;
    snls::SNLSStatus_t status = solver.solve(x, 0.0, 0.0) ;
@@ -110,7 +110,7 @@ TEST(snls,newtonbb_lambda_a)
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    auto fun = fun_a_lambda(alpha, xsoln);
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB solver(fun, true);
 
    double x = 0.0;
    snls::SNLSStatus_t status = solver.solve(x, 0.0, 0.0);
@@ -125,7 +125,7 @@ TEST(snls,newtonbb_func_a)
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    std::function<auto (double &f, double &J, double x) -> bool> fun = fun_a_lambda(alpha, xsoln);
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB solver(fun, true);
 
    double x = 0.0;
    snls::SNLSStatus_t status = solver.solve(x, 0.0, 0.0);
@@ -140,7 +140,7 @@ TEST(snls,newtonbb_b)
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    FunA fun(5.0, fun_a_lambda(alpha, xsoln));
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB solver(fun, true);
 
    double x = 0.0 ;
    snls::SNLSStatus_t status = solver.solve(x, -10.0, 10.0) ;
@@ -155,7 +155,7 @@ TEST(snls,newtonbb_c)
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    FunA fun(5.0, fun_a_lambda(alpha, xsoln));
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB solver(fun, true);
 
    double x = FUNASOLN+2.0 ;
    snls::SNLSStatus_t status = solver.solve(x, FUNASOLN+1.0, FUNASOLN+10.0) ;
