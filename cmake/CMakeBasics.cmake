@@ -1,10 +1,10 @@
 ################################
 # Version
 ################################
-set(PACKAGE_BUGREPORT "barton22@llnl.gov")
+set(PACKAGE_BUGREPORT "carson16@llnl.gov")
 
 set(SNLS_VERSION_MAJOR 0)
-set(SNLS_VERSION_MINOR 3)
+set(SNLS_VERSION_MINOR 4)
 set(SNLS_VERSION_PATCH \"0\")
 
 set(SNLS_HEADER_INCLUDE_DIR
