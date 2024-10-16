@@ -26,7 +26,28 @@ namespace snls
    using crview1d = rview1<const double>;
    using crview2d = rview2<const double>;
    using crview3d = rview3<const double>;
+
 #endif
+
+namespace experimental {
+   // This was largely auto-generated when asking google a SFINAE type solution for the layout issue
+   template <class T>
+   class has_get_layout {
+   private:
+      template <class U>
+      static constexpr auto check(int) -> decltype(std::declval<U>().get_layout(), std::true_type{}) {
+         return std::true_type{};
+      }
+
+      template <class>
+      static constexpr std::false_type check(...) {
+         return std::false_type{};
+      }
+
+   public:
+      static constexpr bool value = decltype(check<T>(0))::value;
+   };
+}
 
    // We really don't care what View class we're using as the sub-view just wraps it up
    // and then allows us to take a slice/window of the original view
@@ -86,9 +107,24 @@ namespace snls
 
       __snls_hdev__
       constexpr
-      auto*
-      get_data() const {
-         return m_view->get_data();
+      bool
+      contains_data() const {
+         if constexpr (experimental::has_get_layout<T>::value) {
+            return m_view->get_layout().size() > 0;
+         } else {
+            return m_view->layout.size() > 0;
+         }
+      }
+
+      __snls_hdev__
+      constexpr
+      auto const&
+      get_layout() const {
+         if constexpr (experimental::has_get_layout<T>::value) {
+            return m_view->get_layout();
+         } else {
+            return m_view->layout;
+         }
       }
 
       T* m_view;

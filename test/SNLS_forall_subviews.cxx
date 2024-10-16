@@ -115,6 +115,7 @@ int main() {
 
     snls::forall<SNLS_GPU_BLOCKS>(0, npts, [=] __snls_hdev__ (int i) {
         const snls::SubView v2ds(i, 0, v2d_cpu);
+        const snls::SubView v2dsds(0, v2ds);
         const snls::SubView v2ds2(i, 1, v2d_cpu);
 
         auto v1ds = snls::SubView(i, v1d_cpu);
@@ -133,6 +134,8 @@ int main() {
         output &= (v2ds(0) == v2ds1p(0));
         // Finally checking to make sure that the SubView and view values are the same
         output &= (v1d_cpu(i) == v1ds());
+        output &= v2ds.contains_data();
+        output &= v2dsds.contains_data();
 #endif
     });
 
