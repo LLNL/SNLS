@@ -66,18 +66,18 @@ class SNLSTrDlDenseG_Batch
    /// or else it defaults to just using 1 for batch solves
    SNLSTrDlDenseG_Batch(CRJ &crj, uint npts = 1, uint dflt_initial_batch = 50000) :
                _crj(crj),
-               _mfevals(0), _nIters(0), _nJFact(0),
-               _deltaControl(nullptr),
-               _outputLevel(0),
-               _os(nullptr),
-               _npts(npts),
-               _initial_batch_size(dflt_initial_batch),
                _x(nullptr, npts, CRJ::nDimSys),
-               _res(nullptr, npts),
+               _mfevals(0), _nIters(0),
                _delta(nullptr, npts),
+               _res(nullptr, npts),
                _residual(nullptr, dflt_initial_batch, CRJ::nDimSys),
                _Jacobian(nullptr, dflt_initial_batch, CRJ::nDimSys, CRJ::nDimSys),
-               _rjSuccess(nullptr, dflt_initial_batch)
+               _rjSuccess(nullptr, dflt_initial_batch),
+               _deltaControl(nullptr),
+               _outputLevel(0),
+               _initial_batch_size(dflt_initial_batch),
+               _npts(npts),
+               _os(nullptr)
    {
       init();
    };
@@ -185,7 +185,7 @@ class SNLSTrDlDenseG_Batch
          auto& lx = _x;
          constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < nDim; ++iX) {
+            for (size_t iX = 0; iX < nDim; ++iX) {
                lx(ipts, iX) = x[ipts * nDim + iX] ;
             }
          });
@@ -196,7 +196,7 @@ class SNLSTrDlDenseG_Batch
          auto& lx = _x;
          constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < nDim; ++iX) {
+            for (size_t iX = 0; iX < nDim; ++iX) {
                lx(ipts, iX) = x[ipts * nDim + iX] ;
             }
          });
@@ -207,7 +207,7 @@ class SNLSTrDlDenseG_Batch
          auto& lx = _x;
          constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < nDim; ++iX) {
+            for (size_t iX = 0; iX < nDim; ++iX) {
                x[ipts * nDim + iX] = lx(ipts, iX);
             }
          });
@@ -218,8 +218,8 @@ class SNLSTrDlDenseG_Batch
          auto& lx = _x;
          constexpr size_t nDim = _nDim;
          snls::forall<SNLS_GPU_BLOCKS>(0, _npts, [=] __snls_hdev__ (int ipts) {
-            for (int iX = 0; iX < nDim; ++iX) {
-               x[ipts * nDim + iX] = x(ipts, iX);
+            for (size_t iX = 0; iX < nDim; ++iX) {
+               x[ipts * nDim + iX] = lx(ipts, iX);
             }
          });
       };
@@ -311,13 +311,11 @@ class SNLSTrDlDenseG_Batch
          woffset += off2d;
 
          int m_fevals = 0;
-         int m_nJFact = 0;
          int m_nIters = 0;
 
          for(int iblk = 0; iblk < numblks; iblk++) {
 
             _mfevals = 0 ;
-            _nJFact = 0 ;
             _nIters = 0 ;
             // Checks to see if we're the last block and if not use the initial batch size
             // if we are we need to either use initial batch size or the npts%initial_batch_size
@@ -358,13 +356,11 @@ class SNLSTrDlDenseG_Batch
                // up the kernels if we did the above...
                // We  might be able to move some or all of this code to other kernels in the code
                // to reduce number of kernels launches which could help with performance.
-               bool newton_jacob = false;
                snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int i)
                {  // start of cauchy point calculations
                   // this breaks out of the internal lambda and is essentially a loop continue
                   if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
                   if ( !reject_prev(i) ) {
-                     newton_jacob = true;
                      snls::linalg::matTVecMult<nDim, nDim>(&Jacobian.get_data()[i * nXnDim], &residual.get_data()[i * nDim], &grad.get_data()[i * nDim]);
                      {
                         double ntemp[nDim] ;
@@ -379,7 +375,6 @@ class SNLSTrDlDenseG_Batch
                      nr_norm(i) = snls::linalg::norm<nDim>( &nrStep.get_data()[i * nDim] );
                   }
                }); // end of batch compute kernel 1
-               if (newton_jacob) { _nJFact++; }
                // Computes the batch version of the dogleg code and updates the solution variable x
                snls::batch::dogleg<nDim>(offset, batch_size, status, delta, res_0, nr_norm, Jg_2, grad, nrStep,
                                           delx, x, pred_resid, use_nr);
@@ -400,7 +395,6 @@ class SNLSTrDlDenseG_Batch
             } // _nIters < _maxIter
 
             if(m_fevals < _mfevals) m_fevals = _mfevals;
-            if(m_nJFact < _nJFact) m_nJFact = _nJFact;
             if(m_nIters < _nIters) m_nIters = _nIters;
 
             offset += batch_size;
@@ -408,7 +402,6 @@ class SNLSTrDlDenseG_Batch
          } // end of batch loop
 
          _mfevals = m_fevals;
-         _nJFact = m_nJFact;
          _nIters = m_nIters;
 
          bool converged = status_exit<false>(0, _npts);
@@ -702,7 +695,7 @@ class SNLSTrDlDenseG_Batch
    protected:
       static constexpr int _nXnDim = _nDim * _nDim ;
       
-      int _mfevals, _nIters, _nJFact ;
+      int _mfevals, _nIters;
       chai::ManagedArray<int> _fevals;
       rview1d _delta;
       rview1d _res;
