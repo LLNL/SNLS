@@ -19,19 +19,19 @@ int main() {
     //
     RAJA::resources::Host host{};
 #if defined(RAJA_ENABLE_CUDA)
-    RAJA::resources::Cuda res_gpu;
+    RAJA::resources::Cuda res_gpu{};
 #elif defined(RAJA_ENABLE_HIP)
-    RAJA::resources::Hip res_gpu;
+    RAJA::resources::Hip res_gpu{};
 #elif defined(RAJA_ENABLE_SYCL)
-    RAJA::resources::Sycl res_gpu;
+    RAJA::resources::Sycl res_gpu{};
 #endif
 
 #if defined(__snls_gpu_active__)
     auto x   = res_gpu.allocate<double>(npts * row);
-    auto x1d = res_gpu.allocate<double>(npts * row);
+    auto x1d = res_gpu.allocate<double>(npts);
 #else
     auto x   = host.allocate<double>(npts * row);
-    auto x1d = host.allocate<double>(npts * row);
+    auto x1d = host.allocate<double>(npts);
 #endif
 
 #if defined(__snls_gpu_active__)
@@ -41,8 +41,10 @@ int main() {
 #endif
     snls::Device::GetInstance().SetBackend(EXEC_STRAT);
 
-    snls::forall_strat<SNLS_GPU_BLOCKS>(0, npts * row, EXEC_STRAT, [=] __snls_hdev__(int i) {
-        x[i] = 0;
+    snls::forall_strat<SNLS_GPU_BLOCKS>(0, npts, EXEC_STRAT, [=] __snls_hdev__(int i) {
+        for (int j = 0; j < row; j++) {
+            x[i * row + j] = 0;
+        }
         x1d[i] = 0;
     });
 
@@ -70,11 +72,12 @@ int main() {
         const snls::SubView svp(global_index, v2d);
         sv.set_offset(0);
         const snls::SubView sv1d(global_index, v1d);
-        sv1d() = double(bindex);
+        sv1d() = round(double(bindex));
         // This is a bit messed up though that even though the class and internal
         // member variable are constants we can still modify things...
-        sv(0) = double(bindex);
-        svp(1) = double(thread_id);
+        sv(0) = round(double(bindex));
+        svp(1) = round(double(thread_id));
+        sv(2) = round(double(bindex));
         double& ref = sv1d();
         ref = -1;
 
@@ -94,15 +97,15 @@ int main() {
     snls::Device::GetInstance().SetBackend(snls::ExecutionStrategy::CPU);
 
     auto x_host   = host.allocate<double>(npts * row);
-    auto x1d_host = host.allocate<double>(npts * row);
+    auto x1d_host = host.allocate<double>(npts);
 
 #if defined(__snls_gpu_active__)
-    res_gpu.memcpy(x, x_host, sizeof(double) * npts * row);
-    res_gpu.memcpy(x1d, x1d_host, sizeof(double) * npts * row);
+    res_gpu.memcpy(x_host, x, sizeof(double) * npts * row);
+    res_gpu.memcpy(x1d_host, x1d, sizeof(double) * npts);
     res_gpu.wait();
 #else
-    host.memcpy(x, x_host, sizeof(double) * npts * row);
-    host.memcpy(x1d, x1d_host, sizeof(double) * npts * row);
+    host.memcpy(x_host, x, sizeof(double) * npts * row);
+    host.memcpy(x1d_host, x1d, sizeof(double) * npts);
 #endif
 
     snls::crview2d v2d_cpu(x_host, npts, row);
