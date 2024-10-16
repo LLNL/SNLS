@@ -30,13 +30,13 @@ namespace snls {
    {
       const int initial_size = (1024 * 1024 * 1024);
       _host_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
-                         ("MSLib_HOST_pool", _rm.getAllocator("HOST"),
+                         ("SNLS_HOST_pool", _rm.getAllocator("HOST"),
                           initial_size);
       // _host_allocator = _rm.getAllocator("HOST");
 #ifdef __snls_gpu_active__
       // Do we want to make this pinned memory instead?
       _device_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
-	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"),
+	                      ("SNLS_DEVICE_pool", _rm.getAllocator("DEVICE"),
                           initial_size);
 #endif
       es = snls::Device::GetInstance().GetCHAIES();
