@@ -43,7 +43,7 @@ public:
       _os(nullptr)
       {
          _tolx = _tol * mulTolXDefault ;
-      } ;
+      }
    
    // destructor
    __snls_hdev__ ~NewtonBB() {
@@ -52,7 +52,7 @@ public:
          *_os << "NewtonBB Function evaluations : " << _fevals << std::endl;
       }
 #endif
-   } ;
+   }
 
    /**
     * This call is optional 
@@ -69,12 +69,12 @@ public:
       _tolx    = _tol * mulTolX;
       this->setOutputlevel( outputLevel ) ;
       
-   } ;
+   }
    
    __snls_hdev__
    inline
    int
-   getNFEvals() const { return(_fevals); };
+   getNFEvals() const { return(_fevals); }
 
    __snls_hdev__
    inline
@@ -204,7 +204,7 @@ public:
 
       return false ;
       
-   } ;
+   }
 
    __snls_hdev__ void   setOutputlevel( int    outputLevel ) {
       _outputLevel = outputLevel ;

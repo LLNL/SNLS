@@ -52,7 +52,7 @@ class SNLSHybrdTrDLDenseG
                 m_os(nullptr),
                 m_status(unConverged)
                 {
-                };
+                }
     // destructor
     __snls_hdev__ ~SNLSHybrdTrDLDenseG()
     {
@@ -61,7 +61,7 @@ class SNLSHybrdTrDLDenseG
             *m_os << "Function and Jacobian evaluations: " << m_fevals << " " << m_jevals << std::endl;
         }
 #endif
-    };
+    }
                 
     __snls_hdev__ 
     int getNDim() const { return m_nDim; }
@@ -82,7 +82,7 @@ class SNLSHybrdTrDLDenseG
         for (int iX = 0; iX < m_nDim; ++iX) {
             m_x[iX] = x[iX] ;
         }
-    };
+    }
 
     __snls_hdev__ 
     inline 
@@ -91,7 +91,7 @@ class SNLSHybrdTrDLDenseG
         for (int iX = 0; iX < m_nDim; ++iX) {
             x[iX] = m_x[iX] ;
         }
-    };   
+    }
 
     /**
      * Must call setupSolver before calling solve

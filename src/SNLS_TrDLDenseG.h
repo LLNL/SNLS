@@ -64,7 +64,7 @@ class SNLSTrDlDenseG
                _os(nullptr),
                _status(unConverged)
                {
-               };
+               }
    // destructor
    __snls_hdev__ ~SNLSTrDlDenseG() {
 #ifdef __snls_host_only__
@@ -72,31 +72,31 @@ class SNLSTrDlDenseG
          *_os << "Function and Jacobian factorizations: " << _fevals << " " << _nJFact << std::endl;
       }
 #endif
-   };
+   }
 
    public:
       CRJ &_crj ;
       static constexpr int _nDim = nDimSys;
                
-      __snls_hdev__ int     getNDim   () const { return(_nDim   ); };
-      __snls_hdev__ int     getNFEvals() const { return(_fevals ); };
-      __snls_hdev__ int     getNJEvals() const { return(_fevals ); };
-      __snls_hdev__ double  getRhoLast() const { return(_rhoLast); };
-      __snls_hdev__ double  getDelta  () const { return(_delta  ); };
-      __snls_hdev__ double  getRes    () const { return(_res    ); };
+      __snls_hdev__ int     getNDim   () const { return(_nDim   ); }
+      __snls_hdev__ int     getNFEvals() const { return(_fevals ); }
+      __snls_hdev__ int     getNJEvals() const { return(_fevals ); }
+      __snls_hdev__ double  getRhoLast() const { return(_rhoLast); }
+      __snls_hdev__ double  getDelta  () const { return(_delta  ); }
+      __snls_hdev__ double  getRes    () const { return(_res    ); }
 
       // setX can be used to set the initial guess
       __snls_hdev__ inline void setX( const double* const x ) {
          for (int iX = 0; iX < _nDim; ++iX) {
             _x[iX] = x[iX] ;
          }
-      };
+      }
    
       __snls_hdev__ inline void getX( double* const x ) const {
          for (int iX = 0; iX < _nDim; ++iX) {
             x[iX] = _x[iX] ;
          }
-      };   
+      } 
 
       /**
        * Must call setupSolver before calling solve

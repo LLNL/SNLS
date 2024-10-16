@@ -80,7 +80,7 @@ class SNLSTrDlDenseG_Batch
                _os(nullptr)
    {
       init();
-   };
+   }
 
    void init() {
       // Create all of the working arrays at initializations to reduce the number
@@ -140,33 +140,33 @@ class SNLSTrDlDenseG_Batch
          res(i) = 1e20;
          status[i] = SNLSStatus_t::unConverged;
       });
-   };
+   }
    /// destructor needs to dealloc the wrk_data, wrkb_data, _feval, and _status variables
    ~SNLSTrDlDenseG_Batch() {
       wrk_data.free();
       wrkb_data.free();
       _fevals.free();
       _status.free();
-   };
+   }
 
    public:
       CRJ &_crj ;
       static constexpr int _nDim = CRJ::nDimSys ;
       /// The size of the nonlinear system of equations being solved for
-      int     getNDim   () const { return(_nDim   ); };
+      int     getNDim   () const { return(_nDim   ); }
       /// Returns the maximum of function evaluations across all the nonlinear system solves
-      int     getMaxNFEvals() const { return(_mfevals ); };
+      int     getMaxNFEvals() const { return(_mfevals ); }
       /// Returns the maximum of jacobian evaluations across all the nonlinear system solves
-      int     getMaxNJEvals() const { return(_mfevals ); };
+      int     getMaxNJEvals() const { return(_mfevals ); }
       /// Returns the function evaluation array for each point
-      const chai::ManagedArray<int> getNFEvals() const { return _fevals; };
+      const chai::ManagedArray<int> getNFEvals() const { return _fevals; }
       /// Returns the jacobian evaluation array for each point
-      const chai::ManagedArray<int> getNJEvals() const { return _fevals; };
+      const chai::ManagedArray<int> getNJEvals() const { return _fevals; }
       /// Returns the size of the delta step used as part of the dogleg solve of the
       /// PDE
-      const rview1d& getDelta() const { return _delta; };
+      const rview1d& getDelta() const { return _delta; }
       /// Returns the L2 norm of the residual vector of the nonlinear systems being solved for
-      const rview1d& getRes() const { return _res; };
+      const rview1d& getRes() const { return _res; }
       /// The working array for the residual vector
       /// Useful if one wants to do a computeRJ call outside of the solve func
       /// It has dimensions of (_intial_batch_size, _nDim) and follows c array striding
@@ -211,7 +211,7 @@ class SNLSTrDlDenseG_Batch
                x[ipts * nDim + iX] = lx(ipts, iX);
             }
          });
-      };
+      }
 
       /// getX can be used to get solution for all of the points used in the batch job
       inline void getX( chai::ManagedArray<double> &x) const {
@@ -222,7 +222,7 @@ class SNLSTrDlDenseG_Batch
                x[ipts * nDim + iX] = lx(ipts, iX);
             }
          });
-      };
+      }
 
       /**
        * Must call setupSolver before calling solve
