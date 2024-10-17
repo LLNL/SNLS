@@ -3,12 +3,14 @@ set(SNLS_HEADERS
     SNLS_base.h
     SNLS_gpu_portability.h
     SNLS_port.h
+    SNLS_unused.h
     SNLS_lup_solve.h
     SNLS_TrDelta.h
     SNLS_HybrdTrDLDenseG.h
     SNLS_TrDLDenseG.h
     SNLS_TrDLDenseG_Batch.h
     SNLS_NewtonBB.h
+    SNLS_view_types.h
     SNLS_device_forall.h
     SNLS_memory_manager.h
     SNLS_qr_solve.h
@@ -26,7 +28,7 @@ set(SNLS_SOURCES
 set(SNLS_DEPENDS)
 
 snls_fill_depends_list(LIST_NAME  SNLS_DEPENDS
-                       DEPENDS_ON chai raja umpire camp openmp cuda_runtime cuda blt::hip blt::hip_runtime)
+                       DEPENDS_ON chai RAJA umpire camp openmp cuda_runtime cuda blt::hip blt::hip_runtime)
 
 message("-- SNLS_DEPENDS: ${SNLS_DEPENDS}")
 

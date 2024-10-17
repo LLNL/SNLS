@@ -14,6 +14,21 @@ foreach(_tpl ${_tpls})
 endforeach()
 
 # Only search for these if the batch solver is enabled
+
+if(USE_RAJA_ONLY OR USE_BATCH_SOLVERS)
+
+################################
+# RAJA
+################################
+
+if (RAJA_DIR)
+   find_package(RAJA REQUIRED CONFIG PATHS ${RAJA_DIR})
+else()
+   message(FATAL_ERROR "RAJA_DIR was not provided. It is needed to find RAJA.")
+endif()
+
+endif()
+
 if(USE_BATCH_SOLVERS)
 
 ################################
@@ -21,34 +36,44 @@ if(USE_BATCH_SOLVERS)
 ################################
 
 if (CAMP_DIR)
-    include(cmake/thirdpartylibraries/Findcamp.cmake)
-    if (CAMP_FOUND)
-        blt_register_library( NAME       camp
-                              TREAT_INCLUDES_AS_SYSTEM ON
-                              INCLUDES   ${CAMP_INCLUDE_DIRS})
-    else()
-        message(FATAL_ERROR "Unable to find camp with given path ${CAMP_DIR}")
-    endif()
+   find_package(camp REQUIRED CONFIG PATHS ${CAMP_DIR})
+else()
+   message(FATAL_ERROR "CAMP_DIR was not provided. It is needed to find CAMP.")
 endif()
+
+
+################################
+# chai
+################################
+
+if (CHAI_DIR)
+   set(umpire_DIR ${UMPIRE_DIR})
+   set(raja_DIR ${RAJA_DIR})
+   set(fmt_DIR ${FMT_DIR})
+   find_package(chai REQUIRED CONFIG PATHS ${CHAI_DIR})
+else()
+   message(FATAL_ERROR "CHAI_DIR was not provided. It is needed to find CHAI.")
+endif()
+
+################################
+# fmt
+################################
+
+if (FMT_DIR)
+   find_package(fmt CONFIG PATHS ${FMT_DIR})
+else()
+   message(WARNING "FMT_DIR was not provided. This is a requirement for camp as of v2024.02.0. Ignore this warning if using older versions of the RAJA Portability Suite")
+endif()
+  
 
 ################################
 # RAJA
 ################################
 
-if (DEFINED RAJA_DIR)
-    include(cmake/thirdpartylibraries/FindRAJA.cmake)
-    if (RAJA_FOUND)
-        blt_register_library( NAME       raja
-                              TREAT_INCLUDES_AS_SYSTEM ON
-                              INCLUDES   ${RAJA_INCLUDE_DIRS}
-                              DEPENDS_ON ${RAJA_DEPENDS}
-                              LIBRARIES  ${RAJA_LIBRARIES}
-                              DEFINES    HAVE_RAJA)
-    else()
-        message(FATAL_ERROR "Unable to find RAJA with given path ${RAJA_DIR}")
-    endif()
+if (RAJA_DIR)
+   find_package(raja REQUIRED CONFIG PATHS ${RAJA_DIR})
 else()
-    message(FATAL_ERROR "RAJA_DIR was not provided. It is needed to find RAJA.")
+   message(FATAL_ERROR "RAJA_DIR was not provided. It is needed to find RAJA.")
 endif()
 
 
@@ -57,39 +82,9 @@ endif()
 ################################
 
 if (DEFINED UMPIRE_DIR)
-    include(cmake/thirdpartylibraries/FindUmpire.cmake)
-    if (UMPIRE_FOUND)
-        blt_register_library( NAME       umpire
-                              TREAT_INCLUDES_AS_SYSTEM ON
-                              INCLUDES   ${UMPIRE_INCLUDE_DIRS}
-                              DEPENDS_ON ${UMPIRE_DEPENDS}
-                              LIBRARIES  ${UMPIRE_LIBRARIES}
-                              DEFINES    HAVE_UMPIRE)
-    else()
-        message(FATAL_ERROR "Unable to find UMPIRE with given path ${UMPIRE_DIR}")
-    endif()
+   find_package(umpire REQUIRED CONFIG PATHS ${UMPIRE_DIR})
 else()
-    message(FATAL_ERROR "UMPIRE_DIR was not provided. It is needed to find UMPIRE.")
-endif()
-
-################################
-# CHAI
-################################
-
-if (DEFINED CHAI_DIR)
-    include(cmake/thirdpartylibraries/FindCHAI.cmake)
-    if (CHAI_FOUND)
-        blt_register_library( NAME       chai
-                              TREAT_INCLUDES_AS_SYSTEM ON
-                              INCLUDES   ${CHAI_INCLUDE_DIRS}
-                              DEPENDS_ON ${CHAI_DEPENDS}
-                              LIBRARIES  ${CHAI_LIBRARIES}
-                              DEFINES    HAVE_CHAI)
-    else()
-        message(FATAL_ERROR "Unable to find CHAI with given path ${CHAI_DIR}")
-    endif()
-else()
-    message(FATAL_ERROR "CHAI_DIR was not provided. It is needed to find CHAI.")
+   message(FATAL_ERROR "UMPIRE_DIR was not provided. It is needed to find UMPIRE.")
 endif()
 
 endif() # end of enable batch solvers

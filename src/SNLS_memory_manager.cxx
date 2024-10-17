@@ -5,10 +5,11 @@
  ***************************************************************************/
 
 #include "SNLS_memory_manager.h"
+#include "SNLS_unused.h"
 #include "SNLS_port.h"
 #include <cstring>
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 
 namespace snls {
   
@@ -29,13 +30,13 @@ namespace snls {
    {
       const int initial_size = (1024 * 1024 * 1024);
       _host_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
-                         ("MSLib_HOST_pool", _rm.getAllocator("HOST"),
+                         ("SNLS_HOST_pool", _rm.getAllocator("HOST"),
                           initial_size);
       // _host_allocator = _rm.getAllocator("HOST");
 #ifdef __snls_gpu_active__
       // Do we want to make this pinned memory instead?
       _device_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
-	                      ("MSLib_DEVICE_pool", _rm.getAllocator("DEVICE"),
+	                      ("SNLS_DEVICE_pool", _rm.getAllocator("DEVICE"),
                           initial_size);
 #endif
       es = snls::Device::GetInstance().GetCHAIES();
@@ -65,7 +66,7 @@ namespace snls {
     *  due to performance reasons.
     */
    __snls_host__
-   void memoryManager::setDeviceAllocator(int id)
+   void memoryManager::setDeviceAllocator(int UNUSED_GPU(id))
    {
 #ifdef __snls_gpu_active__
       // We don't want to disassociate our default device allocator from
