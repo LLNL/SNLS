@@ -8,14 +8,15 @@
 #define SNLS_memory_manager_h
 
 #include "SNLS_config.h"
-#include "SNLS_cuda_portability.h"
+#include "SNLS_gpu_portability.h"
 #include "SNLS_device_forall.h"
 
-#if defined(SNLS_RAJA_PERF_SUITE)
-#include "umpire/strategy/DynamicPool.hpp"
-#include "umpire/Allocator.hpp"
-#include "umpire/ResourceManager.hpp"
-#include "chai/ManagedArray.hpp"
+#if defined(SNLS_RAJA_PORT_SUITE)
+#include <umpire/Allocator.hpp>
+#include <umpire/ResourceManager.hpp>
+#include <umpire/strategy/QuickPool.hpp>
+#include <chai/config.hpp>
+#include <chai/ManagedArray.hpp>
 
 namespace snls {
    /*! A global memory manager designed to be used with the Umpire library.
@@ -68,7 +69,7 @@ namespace snls {
          inline
          chai::ManagedArray<T> allocManagedArray(std::size_t size=0)
          {
-            es = snls::Device::GetCHAIES();
+            es = snls::Device::GetInstance().GetCHAIES();
             chai::ManagedArray<T> array(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
@@ -90,6 +91,7 @@ namespace snls {
          inline
          chai::ManagedArray<T>* allocPManagedArray(std::size_t size=0)
          {
+            es = snls::Device::GetInstance().GetCHAIES();
             auto array = new chai::ManagedArray<T>(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
 #if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
@@ -112,7 +114,7 @@ namespace snls {
          memoryManager();
          bool _complete;
          umpire::Allocator _host_allocator;
-#ifdef __CUDACC__
+#ifdef __snls_gpu_active__
          umpire::Allocator _device_allocator;
 #endif
          umpire::ResourceManager& _rm;
