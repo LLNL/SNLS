@@ -2,7 +2,10 @@
 #define SNLS_VERSION_MINOR @SNLS_VERSION_MINOR@
 #define SNLS_VERSION_PATCH @SNLS_VERSION_PATCH@
 
+#if !defined(HAVE_SNLS)
 #cmakedefine HAVE_SNLS
-#cmakedefine SNLS_RAJA_PERF_SUITE
+#endif
+#cmakedefine SNLS_RAJA_ONLY
+#cmakedefine SNLS_RAJA_PORT_SUITE
 #cmakedefine SNLS_USE_LAPACK
 #cmakedefine SNLS_DEBUG

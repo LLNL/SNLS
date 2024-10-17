@@ -2,16 +2,28 @@
 # see README.md for copyright and license information
 # 
 
-cmake_minimum_required(VERSION 3.1)
-if("${CMAKE_VERSION}" VERSION_GREATER 3.3)
-    cmake_policy(SET CMP0057 NEW)
+cmake_minimum_required(VERSION 3.20)
+cmake_policy(SET CMP0042 NEW)
+cmake_policy(SET CMP0048 NEW)
+cmake_policy(SET CMP0057 NEW)
+
+if (APPLE)
+    cmake_policy(SET CMP0025 NEW)
 endif()
 
 message(STATUS "Using cmake version ${CMAKE_VERSION}")
 
 project(SNLS LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+# GTest requires a C compiler when running with HIP...
+# On other systems this isn't necessarily an issue as CMake will
+# just pick-up a valid system C compiler but on our AMD GPU machines
+# that doesn't always happen.
+if (ENABLE_HIP AND ENABLE_TESTS)
+    enable_language(C)
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
 
 #--------------------------------------------------------------------------------
 # BLT
@@ -37,13 +49,21 @@ endif()
 
 set(ENABLE_GTEST OFF CACHE BOOL "")
 set(ENABLE_FRUIT OFF CACHE BOOL "")
+set(ENABLE_GBENCHMARK OFF CACHE BOOL "")
 
 if(ENABLE_TESTS)
     set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
 endif(ENABLE_TESTS)
 
-include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
+if(ENABLE_BENCHMARKS)
+    set(ENABLE_BENCHMARKS ON CACHE BOOL "" FORCE)
+    set(ENABLE_GBENCHMARK ON CACHE BOOL "" FORCE)
+endif(ENABLE_BENCHMARKS)
 
+include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
+if (${BLT_VERSION} VERSION_GREATER_EQUAL 0.6.0)
+    blt_install_tpl_setups(DESTINATION share/snls/cmake/)
+endif()
 # turn off testing if building under MSLib, so that do not have to link ms to have MS_Fail
 if (DEFINED MSLIB_SOURCE_DIR)
     set(ENABLE_TESTS OFF)
@@ -58,12 +78,8 @@ endif (DEFINED ECMECH_SOURCE_DIR)
 ################################
 include(cmake/CMakeBasics.cmake)
 
-
 if(ENABLE_CUDA)
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -restrict --expt-extended-lambda --expt-relaxed-constexpr")
-  if (NOT "${CMAKE_CUDA_FLAGS}" MATCHES "-arch")
-     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch ${CUDA_ARCH}")
-  endif()
 endif()
 
 #------------------------------------------------------------------------------

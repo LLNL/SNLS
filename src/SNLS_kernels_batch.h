@@ -10,11 +10,13 @@
 #include <iomanip>
 #endif
 
-#if defined(SNLS_RAJA_PERF_SUITE)
+#if defined(SNLS_RAJA_PORT_SUITE)
 #include "SNLS_linalg.h"
 #include "RAJA/RAJA.hpp"
 #include "chai/ManagedArray.hpp"
+#include "chai/managed_ptr.hpp"
 #include "SNLS_device_forall.h"
+#include "SNLS_view_types.h"
 #include "SNLS_memory_manager.h"
 #include "SNLS_TrDelta.h"
 
@@ -74,7 +76,7 @@ void dogleg(const int offset,
             rview1b &use_nr
             ) 
 {
-   SNLS_FORALL_T(i, 256, 0, batch_size,
+   snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int i)
    {
       // this breaks out of the internal lambda and is essentially a loop continue
       // This check is to prevent the solver from further updating  the solution after a point has been solved/failed
@@ -178,7 +180,7 @@ inline
 void updateDelta(const int offset,
                  const int batch_size,
                  const int mfevals,
-                 const TrDeltaControl* const deltaControl, // makes use of offset
+                 chai::managed_ptr<TrDeltaControl>& deltaControl, // makes use of offset
                  const rview2d &residual,
                  const rview1d &pred_resid,
                  const rview1d &nr_norm,
@@ -198,7 +200,7 @@ void updateDelta(const int offset,
    // The below set of fused kernels compute the updated delta for the step size,
    // reject the previous solution if the computeRJ up above failed,
    // and updates the res0 if the solution is still unconverged.
-   SNLS_FORALL_T(i, 256, 0, batch_size,
+   snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int i)
    {
       // Update the delta kernel
       // this breaks out of the internal lambda and is essentially a loop continue

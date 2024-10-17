@@ -3,12 +3,14 @@ set(SNLS_HEADERS
     SNLS_base.h
     SNLS_gpu_portability.h
     SNLS_port.h
+    SNLS_unused.h
     SNLS_lup_solve.h
     SNLS_TrDelta.h
     SNLS_HybrdTrDLDenseG.h
     SNLS_TrDLDenseG.h
     SNLS_TrDLDenseG_Batch.h
     SNLS_NewtonBB.h
+    SNLS_view_types.h
     SNLS_device_forall.h
     SNLS_memory_manager.h
     SNLS_qr_solve.h

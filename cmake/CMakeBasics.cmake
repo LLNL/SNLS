@@ -1,11 +1,11 @@
 ################################
 # Version
 ################################
-set(PACKAGE_BUGREPORT "barton22@llnl.gov")
+set(PACKAGE_BUGREPORT "carson16@llnl.gov")
 
 set(SNLS_VERSION_MAJOR 0)
-set(SNLS_VERSION_MINOR 3)
-set(SNLS_VERSION_PATCH \"4\")
+set(SNLS_VERSION_MINOR 4)
+set(SNLS_VERSION_PATCH \"0\")
 
 set(SNLS_HEADER_INCLUDE_DIR
     ${PROJECT_BINARY_DIR}/include/snls
@@ -23,9 +23,12 @@ set(SNLS_HEADER_INCLUDE_DIR
 
 set(HAVE_SNLS "1" CACHE STRING "")
 
-if(USE_BATCH_SOLVERS)
-    set(SNLS_RAJA_PERF_SUITE "1" CACHE STRING "")
-    set(SNLS_USE_RAJA_PERF_SUITE TRUE CACHE BOOL "")
+if(USE_RAJA_ONLY)
+    set(SNLS_RAJA_ONLY "1" CACHE STRING "")
+    set(SNLS_USE_RAJA_ONLY TRUE CACHE BOOL "")
+elseif(USE_BATCH_SOLVERS)
+    set(SNLS_RAJA_PORT_SUITE "1" CACHE STRING "")
+    set(SNLS_USE_RAJA_PORT_SUITE TRUE CACHE BOOL "")
 endif()
 
 if(USE_LAPACK)
