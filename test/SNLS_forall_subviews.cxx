@@ -99,6 +99,26 @@ int main() {
     auto x_host   = host.allocate<double>(npts * row);
     auto x1d_host = host.allocate<double>(npts);
 
+    const size_t nrows = 2;
+    const size_t ncols = 2;
+
+
+    auto a1 = host.allocate<double>(npts * nrows * ncols);
+    auto a2 = host.allocate<double>(npts * nrows * ncols);
+    auto a3 = host.allocate<double>(npts * nrows * ncols);
+
+    for (size_t i = 0; i < (npts * nrows * ncols); i++) {
+        a1[i] = double(i);
+        a2[i] = double(2.0 * i);
+        a3[i] = double(3.0 * i);
+    }
+
+    double* myarr[3] = {a1, a2, a3};
+    // We need to make sure things are assigned like this to make sure things iterate the fastest.
+    // left to the right is fastest but # of arrays and npts would swap places
+    // given we're doing a SOA type thing here
+    RAJA::MultiView<double, RAJA::Layout<3>> mview(myarr, npts, nrows, ncols);
+
 #if defined(__snls_gpu_active__)
     res_gpu.memcpy(x_host, x, sizeof(double) * npts * row);
     res_gpu.memcpy(x1d_host, x1d, sizeof(double) * npts);
@@ -125,17 +145,30 @@ int main() {
 
         snls::snls_swap(v2ds0p, v2ds1p);
 
+        const snls::SubView mview_sv(i, mview);
+
+        std::ignore = v2ds.get_data();
+        std::ignore = mview_sv.get_data();
 #ifdef __snls_host_only__
         // Our values are offset so check and make sure they're the same value
         output &= (v2ds(1) == v2ds2(0));
+
+        const double val1 = double(i * nrows * ncols);
+        const double val2 = double(2.0 * i * nrows * ncols) + 2.0;
+        const double val3 = double(3.0 * i * nrows * ncols) + 9.0;
+
+        output &= (mview_sv(0, 0, 0) == val1);
+        output &= (mview_sv(1, 0, 1) == val2);
+        output &= (mview_sv(2, 1, 1) == val3);
+
         // These next two cases deal with the fact that we swapped the views so
         // the offsets are now reversed from what they used to be
         output &= (v2ds(1) == v2ds0p(0));
         output &= (v2ds(0) == v2ds1p(0));
         // Finally checking to make sure that the SubView and view values are the same
         output &= (v1d_cpu(i) == v1ds());
-        output &= v2ds.contains_data();
-        output &= v2dsds.contains_data();
+        output &= snls::contains_data(v2ds);
+        output &= snls::contains_data(v2dsds);
 #endif
     });
 
@@ -149,7 +182,9 @@ int main() {
 
     host.deallocate(x_host);
     host.deallocate(x1d_host);
-
+    host.deallocate(a1);
+    host.deallocate(a2);
+    host.deallocate(a3);
     std::cout << "Test pass status: " << output.get() << std::endl;
     return !output.get();
 }

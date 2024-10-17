@@ -47,6 +47,36 @@ namespace experimental {
    public:
       static constexpr bool value = decltype(check<T>(0))::value;
    };
+
+   // This was largely auto-generated when asking google a SFINAE type solution for the layout issue
+   template <class T>
+   class has_get_data {
+   private:
+      template <class U>
+      static constexpr auto check(int) -> decltype(std::declval<U>().get_data(), std::true_type{}) {
+         return std::true_type{};
+      }
+
+      template <class>
+      static constexpr std::false_type check(...) {
+         return std::false_type{};
+      }
+
+   public:
+      static constexpr bool value = decltype(check<T>(0))::value;
+   };
+}
+
+template<class V>
+__snls_hdev__
+constexpr
+bool
+contains_data(const V& view) {
+   if constexpr (experimental::has_get_layout<V>::value) {
+      return view.get_layout().size() > 0;
+   } else {
+      return view.layout.size() > 0;
+   }
 }
 
    // We really don't care what View class we're using as the sub-view just wraps it up
@@ -79,7 +109,12 @@ namespace experimental {
       auto&
       operator()(Arg0 arg0, Args... args) const
       {
-         return (*m_view)(m_index, m_offset + arg0, args...);
+         if constexpr (experimental::has_get_layout<T>::value) {
+            return (*m_view)(m_index, m_offset + arg0, args...);
+         }
+         else {
+            return (*m_view)(m_offset + arg0, m_index, args...);
+         }
       }
 
       // Needed another operator() overload where we don't supply any arguments as the
@@ -107,17 +142,6 @@ namespace experimental {
 
       __snls_hdev__
       constexpr
-      bool
-      contains_data() const {
-         if constexpr (experimental::has_get_layout<T>::value) {
-            return m_view->get_layout().size() > 0;
-         } else {
-            return m_view->layout.size() > 0;
-         }
-      }
-
-      __snls_hdev__
-      constexpr
       auto const&
       get_layout() const {
          if constexpr (experimental::has_get_layout<T>::value) {
@@ -127,9 +151,21 @@ namespace experimental {
          }
       }
 
+      // Note if you're using a multi-view then this data type is likely what you expect
+      // You should get a pointer but it'll be a D** and not D* where D is the data type of the view.
+      __snls_hdev__
+      constexpr
+      auto*
+      get_data() const {
+         if constexpr (experimental::has_get_data<T>::value) {
+            return m_view->get_data();
+         } else {
+            return m_view->data;
+         }
+      }
+
       T* m_view;
       size_t m_index;
       size_t m_offset;
    };
-
 }
