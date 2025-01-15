@@ -107,5 +107,24 @@ namespace snls {
             std::get<rhost_res>(res).wait_for(event);
       }
    }
+
+   void Device::Wait(rres& res) {
+      switch (m_es) {
+#if defined(__snls_gpu_active__)
+         case ExecutionStrategy::GPU:
+         {
+            std::get<rgpu_res>(res).wait();
+            break;
+         }
+#endif
+#if defined(OPENMP_ENABLE)
+         case ExecutionStrategy::OPENMP:
+#endif
+         case ExecutionStrategy::CPU:
+         default:
+            std::get<rhost_res>(res).wait();
+      }
+   }
+  
 }
 #endif

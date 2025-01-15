@@ -155,6 +155,11 @@ namespace snls {
          void WaitFor(rres& res, rrese* event);
 
          ///
+         /// Wait for all work enqueued in resource to complete
+         ///
+         void Wait(rres& res);
+
+         ///
          /// Delete copy constructor
          ///
          Device(const Device&) = delete;
