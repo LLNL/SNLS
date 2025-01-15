@@ -13,6 +13,7 @@
 #endif
 
 #include "SNLS_config.h"
+#include "SNLS_gpu_portability.h"
 
 #if defined(SNLS_RAJA_PERF_SUITE)
 #include "RAJA/RAJA.hpp"

@@ -5,7 +5,10 @@
           CPU, OpenMP, or the GPU using a single piece of code.
  ***************************************************************************/
 
+#include "SNLS_config.h"
 #include "SNLS_device_forall.h"
+#include "SNLS_gpu_portability.h"
+
 #if defined(SNLS_RAJA_PERF_SUITE)
 namespace snls {
    Device& Device::GetInstance() {

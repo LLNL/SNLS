@@ -3,6 +3,8 @@
 
 #if HAVE_MSLIB
 
+#include "SNLS_gpu_portability.h"
+
 #include "MS_port.h"
 #include "MS_Log.h"
 #define SNLS_FAIL(loc,str) MS_Fail(loc,str);
