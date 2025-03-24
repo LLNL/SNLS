@@ -73,9 +73,9 @@ constexpr
 bool
 contains_data(const V& view) {
    if constexpr (experimental::has_get_layout<V>::value) {
-      return view.get_layout().size() > 0;
+      return view.get_layout().size_noproj() > 0;
    } else {
-      return view.layout.size() > 0;
+      return view.layout.size_noproj() > 0;
    }
 }
 
