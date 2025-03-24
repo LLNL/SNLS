@@ -140,7 +140,7 @@ double BENCHMARK_NOINLINE newtonbb_a_class()
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    FunA fun(5.0, fun_a_lambda(alpha, xsoln));
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB<decltype(fun)> solver(fun, true);
    return newtonbb_solver(solver);
 }
 
@@ -149,7 +149,7 @@ double BENCHMARK_NOINLINE newtonbb_a_lambda()
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    auto fun = fun_a_lambda(alpha, xsoln);
-   snls::NewtonBB<decltype(fun), true> solver(fun);
+   snls::NewtonBB<decltype(fun)> solver(fun, true);
    return newtonbb_solver(solver);
 
 }
@@ -159,7 +159,7 @@ double BENCHMARK_NOINLINE newtonbb_a_func()
    const double alpha = 5.0;
    const double xsoln = FUNASOLN;
    std::function<auto (double &f, double &J, double x) -> bool> fun = fun_a_lambda(alpha, xsoln);
-   snls::NewtonBB<decltype(fun), true> solver(fun) ;
+   snls::NewtonBB<decltype(fun)> solver(fun, true) ;
    return newtonbb_solver(solver);
 
 }
