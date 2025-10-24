@@ -33,7 +33,7 @@ namespace snls {
                          ("SNLS_HOST_pool", _rm.getAllocator("HOST"),
                           initial_size);
       // _host_allocator = _rm.getAllocator("HOST");
-#ifdef __snls_gpu_active__
+#if defined(__snls_gpu_active__)
       // Do we want to make this pinned memory instead?
       _device_allocator = _rm.makeAllocator<umpire::strategy::QuickPool>
 	                      ("SNLS_DEVICE_pool", _rm.getAllocator("DEVICE"),
@@ -68,7 +68,7 @@ namespace snls {
    __snls_host__
    void memoryManager::setDeviceAllocator(int UNUSED_GPU(id))
    {
-#ifdef __snls_gpu_active__
+#if defined(__snls_gpu_active__)
       // We don't want to disassociate our default device allocator from
       // Umpire just in case it still has memory associated with it floating around.
       if((_rm.getAllocator(id).getPlatform() == umpire::Platform::cuda) || (_rm.getAllocator(id).getPlatform() == umpire::Platform::hip)) {

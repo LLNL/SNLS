@@ -72,12 +72,12 @@ namespace snls {
             es = snls::Device::GetInstance().GetCHAIES();
             chai::ManagedArray<T> array(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
-#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+#if defined(__snls_gpu_active__)
                , chai::GPU
 #endif
                },
                std::initializer_list<umpire::Allocator>{_host_allocator
-#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+#if defined(__snls_gpu_active__)
                , _device_allocator
 #endif
                },
@@ -94,12 +94,12 @@ namespace snls {
             es = snls::Device::GetInstance().GetCHAIES();
             auto array = new chai::ManagedArray<T>(size, 
             std::initializer_list<chai::ExecutionSpace>{chai::CPU
-#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+#if defined(__snls_gpu_active__)
                , chai::GPU
 #endif
                },
                std::initializer_list<umpire::Allocator>{_host_allocator
-#if defined(CHAI_ENABLE_CUDA) || defined(CHAI_ENABLE_HIP)
+#if defined(__snls_gpu_active__)
                , _device_allocator
 #endif
                },
@@ -114,7 +114,7 @@ namespace snls {
          memoryManager();
          bool _complete;
          umpire::Allocator _host_allocator;
-#ifdef __snls_gpu_active__
+#if defined(__snls_gpu_active__)
          umpire::Allocator _device_allocator;
 #endif
          umpire::ResourceManager& _rm;
