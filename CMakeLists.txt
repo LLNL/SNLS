@@ -2,7 +2,7 @@
 # see README.md for copyright and license information
 # 
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 cmake_policy(SET CMP0042 NEW)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0057 NEW)
@@ -28,6 +28,8 @@ set(CMAKE_CXX_STANDARD 17)
 #--------------------------------------------------------------------------------
 # BLT
 #--------------------------------------------------------------------------------
+set(BLT_CXX_STD "c++17" CACHE STRING "")
+
 if (DEFINED BLT_SOURCE_DIR)
     # Support having a shared BLT outside of the repository if given a BLT_SOURCE_DIR
 
@@ -79,7 +81,17 @@ endif (DEFINED ECMECH_SOURCE_DIR)
 include(cmake/CMakeBasics.cmake)
 
 if(ENABLE_CUDA)
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -restrict --expt-extended-lambda --expt-relaxed-constexpr")
+    if (NOT "${CMAKE_CUDA_FLAGS}" MATCHES "-restrict")
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -restrict")
+    endif()
+    # Can be --expt-extended-lambda or --extended-lambda (newer CUDA versions only)
+    if (NOT "${CMAKE_CUDA_FLAGS}" MATCHES "extended-lambda")
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
+    endif()
+
+    if (NOT "${CMAKE_CUDA_FLAGS}" MATCHES "--expt-relaxed-constexpr")
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
+    endif()
 endif()
 
 #------------------------------------------------------------------------------
