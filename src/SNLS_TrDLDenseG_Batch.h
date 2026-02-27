@@ -147,6 +147,7 @@ class SNLSTrDlDenseG_Batch
       wrkb_data.free();
       _fevals.free();
       _status.free();
+      _deltaControl.free();
    }
 
    public:
@@ -239,7 +240,7 @@ class SNLSTrDlDenseG_Batch
          temp.data(chai::ExecutionSpace::CPU);
          temp[0] = tdi;
          _deltaControl = chai::make_managed<snls::TrDeltaControl>(chai::unpack(temp));
-
+         temp.free();
          this->setOutputlevel( outputLevel ) ;
 
       }
