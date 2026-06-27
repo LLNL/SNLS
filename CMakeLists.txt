@@ -23,58 +23,10 @@ if (ENABLE_HIP AND ENABLE_TESTS)
     enable_language(C)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+include(cmake/SetupBLTWrapper.cmake)
 
-#--------------------------------------------------------------------------------
-# BLT
-#--------------------------------------------------------------------------------
-set(BLT_CXX_STD "c++17" CACHE STRING "")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
 
-if (DEFINED BLT_SOURCE_DIR)
-    # Support having a shared BLT outside of the repository if given a BLT_SOURCE_DIR
-
-    if (NOT EXISTS ${BLT_SOURCE_DIR}/SetupBLT.cmake)
-        message(FATAL_ERROR "Given BLT_SOURCE_DIR does not contain SetupBLT.cmake")
-    endif()
-else()
-    # Use internal BLT if no BLT_SOURCE_DIR is given
-
-    set(BLT_SOURCE_DIR "${PROJECT_SOURCE_DIR}/cmake/blt" CACHE PATH "")
-    if (NOT EXISTS ${BLT_SOURCE_DIR}/SetupBLT.cmake)
-        message(FATAL_ERROR
-            "The BLT submodule is not present. "
-            "Run the following two commands in your git repository: \n"
-            "    git submodule init\n"
-            "    git submodule update" )
-    endif()
-endif()
-
-set(ENABLE_GTEST OFF CACHE BOOL "")
-set(ENABLE_FRUIT OFF CACHE BOOL "")
-set(ENABLE_GBENCHMARK OFF CACHE BOOL "")
-
-if(ENABLE_TESTS)
-    set(ENABLE_GTEST ON CACHE BOOL "" FORCE)
-endif(ENABLE_TESTS)
-
-if(ENABLE_BENCHMARKS)
-    set(ENABLE_BENCHMARKS ON CACHE BOOL "" FORCE)
-    set(ENABLE_GBENCHMARK ON CACHE BOOL "" FORCE)
-endif(ENABLE_BENCHMARKS)
-
-include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
-if (${BLT_VERSION} VERSION_GREATER_EQUAL 0.6.0)
-    blt_install_tpl_setups(DESTINATION share/snls/cmake/)
-endif()
-# turn off testing if building under MSLib, so that do not have to link ms to have MS_Fail
-if (DEFINED MSLIB_SOURCE_DIR)
-    set(ENABLE_TESTS OFF)
-endif (DEFINED MSLIB_SOURCE_DIR)
-
-# turn off testing if building under ECMech, because gtest dependence does not seem to work
-if (DEFINED ECMECH_SOURCE_DIR)
-    set(ENABLE_TESTS OFF)
-endif (DEFINED ECMECH_SOURCE_DIR)
 ################################
 # Include standard build system logic and options
 ################################
@@ -103,7 +55,12 @@ add_subdirectory(src)
 # Testing
 #------------------------------------------------------------------------------
 
-if(ENABLE_TESTS)
-   add_subdirectory(test)
-endif(ENABLE_TESTS)
+# SNLS_ENABLE_TESTS allows downstream projects to enable BLT's unit testing
+# framework separately from SNLS's tests.
+include(CMakeDependentOption)
+cmake_dependent_option(SNLS_ENABLE_TESTS "Enable SNLS tests"
+                       ON "ENABLE_TESTS" OFF)
 
+if(SNLS_ENABLE_TESTS)
+  add_subdirectory(test)
+endif()
