@@ -11,7 +11,7 @@ if(NOT BLT_LOADED)
     set(BLT_SOURCE_DIR "${PROJECT_SOURCE_DIR}/cmake/blt")
 
     if(NOT EXISTS ${BLT_SOURCE_DIR}/SetupBLT.cmake)
-      message(FATAL_ERROR "BLT submodule is not initialized. Run `git submodule update --init` in git repository or set BLT_SOURCE_DIR to external BLT."
+      message(FATAL_ERROR "BLT submodule is not initialized. Run `git submodule update --init` in git repository or set BLT_SOURCE_DIR to external BLT.")
     endif()
   endif()
 
