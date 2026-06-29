@@ -11,16 +11,16 @@
 #      -SNLS_DIR=<SNLS install prefix>/share/
 #
 # If you have done either of these things, then CMake should automatically find
-# and include this file when you call find_package(SNLS) from your
+# and include this file when you call find_package(snls) from your
 # CMakeLists.txt file.
 #
 #=== Components ==============================================================
 #
 # To link against these, just do, for example:
 #
-#   find_package(SNLS REQUIRED)
+#   find_package(snls REQUIRED)
 #   add_executable(foo foo.c)
-#   target_link_libraries(foo SNLS)
+#   target_link_libraries(foo snls)
 #
 # That's all!
 #
