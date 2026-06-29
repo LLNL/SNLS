@@ -40,7 +40,7 @@ if(@USE_RAJA_ONLY@ OR @USE_BATCH_SOLVERS@)
 endif()
 
 if(@USE_BATCH_SOLVERS@)
-  if(NOT TARGET fmt::fmt and NOT TARGET fmt::fmt-header-only)
+  if(NOT TARGET fmt::fmt AND NOT TARGET fmt::fmt-header-only)
     find_dependency(fmt CONFIG NO_DEFAULT_PATH PATHS ${FMT_DIR} @FMT_DIR@)
   endif()
 

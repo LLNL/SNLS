@@ -26,7 +26,7 @@ if(USE_RAJA_ONLY OR USE_BATCH_SOLVERS)
 endif()
 
 if(USE_BATCH_SOLVERS)
-  if(NOT TARGET fmt::fmt and NOT TARGET fmt::fmt-header-only)
+  if(NOT TARGET fmt::fmt AND NOT TARGET fmt::fmt-header-only)
     find_package(fmt REQUIRED CONFIG NO_DEFAULT_PATH PATHS ${FMT_DIR})
   endif()
 
