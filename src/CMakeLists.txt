@@ -86,7 +86,7 @@ target_include_directories(
 include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
-   ${PROJECT_SOURCE_DIR}/src/SNLS-config.cmake.in
+   ${PROJECT_SOURCE_DIR}/cmake/snls-config.cmake.in
    ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config.cmake
    INSTALL_DESTINATION share/snls/cmake/)
 

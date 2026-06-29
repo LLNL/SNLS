@@ -13,7 +13,9 @@ endif()
 
 message(STATUS "Using cmake version ${CMAKE_VERSION}")
 
-project(SNLS LANGUAGES CXX)
+project(SNLS
+        LANGUAGES CXX
+        VERSION 0.4.4)
 
 # GTest requires a C compiler when running with HIP...
 # On other systems this isn't necessarily an issue as CMake will
