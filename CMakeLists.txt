@@ -25,7 +25,9 @@ endif()
 
 include(cmake/SetupBLTWrapper.cmake)
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(USE_RAJA_ONLY "Use RAJA" OFF)
+option(USE_BATCH_SOLVERS "Use batch solvers" OFF)
 
 ################################
 # Include standard build system logic and options
