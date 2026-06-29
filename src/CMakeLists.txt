@@ -83,12 +83,20 @@ target_include_directories(
   $<BUILD_INTERFACE:${SNLS_HEADER_INCLUDE_DIR}>
   $<INSTALL_INTERFACE:include>)
 
-configure_file(
-  ${PROJECT_SOURCE_DIR}/src/SNLS-config.cmake.in
-  ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config.cmake)
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+   ${PROJECT_SOURCE_DIR}/src/SNLS-config.cmake.in
+   ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config.cmake
+   INSTALL_DESTINATION share/snls/cmake/)
+
+write_basic_package_version_file(
+   ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config-version.cmake
+   COMPATIBILITY SameMajorVersion)
 
 install(
   FILES ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config.cmake
+  FILES ${PROJECT_BINARY_DIR}/share/snls/cmake/snls-config-version.cmake
   DESTINATION share/snls/cmake/)
 
 install(
