@@ -29,16 +29,28 @@ cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 
 @PACKAGE_INIT@
 
-if(@umpire_FOUND@ AND NOT TARGET umpire)
-  find_dependency(umpire CONFIG NO_DEFAULT_PATH PATHS ${UMPIRE_DIR} @UMPIRE_DIR@)
+if(@USE_RAJA_ONLY@ OR @USE_BATCH_SOLVERS@)
+  if(NOT TARGET camp)
+    find_dependency(camp CONFIG NO_DEFAULT_PATH PATHS ${CAMP_DIR} @CAMP_DIR@)
+  endif()
+
+  if(NOT TARGET RAJA)
+    find_dependency(raja CONFIG NO_DEFAULT_PATH PATHS ${RAJA_DIR} @RAJA_DIR@)
+  endif()
 endif()
 
-if(@RAJA_FOUND@ AND NOT TARGET RAJA)
-  find_dependency(RAJA CONFIG NO_DEFAULT_PATH PATHS ${RAJA_DIR} @RAJA_DIR@)
-endif()
+if(@USE_BATCH_SOLVERS@)
+  if(NOT TARGET fmt::fmt and NOT TARGET fmt::fmt-header-only)
+    find_dependency(fmt CONFIG NO_DEFAULT_PATH PATHS ${FMT_DIR} @FMT_DIR@)
+  endif()
 
-if(@chai_FOUND@ AND NOT TARGET chai)
-  find_dependency(chai CONFIG NO_DEFAULT_PATH PATHS ${CHAI_DIR} @CHAI_DIR@)
+  if(NOT TARGET umpire)
+    find_dependency(umpire CONFIG NO_DEFAULT_PATH PATHS ${UMPIRE_DIR} @UMPIRE_DIR@)
+  endif()
+
+  if(NOT TARGET chai)
+    find_dependency(chai CONFIG NO_DEFAULT_PATH PATHS ${CHAI_DIR} @CHAI_DIR@)
+  endif()
 endif()
 
 set(SNLS_INSTALL_PREFIX @CMAKE_INSTALL_PREFIX@)
