@@ -12,11 +12,6 @@ set(SNLS_HEADER_INCLUDE_DIR
     CACHE PATH
     "Directory where all generated headers will go in the build tree")
 
-################################
-# Setup build options and their default values
-################################
-#include(cmake/SNLSOptions.cmake)
-
 ##############################
 # settings into SNLS_config.h
 ##############################

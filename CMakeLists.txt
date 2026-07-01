@@ -25,11 +25,8 @@ if (ENABLE_HIP AND ENABLE_TESTS)
     enable_language(C)
 endif()
 
+include(cmake/Options.cmake)
 include(cmake/SetupBLTWrapper.cmake)
-
-option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
-option(USE_RAJA_ONLY "Use RAJA" OFF)
-option(USE_BATCH_SOLVERS "Use batch solvers" OFF)
 
 ################################
 # Include standard build system logic and options

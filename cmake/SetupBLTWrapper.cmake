@@ -24,8 +24,11 @@ if(NOT BLT_LOADED)
     message(FATAL_ERROR "SNLS requires a minimum C++ standard of c++17. Please set BLT_CXX_STD accordingly.")
   endif()
 
-  # Build tests by default
-  option(ENABLE_TESTS "Enables tests" ON)
+  # Set up defaults
+  option(ENABLE_CUDA "Enable CUDA" OFF)
+  option(ENABLE_HIP "Enable HIP" OFF)
+  option(ENABLE_OPENMP "Enable OpenMP" OFF)
+  option(ENABLE_TESTS "Enables tests" OFF)
 
   # Disable unused BLT features
   option(ENABLE_DOCS "Enables documentation" OFF)
