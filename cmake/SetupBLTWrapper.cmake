@@ -46,9 +46,13 @@ if(NOT BLT_LOADED)
   option(ENABLE_FORTRAN "Enables Fortran language support" OFF)
   option(ENABLE_FRUIT "Enables Fortran unit testing framework" OFF)
 
+  # Use newer approach for exporting BLT targets
+  option(BLT_EXPORT_THIRDPARTY "Export BLT targets" OFF)
+
   # Load BLT
   include(${BLT_SOURCE_DIR}/SetupBLT.cmake)
 
+  # Use newer approach for exporting BLT targets
   if (${BLT_VERSION} VERSION_GREATER_EQUAL 0.6.0)
     blt_install_tpl_setups(DESTINATION share/snls/cmake/)
   endif()
