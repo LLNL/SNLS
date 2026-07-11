@@ -71,6 +71,14 @@ if(USE_BATCH_SOLVERS)
   blt_add_test(NAME    snls_view_tests
               COMMAND snls_view_tests)
 
+  blt_add_executable(NAME snls_team_testdriver
+                    SOURCES    SNLS_team_testdriver.cc
+                    OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
+                    DEPENDS_ON gtest snls ${SNLS_TEST_DEPENDS})
+
+  blt_add_test(NAME    snls_team_testdriver
+              COMMAND snls_team_testdriver)
+
 endif()
 
 if(ENABLE_BENCHMARKS)

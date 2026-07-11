@@ -284,6 +284,189 @@ namespace snls {
       Device::GetInstance().SetBackend(prev_strat);
    }
 
+   /**
+    * @brief Block-packing arithmetic used by snls::forall_team to
+    * cooperatively pack NTEAM-wide "teams" of threads -- one team per
+    * iteration index -- into physical CUDA/HIP blocks sized to the
+    * caller's own NUMBLOCKS, without ever shrinking NUMBLOCKS itself.
+    *
+    * NTEAM is the number of threads that cooperate (via
+    * RAJA::LaunchContext::teamSync() and RAJA_TEAM_SHARED memory) on a
+    * single iteration index. It has no default and is independent of any
+    * particular problem size solved inside the body; it is up to the
+    * caller to pick and tune it.
+    *
+    * **Packing arithmetic**:
+    * ```
+    * itemsPerBlock  = max(1, NUMBLOCKS / NTEAM)
+    * effectiveBlock = itemsPerBlock * NTEAM
+    * ```
+    * `effectiveBlock` equals NUMBLOCKS whenever NTEAM evenly divides it;
+    * otherwise it comes out a little smaller (rounding loss) -- except when
+    * NTEAM > NUMBLOCKS, in which case itemsPerBlock floors to 1 and
+    * effectiveBlock is forced *up* to NTEAM, exceeding the original
+    * request.
+    *
+    * @tparam NUMBLOCKS the CUDA/HIP block size the caller already uses for
+    *                   its kernel (e.g. SNLS_GPU_BLOCKS); never shrunk by
+    *                   this packing.
+    * @tparam NTEAM     the number of threads that cooperate on one
+    *                   iteration index.
+    *
+    * @note NTEAM must be > 0 and <= 1024 (the max threads/block on
+    *       essentially all current CUDA/HIP hardware); both are enforced
+    *       with a static_assert rather than left to fail at launch time.
+    *
+    * @see forall_team() for the dispatch built on top of this packing.
+    */
+   template <int NUMBLOCKS, int NTEAM>
+   struct ForallTeamPacking {
+      static_assert(NTEAM > 0, "NTEAM must be positive");
+      static_assert(NTEAM <= 1024,
+                    "NTEAM exceeds the max threads/block on essentially all "
+                    "current CUDA/HIP hardware");
+
+      /** @brief Number of complete, independent teams packed into one
+       *  physical block -- kept as large as NUMBLOCKS/NTEAM allows so the
+       *  *block* stays a good occupancy size even though each individual
+       *  *team* is small. */
+      static constexpr int itemsPerBlock  = (NUMBLOCKS / NTEAM) > 0 ? (NUMBLOCKS / NTEAM) : 1;
+
+      /** @brief The actual CUDA/HIP block size used, itemsPerBlock*NTEAM. */
+      static constexpr int effectiveBlock = itemsPerBlock * NTEAM;
+   };
+
+   /**
+    * @brief Like snls::forall, but hands the body a team of NTEAM
+    * cooperating threads per iteration index instead of one independent
+    * thread per index.
+    *
+    * body signature:
+    * ```
+    * [=] __snls_hdev__ (int i, int tid, int nthreads, int teamBase) { ... }
+    * ```
+    *
+    * **Body parameters**:
+    * - `i` -- which iteration index (point) this thread is contributing
+    *   to. ALWAYS a valid index in [st, end) -- identical guarantee to
+    *   plain snls::forall; never needs a bounds check. Multiple
+    *   invocations with the SAME i (different tid) are cooperating on that
+    *   one index.
+    * - `tid` -- this thread's role within its own team, 0..nthreads-1. By
+    *   convention, tid==0 does any "exactly one thread should do this"
+    *   bookkeeping.
+    * - `nthreads` -- how many threads, total, are cooperating on THIS i.
+    *   Equal to the compile-time NTEAM on the GPU packed dispatches, and 1
+    *   on the CPU/OpenMP fallback.
+    * - `teamBase` -- which "slot" (0..itemsPerBlock-1) within the current
+    *   physical block this thread's team occupies. Needed only if the
+    *   body declares its own RAJA_TEAM_SHARED scratch shared across the
+    *   itemsPerBlock teams co-resident in one block; otherwise ignore it.
+    *
+    * **Dispatch strategy**: internally issues up to two exact,
+    * ragged-tail-free launches -- a main dispatch sized to a multiple of
+    * itemsPerBlock, plus (only if needed) a remainder dispatch of one team
+    * per block for whatever is left over -- rather than a single padded
+    * launch, so every physically-launched thread always receives a valid
+    * `i` and reaches exactly the teamSync() calls its block-mates do.
+    *
+    * @tparam NUMBLOCKS the CUDA/HIP block size the caller already uses;
+    *                   never shrunk by this dispatch (see
+    *                   snls::ForallTeamPacking).
+    * @tparam NTEAM     the number of cooperating threads per team; no
+    *                   default, independent of any problem size solved
+    *                   inside the body -- tune per workload.
+    * @tparam BODY      deduced; the callable described above.
+    *
+    * @param[in] st   first iteration index (inclusive).
+    * @param[in] end  last iteration index (exclusive).
+    * @param[in] body callable invoked once per (index, thread-in-team)
+    *                 pair; see the body-parameter list above for what it
+    *                 is handed.
+    *
+    * **Contract for callers**:
+    * -# `i` is ALWAYS valid (never a padding/out-of-range index).
+    * -# If the body has its own per-index "nothing to do here" fast path
+    *    (already converged, whatever), that condition must NEVER skip or
+    *    wrap a call that contains a teamSync() (directly, or via a
+    *    cooperative SNLS_LUP_* call). Compute an "active" flag and use it
+    *    only to gate which writes actually take effect; the
+    *    loop/teamSync() *structure* must be identical for every thread in
+    *    the block, always.
+    * -# NTEAM is independent of any particular problem size solved inside
+    *    the body -- there is no default relating them. Any index-strided
+    *    loop inside a cooperative solve must stride over `nthreads`, not
+    *    assume a 1:1 tid-to-row mapping, to handle NTEAM being smaller OR
+    *    larger than that solve's own dimension.
+    *
+    * @note On CPU/OpenMP, nthreads is always 1 and teamBase is always 0 --
+    *       a "team of one" degenerates to today's independent-thread
+    *       behavior with zero risk, and (for a single-pass body without
+    *       its own loop) an early-return fast path IS safe there
+    *       specifically, since nthreads==1 implies no other team shares
+    *       this call.
+    * @note This overload does not yet hand the body a
+    *       TeamActivityConsensus (see snls::TeamActivityConsensus) -- that
+    *       is added by a subsequent change, for bodies that have their own
+    *       multi-iteration loop. A body without its own internal loop (a
+    *       single-pass kernel) never needs one.
+    *
+    * @see ForallTeamPacking for the itemsPerBlock/effectiveBlock arithmetic.
+    */
+   template <int NUMBLOCKS, int NTEAM, typename BODY>
+   inline void forall_team(int st, int end, BODY&& body)
+   {
+      switch (Device::GetInstance().GetBackend()) {
+#if defined(__snls_gpu_active__)
+         case ExecutionStrategy::GPU: {
+            // Split into a main dispatch (an exact multiple of
+            // itemsPerBlock, hence of effectiveBlock -- no ragged tail
+            // possible) plus, only if needed, a remainder dispatch sized
+            // to exactly NTEAM threads/block (one team per block -- also
+            // exact, by the same argument, since remainder*NTEAM is
+            // trivially a multiple of NTEAM). Neither dispatch ever lets
+            // RAJA skip a physical thread that would otherwise fail to
+            // reach a teamSync() its block-mates do reach.
+            using Packing = ForallTeamPacking<NUMBLOCKS, NTEAM>;
+            constexpr int itemsPerBlock  = Packing::itemsPerBlock;
+            constexpr int effectiveBlock = Packing::effectiveBlock;
+            const int totalItems = end - st;
+            const int fullCount = itemsPerBlock * (totalItems / itemsPerBlock);
+            const int remainder = totalItems - fullCount;
+
+            if (fullCount > 0) {
+               snls::forall<effectiveBlock>(0, fullCount * NTEAM,
+                  [=] __snls_hdev__ (int gidx) {
+                     const int localIdx = gidx % effectiveBlock;
+                     const int i        = st + gidx / NTEAM;
+                     const int tid      = gidx % NTEAM;
+                     const int teamBase = localIdx / NTEAM;
+                     body(i, tid, NTEAM, teamBase);
+                  });
+            }
+            if (remainder > 0) {
+               snls::forall<NTEAM>(0, remainder * NTEAM,
+                  [=] __snls_hdev__ (int gidx) {
+                     const int i   = st + fullCount + gidx / NTEAM;
+                     const int tid = gidx % NTEAM;
+                     body(i, tid, NTEAM, 0);
+                  });
+            }
+            break;
+         }
+#endif
+         case ExecutionStrategy::OPENMP:
+         case ExecutionStrategy::CPU:
+         default: {
+            // No packing, no barrier hazard -- a "team of one" per index.
+            snls::forall<NUMBLOCKS>(st, end, [=] __snls_hdev__ (int i) {
+               body(i, 0, 1, 0);
+            });
+            break;
+         }
+      }
+   }
+
 }
 #endif // SNLS_RAJA_PORT_SUITE || SNLS_RAJA_ONLY
 #endif /* SNLS_device_forall_h */
