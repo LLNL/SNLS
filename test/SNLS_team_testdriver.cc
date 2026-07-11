@@ -106,4 +106,123 @@ TEST(ForallTeam, SplitDispatchCoverage)
    }
 }
 
+/**
+ * @brief Step 2 (design doc §3.6/§4.2): verify snls::TeamActivityConsensus's
+ * NTEAMS==1 specialization degenerates to exactly `myActive`, at every
+ * call, with no hidden carried-over state -- the property §4.5's unified
+ * solve()/solveTeam() loop depends on for its `nthreads==1` case to behave
+ * identically to today's plain solve() loop.
+ *
+ * Fully testable on this CPU-only machine: NTEAMS==1 is exactly the case
+ * the CPU/OpenMP fallback and the remainder dispatch use, and
+ * RAJA::LaunchContext::teamSync() is a no-op there, so report()'s real
+ * behavior (not just a stand-in) is being exercised.
+ */
+TEST(TeamActivityConsensus, TrivialDegenerateCase)
+{
+   snls::TeamActivityConsensus<1> consensus;
+
+   consensus.report(/*tid=*/0, /*teamBase=*/0, /*myActive=*/true);
+   EXPECT_TRUE(consensus.anyActive());
+
+   consensus.report(0, 0, true);
+   EXPECT_TRUE(consensus.anyActive());
+
+   // Mimic a converging loop: active for a few iterations, then not --
+   // anyActive() must track the LATEST report(), not any prior one.
+   consensus.report(0, 0, false);
+   EXPECT_FALSE(consensus.anyActive());
+
+   consensus.report(0, 0, true);
+   EXPECT_TRUE(consensus.anyActive());
+}
+
+/**
+ * @brief Step 2 (design doc §3.6/§4.2): verify the block-wide OR-reduction
+ * formula itself for NTEAMS>1.
+ *
+ * True concurrent, multi-team execution requires real GPU hardware (per
+ * design doc §5/§7 -- forall_team's CPU/OpenMP fallback never actually
+ * has more than one team sharing a call, so it cannot exercise this). This
+ * test instead simulates the state a block would be in immediately after
+ * every team's teamSync()-gated write phase has completed, by directly
+ * pre-populating every team-slot but the one under report()'s own tid==0
+ * write path, then calling report() for team 0 (whose teamSync() calls
+ * are no-ops here on host) to perform the reduction. This validates the
+ * OR-reduction arithmetic and the teamBase==0-only gating; it does not
+ * validate real concurrent-write safety, which needs §7's GPU hardware
+ * pass.
+ */
+TEST(TeamActivityConsensus, MultiTeamReductionFormula)
+{
+   constexpr int NTEAMS = 4;
+
+   // All teams but team 0 report inactive -- team 0 alone keeps the block
+   // going.
+   {
+      snls::TeamActivityConsensus<NTEAMS> consensus;
+      for (int t = 1; t < NTEAMS; ++t) { consensus.m_active[t] = false; }
+      consensus.report(/*tid=*/0, /*teamBase=*/0, /*myActive=*/true);
+      EXPECT_TRUE(consensus.anyActive());
+   }
+   // Every team, including team 0, reports inactive -- block is done.
+   {
+      snls::TeamActivityConsensus<NTEAMS> consensus;
+      for (int t = 1; t < NTEAMS; ++t) { consensus.m_active[t] = false; }
+      consensus.report(0, 0, false);
+      EXPECT_FALSE(consensus.anyActive());
+   }
+   // A team other than 0 (the one doing the reduction) is the sole
+   // straggler still active.
+   {
+      snls::TeamActivityConsensus<NTEAMS> consensus;
+      consensus.m_active[1] = false;
+      consensus.m_active[2] = true;
+      consensus.m_active[3] = false;
+      consensus.report(0, 0, false);
+      EXPECT_TRUE(consensus.anyActive());
+   }
+}
+
+/**
+ * @brief Step 2, integration-level (design doc §4.1/§4.2): exercise
+ * snls::forall_team's CPU/OpenMP fallback dispatch end-to-end -- not just
+ * TeamActivityConsensus in isolation -- with a body that has its own
+ * multi-iteration loop driven entirely through `consensus.report()`/
+ * `consensus.anyActive()`, mirroring the shape §4.5 uses for
+ * SNLSTrDlDenseG::solveImpl(). Each point converges after a different
+ * number of iterations, verifying the consensus-driven loop structure
+ * (report every iteration, mask real work by `myActive`, stop only when
+ * the whole "block" -- trivially one team on CPU -- is done) produces the
+ * correct per-point iteration count.
+ */
+TEST(ForallTeam, ConsensusDrivenLoopThroughCPUFallback)
+{
+   const int npts = 25;
+   std::vector<int> targetIters(npts);
+   std::vector<int> itersDone(npts, 0);
+   for (int i = 0; i < npts; ++i) {
+      targetIters[i] = 1 + (i % 7); // varies 1..7 across points
+   }
+   int* target = targetIters.data();
+   int* done   = itersDone.data();
+
+   snls::forall_team<64, 4>(0, npts,
+      [=] __snls_hdev__ (int i, int tid, int UNUSED(nthreads), int teamBase, auto& consensus) {
+         bool myActive = true;
+         while (true) {
+            consensus.report(tid, teamBase, myActive);
+            if (!consensus.anyActive()) { break; }
+            if (myActive) {
+               done[i] += 1;
+               if (done[i] >= target[i]) { myActive = false; }
+            }
+         }
+      });
+
+   for (int i = 0; i < npts; ++i) {
+      EXPECT_EQ(itersDone[i], targetIters[i]) << "mismatch at point " << i;
+   }
+}
+
 #endif // SNLS_RAJA_PORT_SUITE

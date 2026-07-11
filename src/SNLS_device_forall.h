@@ -337,14 +337,132 @@ namespace snls {
    };
 
    /**
+    * @brief Block-wide "is any team in my block still active" consensus,
+    * used by a forall_team body that has its own multi-iteration loop to
+    * decide when every team sharing its physical block is done, rather
+    * than exiting on a purely per-team-local condition.
+    *
+    * Once several teams cooperate within one block via teamSync(), a team
+    * that exits its own loop early (because *it* individually is done)
+    * while a block-mate is still iterating cannot safely skip that
+    * block-mate's remaining teamSync() calls -- doing so produces a
+    * mismatched __syncthreads() count within the same block, which is
+    * undefined behavior (in practice, a hang). TeamActivityConsensus makes
+    * every team in a block agree, once per outer iteration, on whether
+    * *any* team still has work left, so every team's loop keeps an
+    * identical teamSync() call count until the whole block finishes
+    * together.
+    *
+    * **Mechanics**: a trivial (no user-declared constructor) aggregate, so
+    * it is safe for a caller to declare one directly as
+    * `RAJA_TEAM_SHARED TeamActivityConsensus<N> consensus;` inside device
+    * code -- every thread in the block executes that same declaration,
+    * but because RAJA_TEAM_SHARED expands to `__shared__` there, all of
+    * them refer to the same single instance. Being trivial matters: a
+    * non-trivial constructor would run redundantly once per thread on
+    * that one shared instance, which is unnecessary at best and a data
+    * race at worst. Anywhere RAJA_TEAM_SHARED instead expands to nothing
+    * (CPU/OpenMP), the same declaration is just an ordinary local
+    * variable, and report()'s two teamSync() calls are no-ops.
+    *
+    * @tparam NTEAMS the number of teams actually co-resident in the
+    *                specific forall_team dispatch that constructs this
+    *                instance -- itemsPerBlock for the main dispatch, or 1
+    *                for both the remainder dispatch and the CPU/OpenMP
+    *                fallback (see forall_team). Must match exactly; never
+    *                a larger bound "just in case" -- reducing over a slot
+    *                no team in this dispatch ever writes reads
+    *                uninitialized shared memory, and garbage bits can
+    *                make the reduction falsely "still active" forever,
+    *                hanging the dispatch permanently.
+    *
+    * @note For NTEAMS==1 (only one team ever present -- the remainder
+    *       dispatch, the CPU/OpenMP fallback, or a lone, non-packed
+    *       caller), the reduction degenerates to exactly `myActive` at
+    *       zero extra cost beyond the early-exit check it replaces --
+    *       this is what lets a plain, single-threaded solve() call share
+    *       one loop implementation with the cooperative solveTeam().
+    *
+    * @see forall_team() for how the two GPU dispatches and the CPU/OpenMP
+    *      fallback each construct a correctly-sized instance.
+    */
+   template <int NTEAMS>
+   struct TeamActivityConsensus {
+      static_assert(NTEAMS > 0, "NTEAMS must be positive");
+
+      /** @brief Per-team "I still have work to do" flags, one slot per
+       *  team co-resident in this block; each team writes only its own
+       *  m_active[teamBase] slot, so no atomics are ever needed. */
+      bool m_active[NTEAMS];
+
+      /** @brief Block-wide OR-reduction of m_active, valid for every
+       *  thread to read via anyActive() only after report() returns. */
+      bool m_anyActive;
+
+      /**
+       * @brief Report this team's activity state and (re-)compute the
+       * block-wide consensus.
+       *
+       * Must be called by every thread in every team sharing this block,
+       * once per outer iteration, with an identical call count across the
+       * whole block -- this function itself contains two teamSync()
+       * calls, so skipping it conditionally is exactly as much a hazard
+       * as skipping a raw teamSync() call would be (see forall_team's
+       * contract).
+       *
+       * @param[in] tid      this thread's role within its own team,
+       *                     0..nthreads-1 (as handed to the forall_team
+       *                     body).
+       * @param[in] teamBase which team-slot (0..NTEAMS-1) this thread's
+       *                     team occupies (as handed to the forall_team
+       *                     body).
+       * @param[in] myActive whether this thread's own team still has work
+       *                     left to do; only tid==0's value is consulted,
+       *                     since it is uniform across a team by
+       *                     construction (it depends only on the team's
+       *                     shared index i, never on tid itself).
+       */
+      __snls_hdev__ void report(int tid, int teamBase, bool myActive)
+      {
+         if (tid == 0) {
+            m_active[teamBase] = myActive;
+         }
+         RAJA::LaunchContext{}.teamSync();
+         if (tid == 0 && teamBase == 0) {
+            bool any = false;
+            for (int t = 0; t < NTEAMS; ++t) {
+               any = any || m_active[t];
+            }
+            m_anyActive = any;
+         }
+         RAJA::LaunchContext{}.teamSync();
+      }
+
+      /**
+       * @brief Whether any team sharing this block reported itself active
+       * on the most recent report() call.
+       *
+       * Safe to call from any thread; only meaningful after report() has
+       * returned at least once.
+       *
+       * @return true if at least one team co-resident in this block was
+       *         still active as of the most recent report().
+       */
+      __snls_hdev__ bool anyActive() const { return m_anyActive; }
+   };
+
+   /**
     * @brief Like snls::forall, but hands the body a team of NTEAM
     * cooperating threads per iteration index instead of one independent
     * thread per index.
     *
     * body signature:
     * ```
-    * [=] __snls_hdev__ (int i, int tid, int nthreads, int teamBase) { ... }
+    * [=] __snls_hdev__ (int i, int tid, int nthreads, int teamBase,
+    *                     auto& consensus) { ... }
     * ```
+    * (`consensus`'s concrete type varies by dispatch -- see below -- so a
+    * body that touches it must accept it generically, e.g. via `auto&`.)
     *
     * **Body parameters**:
     * - `i` -- which iteration index (point) this thread is contributing
@@ -362,13 +480,24 @@ namespace snls {
     *   physical block this thread's team occupies. Needed only if the
     *   body declares its own RAJA_TEAM_SHARED scratch shared across the
     *   itemsPerBlock teams co-resident in one block; otherwise ignore it.
+    * - `consensus` -- an already-constructed snls::TeamActivityConsensus,
+    *   sized correctly for however many teams are actually co-resident in
+    *   this specific dispatch (main vs. remainder vs. CPU/OpenMP
+    *   fallback). Only needed if the body has its own multi-iteration
+    *   loop that must know "has every team sharing my block finished, or
+    *   is someone still working" -- a single-pass body can ignore it
+    *   entirely.
     *
     * **Dispatch strategy**: internally issues up to two exact,
     * ragged-tail-free launches -- a main dispatch sized to a multiple of
     * itemsPerBlock, plus (only if needed) a remainder dispatch of one team
     * per block for whatever is left over -- rather than a single padded
     * launch, so every physically-launched thread always receives a valid
-    * `i` and reaches exactly the teamSync() calls its block-mates do.
+    * `i` and reaches exactly the teamSync() calls its block-mates do. Each
+    * of the two GPU dispatches, and the CPU/OpenMP fallback, constructs
+    * its own snls::TeamActivityConsensus sized to the number of teams
+    * actually present in that dispatch (itemsPerBlock, 1, and 1
+    * respectively) -- never a larger, shared bound.
     *
     * @tparam NUMBLOCKS the CUDA/HIP block size the caller already uses;
     *                   never shrunk by this dispatch (see
@@ -388,9 +517,10 @@ namespace snls {
     * -# `i` is ALWAYS valid (never a padding/out-of-range index).
     * -# If the body has its own per-index "nothing to do here" fast path
     *    (already converged, whatever), that condition must NEVER skip or
-    *    wrap a call that contains a teamSync() (directly, or via a
-    *    cooperative SNLS_LUP_* call). Compute an "active" flag and use it
-    *    only to gate which writes actually take effect; the
+    *    wrap a call that contains a teamSync() -- directly, via a
+    *    cooperative SNLS_LUP_* call, or via `consensus.report()` (which
+    *    itself contains two teamSync() calls). Compute an "active" flag
+    *    and use it only to gate which writes actually take effect; the
     *    loop/teamSync() *structure* must be identical for every thread in
     *    the block, always.
     * -# NTEAM is independent of any particular problem size solved inside
@@ -398,6 +528,9 @@ namespace snls {
     *    loop inside a cooperative solve must stride over `nthreads`, not
     *    assume a 1:1 tid-to-row mapping, to handle NTEAM being smaller OR
     *    larger than that solve's own dimension.
+    * -# If the body has its own multi-iteration loop, its termination must
+    *    go through `consensus`, not a per-team-local exit condition (see
+    *    snls::TeamActivityConsensus).
     *
     * @note On CPU/OpenMP, nthreads is always 1 and teamBase is always 0 --
     *       a "team of one" degenerates to today's independent-thread
@@ -405,13 +538,9 @@ namespace snls {
     *       its own loop) an early-return fast path IS safe there
     *       specifically, since nthreads==1 implies no other team shares
     *       this call.
-    * @note This overload does not yet hand the body a
-    *       TeamActivityConsensus (see snls::TeamActivityConsensus) -- that
-    *       is added by a subsequent change, for bodies that have their own
-    *       multi-iteration loop. A body without its own internal loop (a
-    *       single-pass kernel) never needs one.
     *
     * @see ForallTeamPacking for the itemsPerBlock/effectiveBlock arithmetic.
+    * @see TeamActivityConsensus for the `consensus` parameter's contract.
     */
    template <int NUMBLOCKS, int NTEAM, typename BODY>
    inline void forall_team(int st, int end, BODY&& body)
@@ -441,7 +570,13 @@ namespace snls {
                      const int i        = st + gidx / NTEAM;
                      const int tid      = gidx % NTEAM;
                      const int teamBase = localIdx / NTEAM;
-                     body(i, tid, NTEAM, teamBase);
+                     // One instance per physical block (§3.6/§10): every
+                     // thread in the block executes this same declaration,
+                     // but RAJA_TEAM_SHARED makes them all refer to the
+                     // same storage. Sized to itemsPerBlock -- exactly the
+                     // number of teams co-resident in this dispatch.
+                     RAJA_TEAM_SHARED TeamActivityConsensus<itemsPerBlock> consensus;
+                     body(i, tid, NTEAM, teamBase, consensus);
                   });
             }
             if (remainder > 0) {
@@ -449,7 +584,10 @@ namespace snls {
                   [=] __snls_hdev__ (int gidx) {
                      const int i   = st + fullCount + gidx / NTEAM;
                      const int tid = gidx % NTEAM;
-                     body(i, tid, NTEAM, 0);
+                     // Exactly one team per block in the remainder
+                     // dispatch (§3.7) -- trivial by construction.
+                     RAJA_TEAM_SHARED TeamActivityConsensus<1> consensus;
+                     body(i, tid, NTEAM, 0, consensus);
                   });
             }
             break;
@@ -460,7 +598,8 @@ namespace snls {
          default: {
             // No packing, no barrier hazard -- a "team of one" per index.
             snls::forall<NUMBLOCKS>(st, end, [=] __snls_hdev__ (int i) {
-               body(i, 0, 1, 0);
+               RAJA_TEAM_SHARED TeamActivityConsensus<1> consensus;
+               body(i, 0, 1, 0, consensus);
             });
             break;
          }
