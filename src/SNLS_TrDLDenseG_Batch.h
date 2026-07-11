@@ -357,24 +357,100 @@ class SNLSTrDlDenseG_Batch
                // up the kernels if we did the above...
                // We  might be able to move some or all of this code to other kernels in the code
                // to reduce number of kernels launches which could help with performance.
-               snls::forall<SNLS_GPU_BLOCKS>(0, batch_size, [=] __snls_hdev__ (int i)
+               //
+               // Rebuilt on snls::forall_team: several points' worth of
+               // cooperating threads (a "team" per point) are packed into
+               // each physical block, itemsPerBlock of them, without
+               // shrinking SNLS_GPU_BLOCKS itself (design doc §3.2/§4.1).
+               constexpr int itemsPerBlock =
+                  snls::ForallTeamPacking<SNLS_GPU_BLOCKS, nDim>::itemsPerBlock;
+
+               snls::forall_team<SNLS_GPU_BLOCKS, nDim>(0, batch_size,
+                  [=] __snls_hdev__ (int i, int tid, int nthreads, int teamBase,
+                                      auto& UNUSED(consensus))
                {  // start of cauchy point calculations
-                  // this breaks out of the internal lambda and is essentially a loop continue
-                  if( status[i + offset] != SNLSStatus_t::unConverged){ return; }
-                  if ( !reject_prev(i) ) {
-                     snls::linalg::matTVecMult<nDim, nDim>(&Jacobian.get_data()[i * nXnDim], &residual.get_data()[i * nDim], &grad.get_data()[i * nDim]);
+                  // Masking, not early return (design doc §3.4): a point
+                  // that has already converged/failed, or whose previous
+                  // step was rejected, still runs through every teamSync()
+                  // below -- an early "return" here would strand any
+                  // other point's team sharing this physical block on a
+                  // mismatched teamSync() count. `active` depends only on
+                  // `i`, so every thread in this team computes the same
+                  // value.
+                  const bool active = (status[i + offset] == SNLSStatus_t::unConverged)
+                                       && !reject_prev(i);
+
+                  // Team-shared scratch, one slot per team co-resident in
+                  // this block (teamBase-indexed) -- sized to itemsPerBlock,
+                  // never declared per-team, since RAJA_TEAM_SHARED memory
+                  // is scoped to the whole physical block, not to one team
+                  // within it (see SNLS_lup_solve.h's cooperative overloads).
+                  RAJA_TEAM_SHARED double Jshared[itemsPerBlock][nDim][nDim];
+                  RAJA_TEAM_SHARED int    pivShared[itemsPerBlock][nDim + 1];
+                  double* myJ   = &Jshared[teamBase][0][0];
+                  int*    myPiv = &pivShared[teamBase][0];
+
+                  for (int r = tid; r < _nDim; r += nthreads) {
+                     for (int c = 0; c < _nDim; ++c) {
+                        // Masked-off point: seed with a well-conditioned
+                        // dummy (identity) rather than real/stale data, so
+                        // the LU decompose below -- which still runs
+                        // unconditionally -- never spuriously looks
+                        // singular (§3.4).
+                        myJ[r*nDim + c] = active ? Jacobian.get_data()[i*nXnDim + r*nDim + c]
+                                                 : (r == c ? 1.0 : 0.0);
+                     }
+                  }
+                  // Publish the row-load to the whole team before anyone
+                  // reads myJ -- needed here (not just inside the
+                  // cooperative LU solve below) because matTVecMult/
+                  // matVecMult read the whole matrix immediately below,
+                  // before computeNewtonStep's own internal sync would
+                  // otherwise cover it.
+                  RAJA::LaunchContext{}.teamSync();
+
+                  if (tid == 0 && active) {
+                     snls::linalg::matTVecMult<nDim, nDim>(myJ, &residual.get_data()[i * nDim], &grad.get_data()[i * nDim]);
                      {
                         double ntemp[nDim] ;
-                        snls::linalg::matVecMult<nDim, nDim>(&Jacobian.get_data()[i * nXnDim], &grad.get_data()[i * nDim], ntemp); // was -grad in previous implementation, but sign does not matter
+                        snls::linalg::matVecMult<nDim, nDim>(myJ, &grad.get_data()[i * nDim], ntemp); // was -grad in previous implementation, but sign does not matter
                         Jg_2(i) = snls::linalg::dotProd<nDim>(ntemp, ntemp);
                      }
-                     const bool sol_stat = this->computeNewtonStep( &Jacobian.get_data()[i * nXnDim], &residual.get_data()[i * nDim], &nrStep.get_data()[i * nDim] ) ;
+                  }
+                  RAJA::LaunchContext{}.teamSync(); // before the cooperative call, all threads unconditionally
+
+                  // A rejected point's nrStep must stay exactly as it was
+                  // (dogleg reads it based on `status` alone, not
+                  // `reject_prev` -- see SNLS_kernels_batch.h::dogleg).
+                  // computeNewtonStep runs unconditionally either way (it
+                  // has no notion of "active" itself, and running it on
+                  // the dummy identity above is harmless), but its output
+                  // for an inactive point is only ever written into this
+                  // thread-private scratch, never into the persistent
+                  // nrStep buffer.
+                  double newtonScratch[nDim];
+                  double* newtonDest = active ? &nrStep.get_data()[i * nDim] : newtonScratch;
+
+                  bool sol_stat = this->computeNewtonStep( tid, nthreads, myPiv, myJ,
+                                                            &residual.get_data()[i * nDim],
+                                                            newtonDest ) ;
+                  RAJA::LaunchContext{}.teamSync(); // after
+
+                  if (tid == 0 && active) {
                      if (!sol_stat) {
                         status[i + offset] = SNLSStatus_t::linearSolveFailure;
-                        return;
+                     } else {
+                        nr_norm(i) = snls::linalg::norm<nDim>( &nrStep.get_data()[i * nDim] );
                      }
-                     nr_norm(i) = snls::linalg::norm<nDim>( &nrStep.get_data()[i * nDim] );
                   }
+                  // nthreads==1 carve-out (§3.4): on CPU/OpenMP,
+                  // forall_team's fallback always uses nthreads==1, which
+                  // means no other team shares this specific call -- an
+                  // early `if (!active) return;` at the top would be
+                  // equally correct and cheaper there (kernel-1 is a
+                  // single-pass body, not a loop), but the masked shape
+                  // above is used unconditionally for simplicity, since it
+                  // is already correct on every backend.
                }); // end of batch compute kernel 1
                // Computes the batch version of the dogleg code and updates the solution variable x
                snls::batch::dogleg<nDim>(offset, batch_size, status, delta, res_0, nr_norm, Jg_2, grad, nrStep,
@@ -508,14 +584,56 @@ class SNLSTrDlDenseG_Batch
 #endif
       }
    private :
-     __snls_hdev__ inline bool  computeNewtonStep (double* const       J,
+     /**
+      * @brief Compute the Newton step: J*newton = -r, via a team of
+      * `nthreads` cooperating threads instead of one thread doing the
+      * whole factorization alone. Parameterized version of what used to
+      * be a zero-argument member function; every other call site's
+      * behavior is unaffected by this refactor.
+      *
+      * Only the LU factorization itself is team-parallel in this pass
+      * (the negation below stays `tid==0`-only, matching the deliberate
+      * v1 scoping decision -- see the design document for why parallelizing
+      * it too would be free but is deliberately deferred for consistency
+      * with matTVecMult/matVecMult, which are also `tid==0`-only in the
+      * caller).
+      *
+      * @param[in]     tid      this thread's role within its own team,
+      *                         0..nthreads-1.
+      * @param[in]     nthreads how many threads are cooperating on this
+      *                         one Newton step.
+      * @param[in,out] piv      n+1, team-shared pivot-vector scratch
+      *                         (`teamBase`-indexed by the caller) -- see
+      *                         the cooperative SNLS_LUP_Solve() overload
+      *                         in SNLS_lup_solve.h for why this must be
+      *                         caller-provided rather than declared here.
+      * @param[in,out] J        n*n, row-major, team-shared scratch.
+      *                         Decomposed in place.
+      * @param[in]     r        n, the residual vector.
+      * @param[out]    newton   n, the computed Newton step. The caller
+      *                         chooses which buffer this points to (the
+      *                         real, persistent per-point storage, or a
+      *                         throwaway scratch buffer for a masked-off
+      *                         point) -- this function has no notion of
+      *                         "active" itself, it just writes wherever
+      *                         it is told to.
+      *
+      * @return true on success, false if the (possibly team-cooperative)
+      *         LU solve failed.
+      */
+     __snls_hdev__ inline bool  computeNewtonStep (int tid, int nthreads,
+                                      int* const          piv,
+                                      double* const       J,
                                       const double* const r,
                                       double* const       newton  ) {
 #if HAVE_LAPACK && SNLS_USE_LAPACK && defined(__snls_host_only__)
          // This version of the Newton solver uses the LAPACK solver DGETRF() and DGETRS()
-         // 
-         // Note that we can replace this with a custom function if there are performance 
+         //
+         // Note that we can replace this with a custom function if there are performance
          // specializations (say for a known fixed system size)
+         // UNTOUCHED -- host-only, never reached with nthreads>1 in
+         // practice since the GPU packed path never compiles
+         // __snls_host_only__ code; tid/nthreads/piv are unused here.
          // row-major storage
          const char trans = 'T';
 
@@ -533,7 +651,7 @@ class SNLSTrDlDenseG_Batch
          }
 
          for (int iX = 0; iX < _nDim; ++iX) {
-            newton[iX] = - r[iX] ; 
+            newton[iX] = - r[iX] ;
          }
 
          int nRHS=1; info=0;
@@ -549,13 +667,14 @@ class SNLSTrDlDenseG_Batch
 
          {
             const int n = _nDim;
+            constexpr double tol = 1e-50; // matches the plain overload's default
 
-            int   err = SNLS_LUP_Solve<n>(J, newton, r);
+            int   err = SNLS_LUP_Solve<n>(J, piv, newton, r, tid, nthreads, tol);
             if (err<0) {
                SNLS_WARN(__func__," fail return from LUP_Solve()");
                return false;
             }
-            for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; }
+            if (tid == 0) { for (int i=0; (i<n); ++i) { newton[i] = -newton[i]; } }
          }
 #endif
          return true;
