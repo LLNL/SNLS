@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <random>
 #include <set>
 #include <vector>
 
@@ -14,6 +15,8 @@ using namespace std;
 
 #include "SNLS_device_forall.h"
 #include "SNLS_lup_solve.h"
+#include "SNLS_TrDLDenseG.h"
+#include "SNLS_testmodels.h"
 
 /**
  * @brief Case 1 (design doc §5): verify snls::ForallTeamPacking's
@@ -474,6 +477,198 @@ TEST(LupSolveCooperative, SolveXRHSStrideCoverage)
          EXPECT_EQ(covered.count(r), 1u) << "RHS " << r << " never covered";
       }
    }
+}
+
+/**
+ * @brief Design doc §5 case 6: SNLS_LUP_SolveX with several right-hand
+ * sides, for nRHS values both smaller and larger than the simulated
+ * thread count.
+ *
+ * True concurrent execution needs GPU hardware (§5/§7), so this decomposes
+ * once via the already-validated cooperative SNLS_LUP_Decompose (tid=0,
+ * nthreads=1), then hands each right-hand side's substitution to a
+ * simulated "thread" per the same `r=tid; r<nRHS; r+=nthreads` stride
+ * SNLS_LUP_SolveX itself uses internally -- via the plain, teamSync()-free
+ * serial substitution routine, exactly as SNLS_LUP_SolveX does (see
+ * SNLS_lup_solve.h's cooperative SNLS_LUP_SolveX doc comment for why it
+ * uses that routine rather than the cooperative one for this). The
+ * combined result across all simulated threads must match calling the
+ * existing serial SNLS_LUP_SolveX once for every right-hand side.
+ */
+TEST(LupSolveCooperative, SolveXSimulatedMultiThreadDistribution)
+{
+   constexpr int n = 5;
+   struct Combo { int nRHS; int nthreads; };
+   const std::vector<Combo> combos = {
+      {2, 4},  // nRHS < nthreads
+      {5, 5},  // nRHS == nthreads
+      {7, 3},  // nRHS > nthreads, doesn't divide evenly
+      {9, 4},  // nRHS > nthreads
+   };
+
+   for (const auto& c : combos) {
+      std::vector<double> aRef, b;
+      buildLupTestProblem<n>(aRef, b);
+      std::vector<double> aSim = aRef;
+
+      std::vector<double> xbRef(c.nRHS * n);
+      for (int r = 0; r < c.nRHS; ++r) {
+         for (int i = 0; i < n; ++i) { xbRef[r*n + i] = b[i] + r * 0.7 - i * 0.2; }
+      }
+      int errRef = ::SNLS_LUP_SolveX<n>(aRef.data(), xbRef.data(), c.nRHS, 1e-50);
+      ASSERT_EQ(errRef, 0);
+
+      int pivSim[n + 1];
+      int errSim = ::SNLS_LUP_Decompose<n>(aSim.data(), pivSim, 1e-50, /*tid=*/0, /*nthreads=*/1);
+      ASSERT_EQ(errSim, 0);
+
+      double* mtx[n];
+      for (int i = 0, k = 0; i < n; ++i, k += n) { mtx[i] = aSim.data() + k; }
+
+      std::vector<double> xbSim(c.nRHS * n);
+      for (int r = 0; r < c.nRHS; ++r) {
+         for (int i = 0; i < n; ++i) { xbSim[r*n + i] = b[i] + r * 0.7 - i * 0.2; }
+      }
+      for (int tid = 0; tid < c.nthreads; ++tid) {
+         for (int r = tid; r < c.nRHS; r += c.nthreads) {
+            double* xThis = &xbSim[r*n];
+            double wrk[n];
+            for (int k = 0; k < n; ++k) { wrk[k] = xThis[k]; }
+            ::SNLS_LUP_Solve<n>(mtx, pivSim, xThis, wrk);
+         }
+      }
+
+      for (int i = 0; i < c.nRHS * n; ++i) {
+         EXPECT_EQ(xbRef[i], xbSim[i])
+            << "nRHS=" << c.nRHS << " nthreads=" << c.nthreads << " i=" << i;
+      }
+   }
+}
+
+/**
+ * @brief Design doc §5 case 3: heterogeneous iteration count within
+ * separate solveTeam() calls -- each point converges after a different
+ * number of Newton iterations, driven entirely through the real
+ * snls::forall_team + SNLSTrDlDenseG::solveTeam() path (not a synthetic
+ * stand-in), exercised via forall_team's CPU fallback.
+ *
+ * This validates the actual, real consensus-driven loop inside
+ * solveImpl() end to end; it cannot exercise genuine cross-team
+ * teamSync() divergence (the CPU fallback never has more than one team
+ * sharing a call), which needs GPU hardware -- see §5/§7.
+ */
+TEST(SolveTeamNonBatch, HeterogeneousIterationCountThroughForallTeam)
+{
+   constexpr double lambda = 0.9999;
+   constexpr int nDimSys = 4;
+   const int npts = 15;
+
+   // A deliberate difficulty gradient rather than narrow random noise:
+   // points near the "easy" starting guess (x=0, per SNLS_testmodels.h's
+   // own comment on this problem) converge in fewer Newton iterations
+   // than ones near the "standard," harder starting guess (x=-1) or
+   // beyond -- confirmed empirically to actually vary (asserted below),
+   // not just assumed.
+   std::vector<double> x0(npts * nDimSys);
+   for (int i = 0; i < npts; ++i) {
+      const double scale = -1.5 * (static_cast<double>(i) / (npts - 1));
+      for (int k = 0; k < nDimSys; ++k) { x0[i*nDimSys + k] = scale; }
+   }
+
+   std::vector<int> itersUsed(npts, -1);
+   std::vector<int> converged(npts, 0); // not std::vector<bool> -- no .data()
+   const double* x0ptr = x0.data();
+   int* itersPtr = itersUsed.data();
+   int* convPtr = converged.data();
+
+   snls::forall_team<64, 4>(0, npts,
+      [=] __snls_hdev__ (int i, int tid, int nthreads, int teamBase, auto& consensus) {
+         auto crj = broyden_lambda(lambda, nDimSys);
+         snls::SNLSTrDlDenseG<decltype(crj), nDimSys> solver(crj);
+         snls::TrDeltaControl deltaControl;
+         deltaControl._deltaInit = 1.0;
+         solver.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 0);
+         for (int k = 0; k < nDimSys; ++k) { solver._x[k] = x0ptr[i*nDimSys + k]; }
+         snls::SNLSStatus_t status = solver.solveTeam(tid, nthreads, teamBase, consensus);
+         convPtr[i]  = snls::isConverged(status);
+         itersPtr[i] = solver.getNFEvals();
+      });
+
+   int minIters = itersUsed[0];
+   int maxIters = itersUsed[0];
+   for (int i = 0; i < npts; ++i) {
+      EXPECT_TRUE(converged[i]) << "point " << i << " failed to converge";
+      minIters = std::min(minIters, itersUsed[i]);
+      maxIters = std::max(maxIters, itersUsed[i]);
+   }
+   // Confirm genuine heterogeneity in iteration count across points --
+   // otherwise this would not actually be exercising different-iteration-
+   // count teams at all.
+   EXPECT_GT(maxIters, minIters);
+}
+
+/**
+ * @brief Design doc §5 cases 4 & 5: a sequence of two different-sized
+ * solves for "the same point" (mirroring ExaCMech's 24x24-then-3x3-...
+ * scenario in miniature), run both with solveTeam()'s self-managed
+ * scratch (extScratch/extPiv == nullptr) and with one caller-owned buffer
+ * sized to the larger problem and reused across both solves in the
+ * sequence. Both must converge to the same, correct answer, and the
+ * two scratch-management strategies must produce bit-identical results.
+ */
+TEST(SolveTeamNonBatch, DifferentSizedSequenceSelfManagedVsSharedScratch)
+{
+   constexpr double lambda = 0.9999;
+   constexpr int nDimA = 3;
+   constexpr int nDimB = 6;
+
+   auto crjA = broyden_lambda(lambda, nDimA);
+   auto crjB = broyden_lambda(lambda, nDimB);
+
+   auto runOnce = [&](double* extScratchA, int* extPivA,
+                       double* extScratchB, int* extPivB,
+                       double* xAOut, double* xBOut,
+                       snls::SNLSStatus_t& statusAOut, snls::SNLSStatus_t& statusBOut) {
+      snls::TrDeltaControl deltaControl;
+      deltaControl._deltaInit = 1.0;
+
+      snls::SNLSTrDlDenseG<decltype(crjA), nDimA> solverA(crjA);
+      solverA.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 0);
+      for (int k = 0; k < nDimA; ++k) { solverA._x[k] = 0.0; }
+      snls::TeamActivityConsensus<1> consensusA;
+      statusAOut = solverA.solveTeam(0, 1, 0, consensusA, extScratchA, extPivA);
+      solverA.getX(xAOut);
+
+      snls::SNLSTrDlDenseG<decltype(crjB), nDimB> solverB(crjB);
+      solverB.setupSolver(NL_MAXITER, NL_TOLER, &deltaControl, 0);
+      for (int k = 0; k < nDimB; ++k) { solverB._x[k] = 0.0; }
+      snls::TeamActivityConsensus<1> consensusB;
+      statusBOut = solverB.solveTeam(0, 1, 0, consensusB, extScratchB, extPivB);
+      solverB.getX(xBOut);
+   };
+
+   double xASelf[nDimA], xBSelf[nDimB];
+   snls::SNLSStatus_t statusASelf, statusBSelf;
+   runOnce(nullptr, nullptr, nullptr, nullptr, xASelf, xBSelf, statusASelf, statusBSelf);
+
+   // One buffer sized to the LARGER problem, reused for BOTH solves in
+   // sequence (design doc §3.5).
+   constexpr int maxNXnDim = nDimB * nDimB;
+   constexpr int maxNDim   = nDimB;
+   double sharedScratch[maxNXnDim + maxNDim];
+   int    sharedPiv[maxNDim + 1];
+
+   double xAShared[nDimA], xBShared[nDimB];
+   snls::SNLSStatus_t statusAShared, statusBShared;
+   runOnce(sharedScratch, sharedPiv, sharedScratch, sharedPiv,
+           xAShared, xBShared, statusAShared, statusBShared);
+
+   EXPECT_TRUE(snls::isConverged(statusASelf));
+   EXPECT_TRUE(snls::isConverged(statusBSelf));
+   EXPECT_EQ(statusASelf, statusAShared);
+   EXPECT_EQ(statusBSelf, statusBShared);
+   for (int k = 0; k < nDimA; ++k) { EXPECT_EQ(xASelf[k], xAShared[k]) << "A k=" << k; }
+   for (int k = 0; k < nDimB; ++k) { EXPECT_EQ(xBSelf[k], xBShared[k]) << "B k=" << k; }
 }
 
 #endif // SNLS_RAJA_PORT_SUITE

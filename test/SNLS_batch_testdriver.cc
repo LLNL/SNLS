@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <random>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -232,6 +233,104 @@ TEST(snls,broyden_a) // int main(int , char ** )
    }
    std::cout << "Function evaluations: " << solver.getMaxNFEvals() << "\n";
    EXPECT_EQ( solver.getMaxNFEvals(), 19 ) << "Expected 19 function evaluations for this case" ;
+}
+
+/**
+ * @brief Design doc §5 case 2: heterogeneous convergence within one
+ * packed dispatch. Runs the same batch (same starting guesses, via an
+ * identically-seeded setX()) twice, with a short and a long maxIter
+ * budget. Points that finish (converge or fail) within the short budget
+ * must show bit-for-bit identical _x and status in the long-budget run --
+ * nothing should touch a point once it stops being active, no matter how
+ * many further (masked) iterations the rest of the batch forces it to
+ * sit through (§3.4). This exercises the real, rebuilt kernel-1 end to
+ * end, not a synthetic stand-in.
+ */
+TEST(snls, broyden_heterogeneous_convergence_unchanged)
+{
+   const int nDim = Broyden::nDimSys;
+   const int nBatch = 60;
+
+   snls::TrDeltaInput deltaControlBroyden;
+   deltaControlBroyden.deltaInit = 1.0;
+
+   // A deliberate difficulty gradient across points -- unlike setX()'s
+   // narrow random perturbation near zero (which, tried first, left every
+   // point in this small a batch needing a similar iteration count),
+   // spanning from near the "easy" x=0 guess to the harder, standard x=-1
+   // guess and beyond reliably produces a genuine spread of convergence
+   // speeds within one batch.
+   std::vector<double> x0(nBatch * nDim);
+   for (int i = 0; i < nBatch; ++i) {
+      const double scale = -1.5 * (static_cast<double>(i) / (nBatch - 1));
+      for (int j = 0; j < nDim; ++j) { x0[i*nDim + j] = scale; }
+   }
+
+   // Empirically, this gradient's per-point iteration counts span roughly
+   // 13-20 (checked directly) -- 16 sits in the middle of that range, so
+   // roughly the easier half of the batch actually converges within this
+   // budget while the harder half does not, giving a genuinely
+   // heterogeneous batch rather than an all-or-nothing split.
+   Broyden broydenShort( 0.9999 );
+   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solverShort(broydenShort, nBatch, nBatch);
+   solverShort.setupSolver(16, NL_TOLER, deltaControlBroyden, 0);
+   solverShort.setX(x0.data());
+   solverShort.solve();
+
+   Broyden broydenLong( 0.9999 );
+   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solverLong(broydenLong, nBatch, nBatch);
+   solverLong.setupSolver(NL_MAXITER, NL_TOLER, deltaControlBroyden, 0);
+   solverLong.setX(x0.data());
+   solverLong.solve();
+
+   snls::SNLSStatus_t* statusShort = solverShort.getStatusHost();
+   snls::SNLSStatus_t* statusLong  = solverLong.getStatusHost();
+
+   std::vector<double> xShort(nDim * nBatch);
+   std::vector<double> xLong(nDim * nBatch);
+   solverShort.getX(xShort.data());
+   solverLong.getX(xLong.data());
+
+   int numFinishedEarly = 0;
+   for (int i = 0; i < nBatch; ++i) {
+      if (statusShort[i] != snls::SNLSStatus_t::unConverged) {
+         ++numFinishedEarly;
+         EXPECT_EQ(statusShort[i], statusLong[i])
+            << "point " << i << " status changed after it had already finished";
+         for (int j = 0; j < nDim; ++j) {
+            EXPECT_EQ(xShort[i*nDim + j], xLong[i*nDim + j])
+               << "point " << i << " x[" << j << "] changed after it had already finished";
+         }
+      }
+   }
+   // This test is only meaningful if the short budget actually left the
+   // batch in a genuinely heterogeneous state -- some points finished,
+   // some didn't -- otherwise it isn't exercising the masking path at all.
+   EXPECT_GT(numFinishedEarly, 0) << "expected at least one point to finish within the short budget";
+   EXPECT_LT(numFinishedEarly, nBatch) << "expected at least one point to still be unconverged after the short budget";
+}
+
+/**
+ * @brief Design doc §5's "also extend SNLS_batch_testdriver.cc" note: a
+ * batch size deliberately not a round multiple of itemsPerBlock (for
+ * nDim=8 and the default SNLS_GPU_BLOCKS=256, itemsPerBlock=32), forcing
+ * forall_team's remainder dispatch (§3.7) to actually run, not just the
+ * main dispatch.
+ */
+TEST(snls, broyden_batch_size_not_itemsPerBlock_multiple)
+{
+   const int nDim = Broyden::nDimSys;
+   const int nBatch = 777; // 777 = 32*24 + 9 -- deliberately not a multiple of 32
+
+   Broyden broyden( 0.9999 );
+   snls::batch::SNLSTrDlDenseG_Batch<Broyden> solver(broyden, nBatch, nBatch);
+   snls::TrDeltaInput deltaControlBroyden;
+   deltaControlBroyden.deltaInit = 1.0;
+   solver.setupSolver(NL_MAXITER, NL_TOLER, deltaControlBroyden, 0);
+   setX(solver, nDim * nBatch);
+
+   bool status = solver.solve();
+   EXPECT_TRUE(status) << "Expected all points in a non-round batch size to converge";
 }
 
 #endif //HAVE_RAJA_PERF_SUITE
