@@ -95,7 +95,11 @@ namespace snls {
 #if defined(__snls_gpu_active__)
          case ExecutionStrategy::GPU:
          {
+#if CAMP_VERSION_MAJOR >= 2026
+            std::get<rgpu_res>(res).wait_for(*event);
+#else
             std::get<rgpu_res>(res).wait_for(event);
+#endif
             break;
          }
 #endif
@@ -104,7 +108,11 @@ namespace snls {
 #endif
          case ExecutionStrategy::CPU:
          default:
+#if CAMP_VERSION_MAJOR >= 2026
+            std::get<rhost_res>(res).wait_for(*event);
+#else
             std::get<rhost_res>(res).wait_for(event);
+#endif
       }
    }
 
